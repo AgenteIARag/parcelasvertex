@@ -1,0 +1,46 @@
+/* Reset básico */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Customização fina da barra de rolagem para tabelas largas e navegação horizontal premium */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Scrollbar para o modo escuro (default) */
+body.dark-mode-active ::-webkit-scrollbar-thumb,
+[class*="MuiTableContainer"]::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+body.dark-mode-active ::-webkit-scrollbar-thumb:hover,
+[class*="MuiTableContainer"]::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Scrollbar genérico */
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
