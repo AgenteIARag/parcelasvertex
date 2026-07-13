@@ -19,45 +19,34 @@ import { formatarMoeda, formatarMoedaEixo, formatarChaveMesExibicao } from '../u
 
 interface AnalyticsChartsProps {
   vendas: LancamentoVenda[];
+  dataInicio: string;
+  dataFim: string;
 }
 
-export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas }) => {
+export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataInicio, dataFim }) => {
   const theme = useTheme();
 
-
-
-  // Gera dinamicamente a lista de chaves "YYYY-MM" de Janeiro/2026 até o faturamento ativo mais distante
+  // Gera dinamicamente a lista de chaves "YYYY-MM" no intervalo de data selecionado
   const obterMesesEvolucao = (): string[] => {
-    let dataMax = '2026-12-15';
-    vendas.forEach((venda) => {
-      Object.values(venda.projecaoMensal).forEach((mesObj) => {
-        if (mesObj.valorVenda > 0 && mesObj.status !== 'Cancelada' && mesObj.dataVencimento > dataMax) {
-          dataMax = mesObj.dataVencimento;
-        }
-      });
-    });
-
-    const [anoMaxStr, mesMaxStr] = dataMax.split('-');
-    const anoMax = Number(anoMaxStr);
-    const mesMax = Number(mesMaxStr);
-
     const meses: string[] = [];
-    let anoAtual = 2026;
-    let mesAtual = 1;
+    const dataI = new Date(dataInicio + 'T00:00:00');
+    const dataF = new Date(dataFim + 'T00:00:00');
 
-    while (anoAtual < anoMax || (anoAtual === anoMax && mesAtual <= mesMax)) {
-      const mesStr = String(mesAtual).padStart(2, '0');
-      meses.push(`${anoAtual}-${mesStr}`);
-      mesAtual++;
-      if (mesAtual > 12) {
-        mesAtual = 1;
-        anoAtual++;
-      }
+    let dataAtual = new Date(dataI.getFullYear(), dataI.getMonth(), 15);
+    const dataLimite = new Date(dataF.getFullYear(), dataF.getMonth(), 15);
+
+    while (dataAtual <= dataLimite) {
+      const ano = dataAtual.getFullYear();
+      const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+      meses.push(`${ano}-${mes}`);
+      dataAtual.setMonth(dataAtual.getMonth() + 1);
     }
     return meses;
   };
 
   const chavesMesesGrafico = obterMesesEvolucao();
+  const mesInicioChave = dataInicio.substring(0, 7);
+  const mesFimChave = dataFim.substring(0, 7);
 
   // 1. Preparar dados para o gráfico de evolução mensal
   const dadosMensais = chavesMesesGrafico.map((mesChave) => {
@@ -79,7 +68,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas }) => {
     };
   });
 
-  // 2. Preparar dados para o gráfico de distribuição por segmento
+  // 2. Preparar dados para o gráfico de distribuição por segmento no período filtrado
   const segmentosMap: Record<string, number> = {
     'Imóveis': 0,
     'Autos Leves': 0,
@@ -87,7 +76,14 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas }) => {
   };
 
   vendas.forEach((v) => {
-    segmentosMap[v.segmento] += v.totalVendas;
+    Object.keys(v.projecaoMensal).forEach((mes) => {
+      if (mes >= mesInicioChave && mes <= mesFimChave) {
+        const celula = v.projecaoMensal[mes];
+        if (celula && celula.status !== 'Cancelada' && celula.valorVenda > 0) {
+          segmentosMap[v.segmento] += celula.valorVenda;
+        }
+      }
+    });
   });
 
   const dadosSegmento = Object.keys(segmentosMap).map((key) => ({

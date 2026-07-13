@@ -34,6 +34,8 @@ import { formatarMoeda, formatarChaveMesExibicao } from '../utils/formatters';
 interface ComissoesVendedoresProps {
   vendas: LancamentoVenda[];
   vendedores: Vendedor[];
+  dataInicio: string;
+  dataFim: string;
 }
 
 interface LinhaComissao {
@@ -52,16 +54,33 @@ interface LinhaComissao {
   qtdParcelas: number;
 }
 
-const LISTA_MESES_TIMELINE = [
-  '2026-01', '2026-02', '2026-03', '2026-04',
-  '2026-05', '2026-06', '2026-07', '2026-08',
-  '2026-09', '2026-10', '2026-11', '2026-12'
-];
-
-export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({ vendas, vendedores }) => {
+export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
+  vendas,
+  vendedores,
+  dataInicio,
+  dataFim
+}) => {
   const theme = useTheme();
   const [vendedorId, setVendedorId] = useState<string>('');
   const [abaInterna, setAbaInterna] = useState<'timeline' | 'matriz'>('timeline');
+
+  // Gera dinamicamente a lista de chaves "YYYY-MM" no intervalo do filtro geral "De" e "Até"
+  const listaMesesTimeline = useMemo(() => {
+    const meses: string[] = [];
+    const dataI = new Date(dataInicio + 'T00:00:00');
+    const dataF = new Date(dataFim + 'T00:00:00');
+
+    let dataAtual = new Date(dataI.getFullYear(), dataI.getMonth(), 15);
+    const dataLimite = new Date(dataF.getFullYear(), dataF.getMonth(), 15);
+
+    while (dataAtual <= dataLimite) {
+      const ano = dataAtual.getFullYear();
+      const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+      meses.push(`${ano}-${mes}`);
+      dataAtual.setMonth(dataAtual.getMonth() + 1);
+    }
+    return meses;
+  }, [dataInicio, dataFim]);
 
   const vendedorSelecionado = useMemo(() => {
     return vendedores.find((v) => v.id === vendedorId) || null;
@@ -85,12 +104,14 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({ vendas
     return '';
   };
 
-  // Processa todas as parcelas ativas do vendedor selecionado
+  // Processa todas as parcelas ativas do vendedor selecionado filtrando pela data
   const comissoesDoVendedor = useMemo((): LinhaComissao[] => {
     if (!vendedorSelecionado) return [];
 
     const linhas: LinhaComissao[] = [];
     const pctVendedor = Number(vendedorSelecionado.percentualComissao || 0);
+    const mesInicioChave = dataInicio.substring(0, 7);
+    const mesFimChave = dataFim.substring(0, 7);
 
     vendasDoVendedor.forEach((venda) => {
       const pctMensalVendedor = pctVendedor / venda.qtdParcelas;
@@ -98,11 +119,21 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({ vendas
       const mesesAtivos = Object.keys(venda.projecaoMensal)
         .filter((mesChave) => {
           const celula = venda.projecaoMensal[mesChave];
-          return celula && celula.valorVenda && celula.valorVenda > 0;
+          return celula && celula.valorVenda && celula.valorVenda > 0 &&
+            mesChave >= mesInicioChave && mesChave <= mesFimChave;
         })
         .sort();
 
-      mesesAtivos.forEach((mesChave, idx) => {
+      mesesAtivos.forEach((mesChave) => {
+        // Encontra o índice real cronológico da parcela ativa da venda
+        const todasParcelasVenda = Object.keys(venda.projecaoMensal)
+          .filter((m) => {
+            const c = venda.projecaoMensal[m];
+            return c && c.valorVenda && c.valorVenda > 0;
+          })
+          .sort();
+        const parcelaIndexReal = todasParcelasVenda.indexOf(mesChave) + 1;
+
         const celula = venda.projecaoMensal[mesChave];
         const comissaoVendedorCalculada = (venda.valorVenda * (pctMensalVendedor / 100));
 
@@ -118,14 +149,14 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({ vendas
           status: celula.status,
           comissaoMaster: celula.comissaoGerada || 0,
           comissaoVendedor: Number(comissaoVendedorCalculada.toFixed(2)),
-          parcelaIndex: idx + 1,
+          parcelaIndex: parcelaIndexReal,
           qtdParcelas: venda.qtdParcelas
         });
       });
     });
 
     return linhas.sort((a, b) => a.mesChave.localeCompare(b.mesChave));
-  }, [vendedorSelecionado, vendasDoVendedor]);
+  }, [vendedorSelecionado, vendasDoVendedor, dataInicio, dataFim]);
 
   // Cálculos consolidados para os cards de resumo
   const resumoFinanceiro = useMemo(() => {
@@ -151,7 +182,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({ vendas
   const totaisMensaisMatriz = useMemo(() => {
     const totais: Record<string, { faturamento: number; comissao: number }> = {};
     
-    LISTA_MESES_TIMELINE.forEach((mes) => {
+    listaMesesTimeline.forEach((mes) => {
       totais[mes] = { faturamento: 0, comissao: 0 };
     });
 
@@ -176,7 +207,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({ vendas
     });
 
     return totais;
-  }, [vendedorSelecionado, vendasDoVendedor]);
+  }, [vendedorSelecionado, vendasDoVendedor, listaMesesTimeline]);
 
   const getStatusChip = (status: StatusParcela) => {
     switch (status) {
@@ -489,7 +520,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({ vendas
                     </TableCell>
 
                     {/* Meses do calendário */}
-                    {LISTA_MESES_TIMELINE.map((mes) => (
+                    {listaMesesTimeline.map((mes) => (
                       <TableCell
                         key={mes}
                         colSpan={2}
@@ -538,7 +569,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({ vendas
 
                   {/* Segunda linha do cabeçalho */}
                   <TableRow>
-                    {LISTA_MESES_TIMELINE.map((mes) => (
+                    {listaMesesTimeline.map((mes) => (
                       <React.Fragment key={`sub-${mes}`}>
                         <TableCell
                           align="right"
@@ -573,7 +604,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({ vendas
                 <TableBody>
                   {vendasDoVendedor.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5 + LISTA_MESES_TIMELINE.length * 2} align="center" sx={{ py: 6 }}>
+                      <TableCell colSpan={5 + listaMesesTimeline.length * 2} align="center" sx={{ py: 6 }}>
                         Nenhuma venda cadastrada para este corretor.
                       </TableCell>
                     </TableRow>
@@ -696,7 +727,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({ vendas
                           </TableCell>
 
                           {/* Meses */}
-                          {LISTA_MESES_TIMELINE.map((mes) => {
+                          {listaMesesTimeline.map((mes) => {
                             const celula = venda.projecaoMensal[mes];
                             const possuiDados = celula && celula.valorVenda && celula.valorVenda > 0;
                             const comissaoVendedorCalculada = possuiDados 
@@ -874,7 +905,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({ vendas
                       />
 
                       {/* Totais por mês */}
-                      {LISTA_MESES_TIMELINE.map((mes) => {
+                      {listaMesesTimeline.map((mes) => {
                         const tot = totaisMensaisMatriz[mes];
                         return (
                           <React.Fragment key={`tot-${mes}`}>

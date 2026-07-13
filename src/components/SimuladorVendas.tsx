@@ -55,6 +55,8 @@ interface SimuladorVendasProps {
   onAtualizarVenda: (venda: LancamentoVenda) => void;
   onExcluirVenda: (id: string) => void;
   permissoes: UserPermissions;
+  dataInicio: string;
+  dataFim: string;
 }
 
 export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
@@ -64,7 +66,9 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   onAdicionarVenda,
   onAtualizarVenda,
   onExcluirVenda,
-  permissoes
+  permissoes,
+  dataInicio,
+  dataFim
 }) => {
   const theme = useTheme();
 
@@ -86,10 +90,6 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
   // Estado para controle de abas internas (Matriz horizontal vs Timeline vertical)
   const [abaInterna, setAbaInterna] = useState<'matriz' | 'timeline'>('matriz');
-
-  // Estados para filtro de data geral (padrão cobre todo o ano de 2026)
-  const [dataInicio, setDataInicio] = useState<string>('2026-01-01');
-  const [dataFim, setDataFim] = useState<string>('2026-12-31');
 
   // Validação
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -149,23 +149,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     }
   }, [qtdParcelas, tabela, segmento, regras]);
 
-  // Expande automaticamente a dataFim do filtro geral quando alguma parcela ativa ultrapassar o ano de 2026
-  useEffect(() => {
-    let dataMax = '2026-12-31';
-    vendas.forEach((venda) => {
-      Object.values(venda.projecaoMensal).forEach((mesObj) => {
-        if (mesObj.valorVenda > 0 && mesObj.status !== 'Cancelada' && mesObj.dataVencimento > dataMax) {
-          dataMax = mesObj.dataVencimento;
-        }
-      });
-    });
 
-    const [ano] = dataMax.split('-');
-    const novaDataFim = `${ano}-12-31`;
-    if (novaDataFim > dataFim) {
-      setDataFim(novaDataFim);
-    }
-  }, [vendas, dataFim]);
 
   const handleOpenDialog = () => {
     setCliente('');
@@ -505,16 +489,29 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       qtdParcelas: number;
     }[] = [];
 
+    const mesInicioChave = dataInicio.substring(0, 7);
+    const mesFimChave = dataFim.substring(0, 7);
+
     vendas.forEach((venda) => {
-      // Filtra os meses de faturamento ativos
+      // Filtra os meses de faturamento ativos no período
       const mesesAtivos = Object.keys(venda.projecaoMensal)
         .filter((mesChave) => {
           const celula = venda.projecaoMensal[mesChave];
-          return celula && celula.valorVenda && celula.valorVenda > 0;
+          return celula && celula.valorVenda && celula.valorVenda > 0 &&
+            mesChave >= mesInicioChave && mesChave <= mesFimChave;
         })
         .sort();
 
-      mesesAtivos.forEach((mesChave, idx) => {
+      mesesAtivos.forEach((mesChave) => {
+        // Encontra o índice real cronológico da parcela ativa da venda
+        const todasParcelasVenda = Object.keys(venda.projecaoMensal)
+          .filter((m) => {
+            const c = venda.projecaoMensal[m];
+            return c && c.valorVenda && c.valorVenda > 0;
+          })
+          .sort();
+        const parcelaIndexReal = todasParcelasVenda.indexOf(mesChave) + 1;
+
         const celula = venda.projecaoMensal[mesChave];
         
         linhas.push({
@@ -529,7 +526,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           valorParcela: celula.valorParcela || venda.valorParcela,
           comissaoMaster: celula.comissaoGerada || 0,
           status: celula.status,
-          parcelaIndex: idx + 1,
+          parcelaIndex: parcelaIndexReal,
           qtdParcelas: venda.qtdParcelas
         });
       });
@@ -537,7 +534,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
     // Ordena de forma cronológica (mesChave)
     return linhas.sort((a, b) => a.mesChave.localeCompare(b.mesChave));
-  }, [vendas]);
+  }, [vendas, dataInicio, dataFim]);
 
   return (
     <Box>
@@ -562,36 +559,14 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
             Lance vendas e acompanhe a projeção mensal de faturamento. Os cálculos de comissões e totais são em tempo real.
           </Typography>
         </Box>
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-            background: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0,0,0,0.01)',
-            p: 1,
-            borderRadius: 2,
-            border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`
-          }}
-        >
-          <TextField
-            label="De"
-            type="date"
-            size="small"
-            value={dataInicio}
-            onChange={(e) => setDataInicio(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
-            sx={{ width: 140 }}
-          />
-          <TextField
-            label="Até"
-            type="date"
-            size="small"
-            value={dataFim}
-            onChange={(e) => setDataFim(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
-            sx={{ width: 140 }}
-          />
-          {permissoes.editarVendas && (
+        {permissoes.editarVendas && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2
+            }}
+          >
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -607,8 +582,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
             >
               Nova Venda
             </Button>
-          )}
-        </Box>
+          </Box>
+        )}
       </Box>
 
       {/* Abas internas para alternar visualizações */}

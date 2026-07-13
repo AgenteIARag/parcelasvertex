@@ -10,7 +10,8 @@ import {
   Tab,
   Button,
   IconButton,
-  Tooltip
+  Tooltip,
+  TextField
 } from '@mui/material';
 import StorageIcon from '@mui/icons-material/Storage';
 import LightModeIcon from '@mui/icons-material/LightMode';
@@ -152,6 +153,29 @@ function App() {
 
   const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'vendas' | 'comissoes' | 'configuracoes'>('dashboard');
   const [subAbaAtiva, setSubAbaAtiva] = useState<'regras' | 'vendedores' | 'acessos'>('regras');
+
+  // Filtro de data global compartilhado entre Dashboard, Painel de Vendas e Comissões
+  const [dataInicio, setDataInicio] = useState<string>('2026-01-01');
+  const [dataFim, setDataFim] = useState<string>('2026-12-31');
+
+
+  // Expande automaticamente a dataFim do filtro geral quando alguma parcela ativa ultrapassar o ano de 2026
+  useEffect(() => {
+    let dataMax = '2026-12-31';
+    vendas.forEach((venda) => {
+      Object.values(venda.projecaoMensal).forEach((mesObj) => {
+        if (mesObj.valorVenda > 0 && mesObj.status !== 'Cancelada' && mesObj.dataVencimento > dataMax) {
+          dataMax = mesObj.dataVencimento;
+        }
+      });
+    });
+
+    const [ano] = dataMax.split('-');
+    const novaDataFim = `${ano}-12-31`;
+    if (novaDataFim > dataFim) {
+      setDataFim(novaDataFim);
+    }
+  }, [vendas, dataFim]);
 
   // Estado de sincronização com o Supabase
   const [statusSincronizacao, setStatusSincronizacao] = useState<'sincronizando' | 'sincronizado' | 'erro'>('sincronizando');
@@ -569,6 +593,28 @@ function App() {
             </Typography>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              {abaAtiva !== 'configuracoes' && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mr: 1 }}>
+                  <TextField
+                    label="De"
+                    type="date"
+                    size="small"
+                    value={dataInicio}
+                    onChange={(e: any) => setDataInicio(e.target.value)}
+                    slotProps={{ inputLabel: { shrink: true } }}
+                    sx={{ width: 135 }}
+                  />
+                  <TextField
+                    label="Até"
+                    type="date"
+                    size="small"
+                    value={dataFim}
+                    onChange={(e: any) => setDataFim(e.target.value)}
+                    slotProps={{ inputLabel: { shrink: true } }}
+                    sx={{ width: 135 }}
+                  />
+                </Box>
+              )}
               {/* Indicador de Sincronização Supabase */}
               <Tooltip
                 title={
@@ -651,14 +697,13 @@ function App() {
 
           {/* Container de Informações e Views */}
           <Container maxWidth="xl" sx={{ mt: 4 }}>
-            {/* Renderização Condicional de Conteúdo */}
-            {abaAtiva === 'dashboard' && (
+               {abaAtiva === 'dashboard' && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {/* KPI Section */}
-                <KPISection vendas={vendas} />
+                <KPISection vendas={vendas} dataInicio={dataInicio} dataFim={dataFim} />
                 
                 {/* Gráficos Analíticos */}
-                <AnalyticsCharts vendas={vendas} />
+                <AnalyticsCharts vendas={vendas} dataInicio={dataInicio} dataFim={dataFim} />
               </Box>
             )}
 
@@ -673,12 +718,14 @@ function App() {
                   onAtualizarVenda={handleAtualizarVenda}
                   onExcluirVenda={handleExcluirVenda}
                   permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
+                  dataInicio={dataInicio}
+                  dataFim={dataFim}
                 />
               </Box>
             )}
 
             {abaAtiva === 'comissoes' && (
-              <ComissoesVendedores vendas={vendas} vendedores={vendedores} />
+              <ComissoesVendedores vendas={vendas} vendedores={vendedores} dataInicio={dataInicio} dataFim={dataFim} />
             )}
 
             {abaAtiva === 'configuracoes' && (usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (

@@ -5,46 +5,52 @@ import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import PeopleIcon from '@mui/icons-material/People';
 import CancelIcon from '@mui/icons-material/Cancel';
 import type { LancamentoVenda } from '../types';
-import { formatarMoeda, obterChaveMesAtual, obterNomeMesAtual } from '../utils/formatters';
+import { formatarMoeda } from '../utils/formatters';
 
 interface KPISectionProps {
   vendas: LancamentoVenda[];
+  dataInicio: string;
+  dataFim: string;
 }
 
-export const KPISection: React.FC<KPISectionProps> = ({ vendas }) => {
+export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, dataFim }) => {
   const theme = useTheme();
 
-  // Cálculos globais baseados nas projeções preenchidas (ignora parcelas canceladas)
-  const volumeTotalVendas = vendas.reduce((acc, v) => acc + v.totalVendas, 0);
-  const receitaTotalComissoes = vendas.reduce((acc, v) => acc + v.totalComissoes, 0);
-  const totalClientesAtivos = vendas.filter(v => v.statusCliente === 'Ativo').length;
+  // Chaves de início e fim no formato YYYY-MM
+  const mesInicioChave = dataInicio.substring(0, 7);
+  const mesFimChave = dataFim.substring(0, 7);
 
-  // Soma de comissões recebidas no mês atual (dinâmico)
-  const mesAtualChave = obterChaveMesAtual();
-  const nomeMesAtual = obterNomeMesAtual();
-  const comissoesRecebidasNoMes = vendas.reduce((acc, v) => {
-    const parcelaMes = v.projecaoMensal[mesAtualChave];
-    if (parcelaMes && parcelaMes.status === 'Recebida') {
-      return acc + (parcelaMes.comissaoGerada || 0);
-    }
-    return acc;
-  }, 0);
+  // Cálculos dinâmicos baseados apenas nas parcelas do período filtrado
+  let volumeTotalVendas = 0;
+  let receitaTotalComissoes = 0;
+  let comissoesRecebidasNoPeriodo = 0;
+  const clientesAtivosSet = new Set<string>();
+  const clientesCanceladosSet = new Set<string>();
+  let valorTotalCancelado = 0;
 
-  // Clientes cancelados e valor total das parcelas canceladas
-  const clientesCancelados = vendas.filter(v => v.statusCliente === 'Cancelado');
-  const totalClientesCancelados = clientesCancelados.length;
-  
-  const valorTotalCancelado = vendas.reduce((acc, v) => {
-    const totalParcelas = v.qtdParcelas;
-    const parcelasCanceladas = Object.values(v.projecaoMensal).filter(mes => mes.status === 'Cancelada').length;
-    if (parcelasCanceladas > 0 && totalParcelas > 0) {
-      const valorPorParcela = v.valorVenda / totalParcelas;
-      return acc + (valorPorParcela * parcelasCanceladas);
-    }
-    return acc;
-  }, 0);
+  vendas.forEach((v) => {
+    Object.keys(v.projecaoMensal).forEach((mes) => {
+      if (mes >= mesInicioChave && mes <= mesFimChave) {
+        const celula = v.projecaoMensal[mes];
+        if (celula) {
+          if (celula.status !== 'Cancelada' && celula.valorVenda > 0) {
+            volumeTotalVendas += celula.valorVenda;
+            receitaTotalComissoes += celula.comissaoGerada || 0;
+            clientesAtivosSet.add(v.cliente);
+            if (celula.status === 'Recebida') {
+              comissoesRecebidasNoPeriodo += celula.comissaoGerada || 0;
+            }
+          } else if (celula.status === 'Cancelada') {
+            clientesCanceladosSet.add(v.cliente);
+            valorTotalCancelado += celula.valorParcela || v.valorParcela || 0;
+          }
+        }
+      }
+    });
+  });
 
-
+  const totalClientesAtivos = clientesAtivosSet.size;
+  const totalClientesCancelados = clientesCanceladosSet.size;
 
   const kpis = [
     {
@@ -53,7 +59,7 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas }) => {
       icon: <TrendingUpIcon sx={{ fontSize: 20 }} />,
       color: theme.palette.primary.main,
       gradient: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
-      description: 'Total de vendas projetadas ativas'
+      description: 'Total de faturamento ativo no período'
     },
     {
       title: 'Receita Total de Comissões',
@@ -61,15 +67,15 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas }) => {
       icon: <MonetizationOnIcon sx={{ fontSize: 20 }} />,
       color: theme.palette.success.main,
       gradient: `linear-gradient(135deg, ${theme.palette.success.dark} 0%, ${theme.palette.success.main} 100%)`,
-      description: 'Total de comissões ativas projetadas'
+      description: 'Total de comissões ativas no período'
     },
     {
-      title: `Parcelas Recebidas (${nomeMesAtual})`,
-      value: formatarMoeda(comissoesRecebidasNoMes),
+      title: 'Parcelas Recebidas',
+      value: formatarMoeda(comissoesRecebidasNoPeriodo),
       icon: <MonetizationOnIcon sx={{ fontSize: 20 }} />,
       color: theme.palette.warning.main,
       gradient: `linear-gradient(135deg, ${theme.palette.warning.dark} 0%, ${theme.palette.warning.main} 100%)`,
-      description: `Comissões Recebidas em ${nomeMesAtual}`
+      description: 'Comissões marcadas como Recebida no período'
     },
     {
       title: 'Clientes Ativos',
@@ -77,7 +83,7 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas }) => {
       icon: <PeopleIcon sx={{ fontSize: 20 }} />,
       color: theme.palette.info.main,
       gradient: `linear-gradient(135deg, ${theme.palette.info.dark} 0%, ${theme.palette.info.main} 100%)`,
-      description: 'Vendas com status Ativo'
+      description: 'Vendas com parcelas ativas no período'
     },
     {
       title: 'Clientes Cancelados',
@@ -85,7 +91,7 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas }) => {
       icon: <CancelIcon sx={{ fontSize: 20 }} />,
       color: theme.palette.error.main,
       gradient: `linear-gradient(135deg, ${theme.palette.error.dark} 0%, ${theme.palette.error.main} 100%)`,
-      description: 'Clientes inativos e valor cancelado'
+      description: 'Inativos e valor cancelado no período'
     }
   ];
 
