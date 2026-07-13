@@ -619,8 +619,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           textColor="primary"
           indicatorColor="primary"
         >
-          <Tab value="matriz" icon={<TableChartIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Acompanhamento Mensal (Modelo Empresa)" />
-          <Tab value="timeline" icon={<ListAltIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Visualização por Parcela (Timeline)" />
+          <Tab value="matriz" icon={<TableChartIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Acompanhamento Mensal" />
+          <Tab value="timeline" icon={<ListAltIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Visualização por Parcela" />
         </Tabs>
       </Box>
 
