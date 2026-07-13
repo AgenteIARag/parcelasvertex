@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { LancamentoVenda, RegraMaster, Vendedor, Usuario } from '../types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://fisnjgoggqvnvkyyyrwo.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_lMR0ukFHAcetODHl_3wB2g_tIQmi9Rt';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpc25qZ29nZ3F2bnZreXl5cndvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTQ0ODUsImV4cCI6MjA5OTI3MDQ4NX0.MUn5eAm0JMIaTftSjGL4kVWByZqfWhspnyIVmBhYst4';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
