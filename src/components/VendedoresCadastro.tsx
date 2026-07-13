@@ -22,6 +22,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import PersonIcon from '@mui/icons-material/Person';
 import { type Vendedor, type UserPermissions } from '../types';
@@ -29,6 +30,7 @@ import { type Vendedor, type UserPermissions } from '../types';
 interface VendedoresCadastroProps {
   vendedores: Vendedor[];
   onAdicionarVendedor: (vendedor: Vendedor) => void;
+  onEditarVendedor: (vendedor: Vendedor) => void;
   onExcluirVendedor: (id: string) => void;
   permissoes: UserPermissions;
 }
@@ -36,20 +38,30 @@ interface VendedoresCadastroProps {
 export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
   vendedores,
   onAdicionarVendedor,
+  onEditarVendedor,
   onExcluirVendedor,
   permissoes
 }) => {
   const theme = useTheme();
   const [openDialog, setOpenDialog] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [percentualComissao, setPercentualComissao] = useState<number | ''>('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleOpenDialog = () => {
-    setNome('');
-    setEmail('');
-    setPercentualComissao('');
+  const handleOpenDialog = (vendedor?: Vendedor) => {
+    if (vendedor) {
+      setEditId(vendedor.id);
+      setNome(vendedor.nome);
+      setEmail(vendedor.email);
+      setPercentualComissao(vendedor.percentualComissao ?? '');
+    } else {
+      setEditId(null);
+      setNome('');
+      setEmail('');
+      setPercentualComissao('');
+    }
     setErrors({});
     setOpenDialog(true);
   };
@@ -74,15 +86,19 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
 
     if (Object.keys(tempErrors).length > 0) return;
 
-    const novoVendedor: Vendedor = {
-      id: `vend_${Date.now()}`,
+    const dadosVendedor: Vendedor = {
+      id: editId || `vend_${Date.now()}`,
       nome: nome.trim(),
       email: email.trim(),
       ativo: true,
       percentualComissao: percentualComissao === '' ? 0 : Number(percentualComissao)
     };
 
-    onAdicionarVendedor(novoVendedor);
+    if (editId) {
+      onEditarVendedor(dadosVendedor);
+    } else {
+      onAdicionarVendedor(dadosVendedor);
+    }
     handleCloseDialog();
   };
 
@@ -188,6 +204,18 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
                   {permissoes?.cadastrarVendedores && (
                     <TableCell align="center" sx={{ py: 1 }}>
                       <IconButton
+                        color="primary"
+                        onClick={() => handleOpenDialog(vendedor)}
+                        size="small"
+                        sx={{
+                          mr: 1,
+                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(99, 102, 241, 0.05)',
+                          '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
+                        }}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
                         color="error"
                         onClick={() => onExcluirVendedor(vendedor.id)}
                         size="small"
@@ -234,7 +262,7 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
             color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a'
           }}
         >
-          Novo Vendedor
+          {editId ? 'Editar Vendedor' : 'Novo Vendedor'}
           <IconButton onClick={handleCloseDialog} size="small">
             <CloseIcon />
           </IconButton>
@@ -314,7 +342,7 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
               boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)'
             }}
           >
-            Cadastrar
+            {editId ? 'Salvar Alterações' : 'Cadastrar'}
           </Button>
         </DialogActions>
       </Dialog>

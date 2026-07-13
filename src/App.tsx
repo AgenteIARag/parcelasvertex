@@ -291,6 +291,13 @@ function App() {
     salvarVendedorSupabase(novoVendedor).catch((err) => console.error('Erro Supabase Vendedores:', err));
   };
 
+  const handleEditarVendedor = (vendedorAtualizado: Vendedor) => {
+    setVendedores((prev) =>
+      prev.map((v) => (v.id === vendedorAtualizado.id ? vendedorAtualizado : v))
+    );
+    salvarVendedorSupabase(vendedorAtualizado).catch((err) => console.error('Erro Supabase Vendedores (Edição):', err));
+  };
+
   const handleExcluirVendedor = (id: string) => {
     setVendedores((prev) => prev.filter((v) => v.id !== id));
     excluirVendedorSupabase(id).catch((err) => console.error('Erro Supabase Vendedores (Exclusão):', err));
@@ -642,6 +649,7 @@ function App() {
               <VendedoresCadastro
                 vendedores={vendedores}
                 onAdicionarVendedor={handleAdicionarVendedor}
+                onEditarVendedor={handleEditarVendedor}
                 onExcluirVendedor={handleExcluirVendedor}
                 permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
               />

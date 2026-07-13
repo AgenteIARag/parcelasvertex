@@ -29,6 +29,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import SecurityIcon from '@mui/icons-material/Security';
@@ -40,6 +41,7 @@ export const UsuariosCadastro: React.FC = () => {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   
   // Estados do formulário
   const [nome, setNome] = useState('');
@@ -75,17 +77,32 @@ export const UsuariosCadastro: React.FC = () => {
     carregarUsuarios();
   }, []);
 
-  const handleOpenDialog = () => {
-    setNome('');
-    setEmail('');
-    setSenha('');
-    setRole('visualizador');
-    setPermissoes({
-      visualizar: true,
-      editarVendas: false,
-      cadastrarVendedores: false,
-      cadastrarRegras: false
-    });
+  const handleOpenDialog = (user?: Usuario) => {
+    if (user) {
+      setEditId(user.id);
+      setNome(user.nome);
+      setEmail(user.email);
+      setSenha(''); // Mantém em branco a menos que queira redefinir a senha
+      setRole(user.role);
+      setPermissoes(user.permissoes || {
+        visualizar: true,
+        editarVendas: false,
+        cadastrarVendedores: false,
+        cadastrarRegras: false
+      });
+    } else {
+      setEditId(null);
+      setNome('');
+      setEmail('');
+      setSenha('');
+      setRole('visualizador');
+      setPermissoes({
+        visualizar: true,
+        editarVendas: false,
+        cadastrarVendedores: false,
+        cadastrarRegras: false
+      });
+    }
     setErrors({});
     setOpenDialog(true);
   };
@@ -132,27 +149,40 @@ export const UsuariosCadastro: React.FC = () => {
     const tempErrors: Record<string, string> = {};
     if (!nome.trim()) tempErrors.nome = 'Nome completo é obrigatório.';
     if (!email.trim() || !email.includes('@')) tempErrors.email = 'E-mail corporativo válido é obrigatório.';
-    if (!senha.trim() || senha.length < 6) tempErrors.senha = 'Senha com no mínimo 6 caracteres é obrigatória.';
+    
+    // Se for inserção ou se preencheu senha na edição, valida comprimento
+    if (!editId) {
+      if (!senha.trim() || senha.length < 6) {
+        tempErrors.senha = 'Senha com no mínimo 6 caracteres é obrigatória.';
+      }
+    } else {
+      if (senha.trim() !== '' && senha.length < 6) {
+        tempErrors.senha = 'A nova senha deve ter no mínimo 6 caracteres.';
+      }
+    }
 
     setErrors(tempErrors);
     if (Object.keys(tempErrors).length > 0) return;
 
-    const novoUsuario: Usuario = {
-      id: `u_${Date.now()}`,
+    // Se for edição e a senha estiver em branco, mantém a senha atual do objeto carregado
+    const senhaFinal = senha.trim() || (editId ? usuarios.find(u => u.id === editId)?.senha || '' : '');
+
+    const usuarioSalvar: Usuario = {
+      id: editId || `u_${Date.now()}`,
       nome: nome.trim(),
       email: email.trim().toLowerCase(),
-      senha: senha.trim(),
+      senha: senhaFinal,
       role,
       permissoes
     };
 
     setLoading(true);
     try {
-      await salvarUsuarioSupabase(novoUsuario);
+      await salvarUsuarioSupabase(usuarioSalvar);
       await carregarUsuarios();
       setOpenDialog(false);
     } catch (err) {
-      console.error('Erro ao cadastrar usuário:', err);
+      console.error('Erro ao salvar usuário:', err);
       setDbError('Erro ao gravar usuário no Supabase. Verifique a tabela e as políticas de RLS.');
     } finally {
       setLoading(false);
@@ -265,6 +295,14 @@ export const UsuariosCadastro: React.FC = () => {
                   <TableCell align="center">
                     <IconButton
                       size="small"
+                      color="primary"
+                      onClick={() => handleOpenDialog(user)}
+                      sx={{ mr: 1, '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.15)' } }}
+                    >
+                      <EditIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                    <IconButton
+                      size="small"
                       color="error"
                       onClick={() => handleExcluir(user.id)}
                       disabled={user.id === 'u_master'}
@@ -297,7 +335,7 @@ export const UsuariosCadastro: React.FC = () => {
         }}
       >
         <DialogTitle sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          Adicionar Novo Usuário
+          {editId ? 'Editar Usuário / Acessos' : 'Adicionar Novo Usuário'}
           <IconButton onClick={handleCloseDialog} size="small">
             <CloseIcon />
           </IconButton>
@@ -329,9 +367,9 @@ export const UsuariosCadastro: React.FC = () => {
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Senha Inicial"
+                label={editId ? "Nova Senha (opcional)" : "Senha Inicial"}
                 type="password"
-                placeholder="Mínimo 6 caracteres"
+                placeholder={editId ? "Deixe em branco para manter" : "Mínimo 6 caracteres"}
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
                 error={!!errors.senha}
@@ -349,7 +387,7 @@ export const UsuariosCadastro: React.FC = () => {
                 >
                   <MenuItem value="visualizador">Visualizador (Apenas consulta)</MenuItem>
                   <MenuItem value="editor">Editor (Lançar vendas e vendedores)</MenuItem>
-                  <MenuItem value="master">Master (Controle administrativo completo)</MenuItem>
+                  <MenuItem value="master">Master (Controle administrative completo)</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -420,7 +458,7 @@ export const UsuariosCadastro: React.FC = () => {
               px: 2.5
             }}
           >
-            {loading ? 'Salvando...' : 'Adicionar'}
+            {loading ? 'Salvando...' : (editId ? 'Salvar Alterações' : 'Adicionar')}
           </Button>
         </DialogActions>
       </Dialog>
