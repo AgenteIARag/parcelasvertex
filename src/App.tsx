@@ -8,8 +8,6 @@ import {
   Typography,
   Tabs,
   Tab,
-  AppBar,
-  Toolbar,
   Button,
   IconButton,
   Tooltip
@@ -328,65 +326,194 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       
-      {/* Top Header / AppBar */}
-      <AppBar
-        position="sticky"
-        elevation={0}
-        sx={{
-          background: theme.palette.mode === 'dark' ? 'rgba(17, 24, 39, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-          backdropFilter: 'blur(12px)',
-          borderBottom: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`,
-          zIndex: 1100
-        }}
-      >
-        <Container maxWidth="xl">
-          <Toolbar disableGutters sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            {/* Logo */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Box
+      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+        {/* Sidebar Lateral Fixa */}
+        <Box
+          sx={{
+            width: 280,
+            flexShrink: 0,
+            borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`,
+            bgcolor: theme.palette.mode === 'dark' ? '#111827' : '#ffffff',
+            display: 'flex',
+            flexDirection: 'column',
+            position: 'fixed',
+            top: 0,
+            bottom: 0,
+            left: 0,
+            zIndex: 1200
+          }}
+        >
+          {/* Logo */}
+          <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 1.5, borderBottom: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}` }}>
+            <Box
+              sx={{
+                p: 1,
+                borderRadius: 2,
+                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                color: '#ffffff',
+                boxShadow: '0 4px 10px rgba(99, 102, 241, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <AssessmentIcon />
+            </Box>
+            <Box>
+              <Typography
+                variant="h6"
                 sx={{
-                  p: 1,
-                  borderRadius: 2.5,
-                  background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                  color: '#ffffff',
-                  boxShadow: '0 4px 10px rgba(99, 102, 241, 0.25)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
+                  fontWeight: 800,
+                  fontFamily: 'Outfit, sans-serif',
+                  color: theme.palette.mode === 'dark' ? '#f3f4f6' : '#0f172a',
+                  lineHeight: 1.1,
+                  letterSpacing: '-0.5px'
                 }}
               >
-                <AssessmentIcon />
-              </Box>
-              <Box>
-                 <Typography
-                   variant="h6"
-                   sx={{
-                     fontWeight: 800,
-                     fontFamily: 'Outfit, sans-serif',
-                     color: theme.palette.mode === 'dark' ? '#f3f4f6' : '#0f172a',
-                     lineHeight: 1.1,
-                     letterSpacing: '-0.5px'
-                   }}
-                 >
-                   APEX
-                </Typography>
-                 <Typography
-                   variant="caption"
-                   sx={{
-                     fontWeight: 600,
-                     color: theme.palette.primary.main,
-                     fontSize: '0.65rem',
-                     letterSpacing: '1px',
-                     textTransform: 'uppercase'
-                   }}
-                 >
-                   Comissão & Projeção
-                </Typography>
-              </Box>
+                APEX
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 600,
+                  color: theme.palette.primary.main,
+                  fontSize: '0.65rem',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase'
+                }}
+              >
+                Comissão & Projeção
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Menu de Navegação da Sidebar */}
+          <Box sx={{ flexGrow: 1, px: 2, py: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Button
+              variant={abaAtiva === 'simulador' ? 'contained' : 'text'}
+              startIcon={<DashboardCustomizeIcon />}
+              onClick={() => setAbaAtiva('simulador')}
+              fullWidth
+              sx={{
+                justifyContent: 'flex-start',
+                py: 1.25,
+                px: 2,
+                borderRadius: 2,
+                fontWeight: 600,
+                fontFamily: 'Outfit, sans-serif',
+                fontSize: '0.9rem',
+                color: abaAtiva === 'simulador' ? '#ffffff' : 'text.secondary',
+                background: abaAtiva === 'simulador' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                boxShadow: abaAtiva === 'simulador' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
+                '&:hover': {
+                  background: abaAtiva === 'simulador' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
+                  color: abaAtiva === 'simulador' ? '#ffffff' : 'primary.main'
+                }
+              }}
+            >
+              Simulador & Timeline
+            </Button>
+
+            {(usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
+              <Button
+                variant={abaAtiva === 'configuracoes' ? 'contained' : 'text'}
+                startIcon={<SettingsIcon />}
+                onClick={() => {
+                  setAbaAtiva('configuracoes');
+                  setSubAbaAtiva('regras');
+                }}
+                fullWidth
+                sx={{
+                  justifyContent: 'flex-start',
+                  py: 1.25,
+                  px: 2,
+                  borderRadius: 2,
+                  fontWeight: 600,
+                  fontFamily: 'Outfit, sans-serif',
+                  fontSize: '0.9rem',
+                  color: abaAtiva === 'configuracoes' ? '#ffffff' : 'text.secondary',
+                  background: abaAtiva === 'configuracoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                  boxShadow: abaAtiva === 'configuracoes' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
+                  '&:hover': {
+                    background: abaAtiva === 'configuracoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
+                    color: abaAtiva === 'configuracoes' ? '#ffffff' : 'primary.main'
+                  }
+                }}
+              >
+                Configurações
+              </Button>
+            )}
+          </Box>
+
+          {/* Rodapé da Sidebar - Configurações e Perfil do Usuário */}
+          <Box sx={{ p: 2, borderTop: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}` }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, px: 1 }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.72rem' }}>
+                Modo {darkMode ? 'Escuro' : 'Claro'}
+              </Typography>
+              <IconButton onClick={() => setDarkMode(!darkMode)} size="small" sx={{ bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }}>
+                {darkMode ? <LightModeIcon sx={{ fontSize: 16 }} /> : <DarkModeIcon sx={{ fontSize: 16 }} />}
+              </IconButton>
             </Box>
 
-            {/* Controles de Ação de Topo */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
+                p: 1.5,
+                borderRadius: 2.5
+              }}
+            >
+              <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, minWidth: 0 }}>
+                <Typography variant="body2" noWrap sx={{ fontWeight: 700, color: 'text.primary', fontSize: '0.82rem' }}>
+                  {usuarioLogado.nome}
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.68rem', fontWeight: 600 }}>
+                  {usuarioLogado.role.toUpperCase()}
+                </Typography>
+              </Box>
+              <Tooltip title="Sair do Sistema">
+                <IconButton
+                  onClick={() => setUsuarioLogado(null)}
+                  color="error"
+                  size="small"
+                  sx={{
+                    bgcolor: 'rgba(239, 68, 68, 0.05)',
+                    '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.15)' }
+                  }}
+                >
+                  <LogoutIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
+        </Box>
+
+        {/* Área de Conteúdo Principal (Direita) */}
+        <Box sx={{ flexGrow: 1, ml: '280px', minWidth: 0, display: 'flex', flexDirection: 'column', pb: 6 }}>
+          {/* Header Superior da Área de Conteúdo */}
+          <Box
+            sx={{
+              height: 70,
+              px: 4,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottom: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`,
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(11, 15, 25, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+              backdropFilter: 'blur(12px)',
+              position: 'sticky',
+              top: 0,
+              zIndex: 1100
+            }}
+          >
+            <Typography variant="h6" sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 750, color: 'text.primary' }}>
+              {abaAtiva === 'simulador' ? 'Painel de Simulações' : 'Configurações Administrativas'}
+            </Typography>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               {/* Indicador de Sincronização Supabase */}
               <Tooltip
                 title={
@@ -454,7 +581,7 @@ function App() {
                   textTransform: 'none',
                   fontWeight: 600,
                   fontSize: '0.8rem',
-                  py: 0.75,
+                  py: 0.6,
                   px: 1.5,
                   '&:hover': {
                     borderColor: theme.palette.primary.main,
@@ -464,204 +591,115 @@ function App() {
               >
                 Backup dos Dados
               </Button>
-              
-              <Tooltip title={darkMode ? 'Modo Claro' : 'Modo Escuro'}>
-                <IconButton
-                  onClick={() => setDarkMode(!darkMode)}
-                  sx={{
-                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
-                    color: theme.palette.mode === 'dark' ? '#f3f4f6' : '#0f172a',
-                    '&:hover': {
-                      bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
-                    }
-                  }}
-                >
-                  {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
-                </IconButton>
-              </Tooltip>
-              {/* Informações do Usuário Logado */}
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#374151' : '#d1d5db'}`,
-                  pl: 2,
-                  ml: 0.5
-                }}
-              >
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary', fontSize: '0.85rem' }}>
-                    {usuarioLogado.nome}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem', fontWeight: 600 }}>
-                    {usuarioLogado.role.toUpperCase()}
-                  </Typography>
-                </Box>
-                <Tooltip title="Sair do Sistema">
-                  <IconButton
-                    onClick={() => setUsuarioLogado(null)}
-                    color="error"
-                    size="small"
+            </Box>
+          </Box>
+
+          {/* Container de Informações e Views */}
+          <Container maxWidth="xl" sx={{ mt: 4 }}>
+            {/* KPI Section */}
+            <KPISection vendas={vendas} />
+
+            {/* Renderização Condicional de Conteúdo */}
+            {abaAtiva === 'simulador' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4, mt: 4 }}>
+                {/* Tabela Timeline Principal */}
+                <SimuladorVendas
+                  vendas={vendas}
+                  regras={regras}
+                  vendedores={vendedores}
+                  onAdicionarVenda={handleAdicionarVenda}
+                  onAtualizarVenda={handleAtualizarVenda}
+                  onExcluirVenda={handleExcluirVenda}
+                  permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
+                />
+
+                {/* Gráficos Analíticos */}
+                <AnalyticsCharts vendas={vendas} />
+              </Box>
+            )}
+
+            {abaAtiva === 'configuracoes' && (usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
+              <ErrorBoundary>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 4 }}>
+                  {/* Header das Configurações */}
+                  <Box>
+                    <Typography
+                      variant="h5"
+                      sx={{
+                        fontWeight: 800,
+                        fontFamily: 'Outfit, sans-serif',
+                        color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a'
+                      }}
+                    >
+                      Configurações do Sistema
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b', mt: 0.5 }}>
+                      Gerencie tabelas de comissões, corretores de vendas e privilégios de acesso.
+                    </Typography>
+                  </Box>
+
+                  {/* Barra de Sub-Abas */}
+                  <Box
                     sx={{
-                      bgcolor: 'rgba(239, 68, 68, 0.05)',
-                      '&:hover': {
-                        bgcolor: 'rgba(239, 68, 68, 0.15)'
-                      }
+                      borderBottom: 1,
+                      borderColor: theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb',
+                      mb: 1
                     }}
                   >
-                    <LogoutIcon sx={{ fontSize: 16 }} />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            </Box>
-          </Toolbar>
-        </Container>
-      </AppBar>
+                    <Tabs
+                      value={subAbaAtiva}
+                      onChange={(_, val) => setSubAbaAtiva(val)}
+                      textColor="secondary"
+                      indicatorColor="secondary"
+                      sx={{
+                        '& .MuiTab-root': {
+                          fontFamily: 'Outfit, sans-serif',
+                          fontWeight: 600,
+                          fontSize: '0.9rem',
+                          textTransform: 'none',
+                          minWidth: 120,
+                          pb: 1
+                        }
+                      }}
+                    >
+                      <Tab value="regras" icon={<StorageIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Banco de Regras (BD Master)" />
+                      <Tab value="vendedores" icon={<PeopleIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Vendedores" />
+                      {usuarioLogado?.role === 'master' && (
+                        <Tab value="acessos" icon={<AdminPanelSettingsIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Gestão de Acessos" />
+                      )}
+                    </Tabs>
+                  </Box>
 
-      {/* Main Container */}
-      <Container maxWidth="xl" sx={{ mt: 4, pb: 6 }}>
-        {/* KPI Section */}
-        <KPISection vendas={vendas} />
+                  {/* Renderização das Sub-Abas */}
+                  {subAbaAtiva === 'regras' && (
+                    <RegrasMaster
+                      regras={regras}
+                      onAdicionarRegra={handleAdicionarRegra}
+                      onEditarRegra={handleEditarRegra}
+                      onExcluirRegra={handleExcluirRegra}
+                      permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
+                    />
+                  )}
 
-        {/* Navegação por Abas */}
-        <Box
-          sx={{
-            borderBottom: 1,
-            borderColor: theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb',
-            mb: 4,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}
-        >
-          <Tabs
-            value={abaAtiva}
-            onChange={(_, val) => {
-              setAbaAtiva(val);
-              // Ao mudar a aba principal, reseta para a primeira sub-aba
-              if (val === 'configuracoes') setSubAbaAtiva('regras');
-            }}
-            textColor="primary"
-            indicatorColor="primary"
-            sx={{
-              '& .MuiTab-root': {
-                fontFamily: 'Outfit, sans-serif',
-                fontWeight: 600,
-                fontSize: '1rem',
-                textTransform: 'none',
-                minWidth: 160,
-                pb: 1.5
-              }
-            }}
-          >
-            <Tab value="simulador" icon={<DashboardCustomizeIcon />} iconPosition="start" label="Simulador & Timeline" />
-            {(usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
-              <Tab value="configuracoes" icon={<SettingsIcon />} iconPosition="start" label="Configurações" />
+                  {subAbaAtiva === 'vendedores' && (
+                    <VendedoresCadastro
+                      vendedores={vendedores}
+                      onAdicionarVendedor={handleAdicionarVendedor}
+                      onEditarVendedor={handleEditarVendedor}
+                      onExcluirVendedor={handleExcluirVendedor}
+                      permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
+                    />
+                  )}
+
+                  {subAbaAtiva === 'acessos' && usuarioLogado?.role === 'master' && (
+                    <UsuariosCadastro />
+                  )}
+                </Box>
+              </ErrorBoundary>
             )}
-          </Tabs>
+          </Container>
         </Box>
-
-        {/* Aba Simulador: Timeline e Gráficos */}
-        {abaAtiva === 'simulador' && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {/* Tabela Timeline Principal */}
-            <SimuladorVendas
-              vendas={vendas}
-              regras={regras}
-              vendedores={vendedores}
-              onAdicionarVenda={handleAdicionarVenda}
-              onAtualizarVenda={handleAtualizarVenda}
-              onExcluirVenda={handleExcluirVenda}
-              permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
-            />
-
-            {/* Gráficos Analíticos */}
-            <AnalyticsCharts vendas={vendas} />
-          </Box>
-        )}
-
-        {/* Aba Configurações: Painel Administrativo */}
-        {abaAtiva === 'configuracoes' && (usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
-          <ErrorBoundary>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {/* Header das Configurações */}
-            <Box>
-              <Typography
-                variant="h5"
-                sx={{
-                  fontWeight: 800,
-                  fontFamily: 'Outfit, sans-serif',
-                  color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a'
-                }}
-              >
-                Configurações do Sistema
-              </Typography>
-              <Typography variant="body2" sx={{ color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b', mt: 0.5 }}>
-                Gerencie tabelas de comissões, corretores de vendas e privilégios de acesso.
-              </Typography>
-            </Box>
-
-            {/* Barra de Sub-Abas */}
-            <Box
-              sx={{
-                borderBottom: 1,
-                borderColor: theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb',
-                mb: 1
-              }}
-            >
-              <Tabs
-                value={subAbaAtiva}
-                onChange={(_, val) => setSubAbaAtiva(val)}
-                textColor="secondary"
-                indicatorColor="secondary"
-                sx={{
-                  '& .MuiTab-root': {
-                    fontFamily: 'Outfit, sans-serif',
-                    fontWeight: 600,
-                    fontSize: '0.9rem',
-                    textTransform: 'none',
-                    minWidth: 120,
-                    pb: 1
-                  }
-                }}
-              >
-                <Tab value="regras" icon={<StorageIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Banco de Regras (BD Master)" />
-                <Tab value="vendedores" icon={<PeopleIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Vendedores" />
-                {usuarioLogado?.role === 'master' && (
-                  <Tab value="acessos" icon={<AdminPanelSettingsIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Gestão de Acessos" />
-                )}
-              </Tabs>
-            </Box>
-
-            {/* Renderização das Sub-Abas */}
-            {subAbaAtiva === 'regras' && (
-              <RegrasMaster
-                regras={regras}
-                onAdicionarRegra={handleAdicionarRegra}
-                onEditarRegra={handleEditarRegra}
-                onExcluirRegra={handleExcluirRegra}
-                permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
-              />
-            )}
-
-            {subAbaAtiva === 'vendedores' && (
-              <VendedoresCadastro
-                vendedores={vendedores}
-                onAdicionarVendedor={handleAdicionarVendedor}
-                onEditarVendedor={handleEditarVendedor}
-                onExcluirVendedor={handleExcluirVendedor}
-                permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
-              />
-            )}
-
-            {subAbaAtiva === 'acessos' && usuarioLogado?.role === 'master' && (
-              <UsuariosCadastro />
-            )}
-          </Box>
-          </ErrorBoundary>
-        )}
-      </Container>
+      </Box>
     </ThemeProvider>
   );
 }
