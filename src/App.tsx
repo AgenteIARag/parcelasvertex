@@ -20,6 +20,7 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import PeopleIcon from '@mui/icons-material/People';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 
 import { type RegraMaster, type LancamentoVenda, type Vendedor, type Usuario } from './types';
 import { INITIAL_REGRAS, INITIAL_VENDAS, INITIAL_VENDEDORES, calcularTotaisLinha } from './data/initialData';
@@ -31,6 +32,7 @@ import { VendedoresCadastro } from './components/VendedoresCadastro';
 import { Login } from './components/Login';
 import { UsuariosCadastro } from './components/UsuariosCadastro';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { ComissoesVendedores } from './components/ComissoesVendedores';
 import {
   obterVendedoresSupabase,
   obterRegrasSupabase,
@@ -148,8 +150,7 @@ function App() {
     return saved ? JSON.parse(saved) : INITIAL_VENDEDORES;
   });
 
-  // Estado da Navegação (Aba ativa)
-  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'vendas' | 'configuracoes'>('dashboard');
+  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'vendas' | 'comissoes' | 'configuracoes'>('dashboard');
   const [subAbaAtiva, setSubAbaAtiva] = useState<'regras' | 'vendedores' | 'acessos'>('regras');
 
   // Estado de sincronização com o Supabase
@@ -440,6 +441,31 @@ function App() {
               Painel de Vendas
             </Button>
 
+            <Button
+              variant={abaAtiva === 'comissoes' ? 'contained' : 'text'}
+              startIcon={<AccountBalanceWalletIcon />}
+              onClick={() => setAbaAtiva('comissoes')}
+              fullWidth
+              sx={{
+                justifyContent: 'flex-start',
+                py: 1.25,
+                px: 2,
+                borderRadius: 2,
+                fontWeight: 600,
+                fontFamily: 'Outfit, sans-serif',
+                fontSize: '0.9rem',
+                color: abaAtiva === 'comissoes' ? '#ffffff' : 'text.secondary',
+                background: abaAtiva === 'comissoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                boxShadow: abaAtiva === 'comissoes' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
+                '&:hover': {
+                  background: abaAtiva === 'comissoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
+                  color: abaAtiva === 'comissoes' ? '#ffffff' : 'primary.main'
+                }
+              }}
+            >
+              Comissões Vendedores
+            </Button>
+
             {(usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
               <Button
                 variant={abaAtiva === 'configuracoes' ? 'contained' : 'text'}
@@ -538,6 +564,7 @@ function App() {
             <Typography variant="h6" sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 750, color: 'text.primary' }}>
               {abaAtiva === 'dashboard' && 'Dashboard de Performance'}
               {abaAtiva === 'vendas' && 'Painel de Vendas / Simulador'}
+              {abaAtiva === 'comissoes' && 'Comissões de Corretores'}
               {abaAtiva === 'configuracoes' && 'Configurações Administrativas'}
             </Typography>
 
@@ -635,7 +662,7 @@ function App() {
               </Box>
             )}
 
-            {abaAtiva === 'vendas' && (
+             {abaAtiva === 'vendas' && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {/* Tabela Timeline Principal */}
                 <SimuladorVendas
@@ -648,6 +675,10 @@ function App() {
                   permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
                 />
               </Box>
+            )}
+
+            {abaAtiva === 'comissoes' && (
+              <ComissoesVendedores vendas={vendas} vendedores={vendedores} />
             )}
 
             {abaAtiva === 'configuracoes' && (usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
