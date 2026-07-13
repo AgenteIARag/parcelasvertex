@@ -254,10 +254,10 @@ export const UsuariosCadastro: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                      {user.permissoes.editarVendas && <Chip label="Vendas" size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 20 }} />}
-                      {user.permissoes.cadastrarVendedores && <Chip label="Vendedores" size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 20 }} />}
-                      {user.permissoes.cadastrarRegras && <Chip label="Regras" size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 20 }} />}
-                      {!user.permissoes.editarVendas && !user.permissoes.cadastrarVendedores && !user.permissoes.cadastrarRegras && (
+                      {user.permissoes?.editarVendas && <Chip label="Vendas" size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 20 }} />}
+                      {user.permissoes?.cadastrarVendedores && <Chip label="Vendedores" size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 20 }} />}
+                      {user.permissoes?.cadastrarRegras && <Chip label="Regras" size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 20 }} />}
+                      {(!user.permissoes?.editarVendas && !user.permissoes?.cadastrarVendedores && !user.permissoes?.cadastrarRegras) && (
                         <Chip label="Apenas Visualizar" size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 20, color: '#94a3b8' }} />
                       )}
                     </Box>

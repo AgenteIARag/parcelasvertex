@@ -565,7 +565,7 @@ function App() {
               onAdicionarVenda={handleAdicionarVenda}
               onAtualizarVenda={handleAtualizarVenda}
               onExcluirVenda={handleExcluirVenda}
-              permissoes={usuarioLogado.permissoes}
+              permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
             />
 
             {/* Gráficos Analíticos */}
@@ -632,7 +632,7 @@ function App() {
                 onAdicionarRegra={handleAdicionarRegra}
                 onEditarRegra={handleEditarRegra}
                 onExcluirRegra={handleExcluirRegra}
-                permissoes={usuarioLogado.permissoes}
+                permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
               />
             )}
 
@@ -641,11 +641,11 @@ function App() {
                 vendedores={vendedores}
                 onAdicionarVendedor={handleAdicionarVendedor}
                 onExcluirVendedor={handleExcluirVendedor}
-                permissoes={usuarioLogado.permissoes}
+                permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
               />
             )}
 
-            {subAbaAtiva === 2 && usuarioLogado.role === 'master' && (
+            {subAbaAtiva === 2 && usuarioLogado?.role === 'master' && (
               <UsuariosCadastro />
             )}
           </Box>
