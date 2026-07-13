@@ -91,6 +91,9 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   // Estado para controle de abas internas (Matriz horizontal vs Timeline vertical)
   const [abaInterna, setAbaInterna] = useState<'matriz' | 'timeline'>('matriz');
 
+  // Estado para guardar ID da venda selecionada para exclusão (confirmação necessária)
+  const [vendaParaExcluir, setVendaParaExcluir] = useState<string | null>(null);
+
   // Validação
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -1166,7 +1169,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                     <TableCell align="center">
                       <IconButton
                         color="error"
-                        onClick={() => onExcluirVenda(venda.id)}
+                        onClick={() => setVendaParaExcluir(venda.id)}
                         size="small"
                         sx={{
                           bgcolor: theme.palette.mode === 'dark' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
@@ -1655,6 +1658,62 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
             }}
           >
             Lançar Venda
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog de Confirmação para Excluir Venda */}
+      <Dialog
+        open={vendaParaExcluir !== null}
+        onClose={() => setVendaParaExcluir(null)}
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: 3,
+              background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
+              backgroundImage: 'none',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)'
+            }
+          }
+        }}
+      >
+        <DialogTitle sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
+          Confirmar Exclusão
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
+            Tem certeza que deseja excluir esta venda? Esta ação é permanente e removerá todas as parcelas faturadas, projeções mensais e comissões associadas a esta venda.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, pt: 1 }}>
+          <Button
+            onClick={() => setVendaParaExcluir(null)}
+            sx={{
+              borderRadius: 2,
+              textTransform: 'none',
+              fontWeight: 600,
+              color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'
+            }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => {
+              if (vendaParaExcluir) {
+                onExcluirVenda(vendaParaExcluir);
+                setVendaParaExcluir(null);
+              }
+            }}
+            sx={{
+              borderRadius: 2,
+              textTransform: 'none',
+              fontWeight: 600,
+              boxShadow: '0 4px 10px rgba(239, 68, 68, 0.2)'
+            }}
+          >
+            Confirmar Exclusão
           </Button>
         </DialogActions>
       </Dialog>
