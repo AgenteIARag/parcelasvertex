@@ -23,13 +23,18 @@ import {
   InputAdornment,
   Grid,
   useTheme,
-  Alert
+  Alert,
+  Tabs,
+  Tab,
+  Chip
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CloseIcon from '@mui/icons-material/Close';
 import BlockIcon from '@mui/icons-material/Block';
 import PercentIcon from '@mui/icons-material/Percent';
+import TableChartIcon from '@mui/icons-material/TableChart';
+import ListAltIcon from '@mui/icons-material/ListAlt';
 import {
   type LancamentoVenda,
   type RegraMaster,
@@ -78,6 +83,9 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
   // Estado para controle de edição inline das células de venda
   const [editingCell, setEditingCell] = useState<{ vendaId: string; mes: string } | null>(null);
+
+  // Estado para controle de abas internas (Matriz horizontal vs Timeline vertical)
+  const [abaInterna, setAbaInterna] = useState<'matriz' | 'timeline'>('matriz');
 
   // Estados para filtro de data geral (padrão cobre todo o ano de 2026)
   const [dataInicio, setDataInicio] = useState<string>('2026-01-01');
@@ -479,6 +487,58 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
   const totaisGerais = useMemo(() => calcularTotaisMensais(), [vendas, mesesFiltrados]);
 
+  // Processa todas as parcelas ativas de todas as vendas para a timeline consolidada vertical da empresa
+  const parcelasEmpresaTimeline = useMemo(() => {
+    const linhas: {
+      id: string;
+      vendaId: string;
+      cliente: string;
+      vendedorNome: string;
+      segmento: string;
+      tabela: string;
+      mesChave: string;
+      valorVenda: number;
+      valorParcela: number;
+      comissaoMaster: number;
+      status: StatusParcela;
+      parcelaIndex: number;
+      qtdParcelas: number;
+    }[] = [];
+
+    vendas.forEach((venda) => {
+      // Filtra os meses de faturamento ativos
+      const mesesAtivos = Object.keys(venda.projecaoMensal)
+        .filter((mesChave) => {
+          const celula = venda.projecaoMensal[mesChave];
+          return celula && celula.valorVenda && celula.valorVenda > 0;
+        })
+        .sort();
+
+      mesesAtivos.forEach((mesChave, idx) => {
+        const celula = venda.projecaoMensal[mesChave];
+        
+        linhas.push({
+          id: `${venda.id}_${mesChave}`,
+          vendaId: venda.id,
+          cliente: venda.cliente,
+          vendedorNome: venda.vendedorNome || '',
+          segmento: venda.segmento,
+          tabela: venda.tabela,
+          mesChave,
+          valorVenda: venda.valorVenda,
+          valorParcela: celula.valorParcela || venda.valorParcela,
+          comissaoMaster: celula.comissaoGerada || 0,
+          status: celula.status,
+          parcelaIndex: idx + 1,
+          qtdParcelas: venda.qtdParcelas
+        });
+      });
+    });
+
+    // Ordena de forma cronológica (mesChave)
+    return linhas.sort((a, b) => a.mesChave.localeCompare(b.mesChave));
+  }, [vendas]);
+
   return (
     <Box>
       <Box
@@ -551,10 +611,23 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         </Box>
       </Box>
 
-      {/* Tabela Timeline Horizontal */}
-      <TableContainer
-        component={Paper}
-        elevation={0}
+      {/* Abas internas para alternar visualizações */}
+      <Box sx={{ borderBottom: 1, borderColor: theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0', mb: 3 }}>
+        <Tabs
+          value={abaInterna}
+          onChange={(_, val) => setAbaInterna(val)}
+          textColor="primary"
+          indicatorColor="primary"
+        >
+          <Tab value="matriz" icon={<TableChartIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Acompanhamento Mensal (Modelo Empresa)" />
+          <Tab value="timeline" icon={<ListAltIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Visualização por Parcela (Timeline)" />
+        </Tabs>
+      </Box>
+
+      {abaInterna === 'matriz' && (
+        <TableContainer
+          component={Paper}
+          elevation={0}
         sx={{
           borderRadius: 4,
           border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
@@ -1238,6 +1311,134 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           </TableBody>
         </Table>
       </TableContainer>
+      )}
+
+      {abaInterna === 'timeline' && (
+        <TableContainer
+          component={Paper}
+          elevation={0}
+          sx={{
+            borderRadius: 4,
+            border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+            background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
+            overflow: 'hidden'
+          }}
+        >
+          <Table size="small">
+            <TableHead sx={{ background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc' }}>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Mês Ref.</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Cliente</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Corretor / Vendedor</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Segmento / Tabela</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700, py: 1.5 }}>Parcela</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700, py: 1.5 }}>Valor Parcela</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700, py: 1.5, color: theme.palette.success.main }}>
+                  Comissão Master (Empresa)
+                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700, py: 1.5 }}>Status</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {parcelasEmpresaTimeline.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                    Nenhuma venda ou parcela ativa registrada no sistema.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                parcelasEmpresaTimeline.map((linha) => (
+                  <TableRow
+                    key={linha.id}
+                    sx={{
+                      opacity: linha.status === 'Cancelada' ? 0.5 : 1,
+                      textDecoration: linha.status === 'Cancelada' ? 'line-through' : 'none',
+                      '&:hover': {
+                        background: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.01)'
+                      },
+                      transition: 'background 0.2s',
+                      borderBottom: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`
+                    }}
+                  >
+                    <TableCell sx={{ fontWeight: 700 }}>
+                      {formatarChaveMesExibicao(linha.mesChave)}
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>{linha.cliente}</TableCell>
+                    <TableCell sx={{ fontWeight: 500, color: theme.palette.primary.main }}>
+                      {linha.vendedorNome || '-'}
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <span style={{ fontSize: '0.8rem', color: theme.palette.text.secondary }}>
+                          {linha.segmento}
+                        </span>
+                        <Chip label={linha.tabela} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      {linha.parcelaIndex}/{linha.qtdParcelas}
+                    </TableCell>
+                    <TableCell align="right">
+                      {formatarMoeda(linha.valorParcela)}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700, color: theme.palette.success.main }}>
+                      {formatarMoeda(linha.comissaoMaster)}
+                    </TableCell>
+                    <TableCell align="center">
+                      {permissoes.editarVendas ? (
+                        <Select
+                          value={linha.status}
+                          onChange={(e) => handleAlterarStatusParcela(linha.vendaId, linha.mesChave, e.target.value as StatusParcela)}
+                          variant="standard"
+                          disableUnderline
+                          sx={{
+                            fontSize: '0.62rem',
+                            fontWeight: 700,
+                            color: linha.status === 'Cancelada' ? '#ef4444' :
+                                   linha.status === 'Recebida' ? '#818cf8' :
+                                   linha.status === 'Paga' ? '#34d399' :
+                                   linha.status === 'Vendida' ? '#38bdf8' : '#94a3b8',
+                            '& .MuiSelect-select': {
+                              py: 0.1,
+                              px: 0.5,
+                              borderRadius: 0.5,
+                              background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'
+                            }
+                          }}
+                        >
+                          <MenuItem value="A vencer" sx={{ fontSize: '0.7rem' }}>A vencer</MenuItem>
+                          <MenuItem value="Vendida" sx={{ fontSize: '0.7rem' }}>Vendida</MenuItem>
+                          <MenuItem value="Paga" sx={{ fontSize: '0.7rem' }}>Paga</MenuItem>
+                          <MenuItem value="Recebida" sx={{ fontSize: '0.7rem' }}>Recebida</MenuItem>
+                          <MenuItem value="Cancelada" sx={{ fontSize: '0.7rem' }}>Cancelada</MenuItem>
+                        </Select>
+                      ) : (
+                        <Box
+                          sx={{
+                            fontSize: '0.62rem',
+                            fontWeight: 700,
+                            py: 0.1,
+                            px: 0.5,
+                            borderRadius: 0.5,
+                            color: linha.status === 'Cancelada' ? '#ef4444' :
+                                   linha.status === 'Recebida' ? '#818cf8' :
+                                   linha.status === 'Paga' ? '#34d399' :
+                                   linha.status === 'Vendida' ? '#38bdf8' : '#94a3b8',
+                            background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                            display: 'inline-block'
+                          }}
+                        >
+                          {linha.status}
+                        </Box>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
 
       {/* Dialog para Nova Venda */}
       <Dialog
