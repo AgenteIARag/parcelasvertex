@@ -149,7 +149,7 @@ function App() {
   });
 
   // Estado da Navegação (Aba ativa)
-  const [abaAtiva, setAbaAtiva] = useState(0);
+  const [abaAtiva, setAbaAtiva] = useState<'simulador' | 'configuracoes'>('simulador');
   const [subAbaAtiva, setSubAbaAtiva] = useState(0);
 
   // Estado de sincronização com o Supabase
@@ -532,7 +532,7 @@ function App() {
             onChange={(_, val) => {
               setAbaAtiva(val);
               // Ao mudar a aba principal, reseta para a primeira sub-aba
-              if (val === 1) setSubAbaAtiva(0);
+              if (val === 'configuracoes') setSubAbaAtiva(0);
             }}
             textColor="primary"
             indicatorColor="primary"
@@ -547,15 +547,15 @@ function App() {
               }
             }}
           >
-            <Tab icon={<DashboardCustomizeIcon />} iconPosition="start" label="Simulador & Timeline" />
-            {(usuarioLogado.role === 'master' || usuarioLogado.role === 'editor') && (
-              <Tab icon={<SettingsIcon />} iconPosition="start" label="Configurações" />
+            <Tab value="simulador" icon={<DashboardCustomizeIcon />} iconPosition="start" label="Simulador & Timeline" />
+            {(usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
+              <Tab value="configuracoes" icon={<SettingsIcon />} iconPosition="start" label="Configurações" />
             )}
           </Tabs>
         </Box>
 
-        {/* Aba 0: Simulador, Timeline e Gráficos */}
-        {abaAtiva === 0 && (
+        {/* Aba Simulador: Timeline e Gráficos */}
+        {abaAtiva === 'simulador' && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {/* Tabela Timeline Principal */}
             <SimuladorVendas
@@ -573,8 +573,8 @@ function App() {
           </Box>
         )}
 
-        {/* Aba 1: Painel de Configurações Administrativas */}
-        {abaAtiva === 1 && (usuarioLogado.role === 'master' || usuarioLogado.role === 'editor') && (
+        {/* Aba Configurações: Painel Administrativo */}
+        {abaAtiva === 'configuracoes' && (usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {/* Header das Configurações */}
             <Box>
