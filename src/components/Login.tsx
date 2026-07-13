@@ -96,12 +96,18 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       }
 
       // Login efetuado com sucesso!
+      const permissoesSeguras = data.permissoes ?? {
+        visualizar: true,
+        editarVendas: data.role === 'master' || data.role === 'editor',
+        cadastrarVendedores: data.role === 'master' || data.role === 'editor',
+        cadastrarRegras: data.role === 'master' || data.role === 'editor'
+      };
       onLoginSuccess({
         id: data.id,
         nome: data.nome,
         email: data.email,
         role: data.role,
-        permissoes: data.permissoes
+        permissoes: permissoesSeguras
       });
     } catch (err: any) {
       console.error('Erro de autenticação no Supabase:', err);

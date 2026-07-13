@@ -31,6 +31,7 @@ import { AnalyticsCharts } from './components/AnalyticsCharts';
 import { VendedoresCadastro } from './components/VendedoresCadastro';
 import { Login } from './components/Login';
 import { UsuariosCadastro } from './components/UsuariosCadastro';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import {
   obterVendedoresSupabase,
   obterRegrasSupabase,
@@ -575,6 +576,7 @@ function App() {
 
         {/* Aba Configurações: Painel Administrativo */}
         {abaAtiva === 'configuracoes' && (usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
+          <ErrorBoundary>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {/* Header das Configurações */}
             <Box>
@@ -649,6 +651,7 @@ function App() {
               <UsuariosCadastro />
             )}
           </Box>
+          </ErrorBoundary>
         )}
       </Container>
     </ThemeProvider>
