@@ -23,13 +23,19 @@ import {
   InputAdornment,
   Grid,
   useTheme,
-  Chip
+  Chip,
+  Tabs,
+  Tab
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
 import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
+import HomeIcon from '@mui/icons-material/Home';
+import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
+import LocalShippingIcon from '@mui/icons-material/LocalShipping';
+import ViewListIcon from '@mui/icons-material/ViewList';
 import { type RegraMaster, type SegmentoType, type UserPermissions } from '../types';
 
 interface RegrasMasterProps {
@@ -48,6 +54,9 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
   permissoes
 }) => {
   const theme = useTheme();
+
+  // Estado do filtro por segmento
+  const [abaSegmento, setAbaSegmento] = useState<SegmentoType | 'Todos'>('Todos');
 
   // Estados do Dialog de formulário
   const [open, setOpen] = useState(false);
@@ -69,7 +78,8 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
       setPercentualComissao(regra.percentualComissao);
     } else {
       setEditId(null);
-      setSegmento('Imóveis');
+      // Se estiver visualizando um segmento específico nas abas (exceto "Todos"), pré-seleciona ele no formulário
+      setSegmento(abaSegmento !== 'Todos' ? abaSegmento : 'Imóveis');
       setTabela('');
       setQtdParcelas('');
       setPercentualComissao('');
@@ -126,6 +136,14 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
     }
   };
 
+  // Contadores de regras por segmento para exibir nas abas
+  const countTodos = regras.length;
+  const countImoveis = regras.filter(r => r.segmento === 'Imóveis').length;
+  const countAutos = regras.filter(r => r.segmento === 'Autos Leves').length;
+  const countPesados = regras.filter(r => r.segmento === 'Pesados').length;
+
+  const regrasFiltradas = regras.filter(r => abaSegmento === 'Todos' || r.segmento === abaSegmento);
+
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -159,6 +177,74 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
         )}
       </Box>
 
+      {/* Seletor de Abas por Segmento */}
+      <Box sx={{ borderBottom: 1, borderColor: theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0', mb: 3 }}>
+        <Tabs
+          value={abaSegmento}
+          onChange={(_, val) => setAbaSegmento(val)}
+          textColor="primary"
+          indicatorColor="primary"
+          sx={{
+            '& .MuiTab-root': {
+              fontFamily: 'Outfit, sans-serif',
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              textTransform: 'none',
+              minWidth: 120,
+              pb: 1.5,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 1
+            }
+          }}
+        >
+          <Tab
+            value="Todos"
+            icon={<ViewListIcon sx={{ fontSize: 18 }} />}
+            iconPosition="start"
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <span>Todos</span>
+                <Chip label={countTodos} size="small" sx={{ height: 18, fontSize: '0.7rem', fontWeight: 700 }} />
+              </Box>
+            }
+          />
+          <Tab
+            value="Imóveis"
+            icon={<HomeIcon sx={{ fontSize: 18 }} />}
+            iconPosition="start"
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <span>Imóveis</span>
+                <Chip label={countImoveis} size="small" sx={{ height: 18, fontSize: '0.7rem', fontWeight: 700, bgcolor: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' }} />
+              </Box>
+            }
+          />
+          <Tab
+            value="Autos Leves"
+            icon={<DirectionsCarIcon sx={{ fontSize: 18 }} />}
+            iconPosition="start"
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <span>Autos Leves</span>
+                <Chip label={countAutos} size="small" sx={{ height: 18, fontSize: '0.7rem', fontWeight: 700, bgcolor: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }} />
+              </Box>
+            }
+          />
+          <Tab
+            value="Pesados"
+            icon={<LocalShippingIcon sx={{ fontSize: 18 }} />}
+            iconPosition="start"
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <span>Pesados</span>
+                <Chip label={countPesados} size="small" sx={{ height: 18, fontSize: '0.7rem', fontWeight: 700, bgcolor: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24' }} />
+              </Box>
+            }
+          />
+        </Tabs>
+      </Box>
+
       <TableContainer
         component={Paper}
         elevation={0}
@@ -182,16 +268,18 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
             </TableRow>
           </TableHead>
           <TableBody>
-            {regras.length === 0 ? (
+            {regrasFiltradas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={permissoes.cadastrarRegras ? 5 : 4} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={permissoes?.cadastrarRegras ? 5 : 4} align="center" sx={{ py: 6 }}>
                   <Typography variant="body1" sx={{ color: theme.palette.mode === 'dark' ? '#64748b' : '#94a3b8' }}>
-                    Nenhuma regra cadastrada.
+                    {abaSegmento === 'Todos' 
+                      ? 'Nenhuma regra cadastrada.' 
+                      : `Nenhuma regra cadastrada para o segmento ${abaSegmento}.`}
                   </Typography>
                 </TableCell>
               </TableRow>
             ) : (
-              regras.map((regra) => {
+              regrasFiltradas.map((regra) => {
                 const chipEstilo = getCorChip(regra.segmento);
                 return (
                   <TableRow
