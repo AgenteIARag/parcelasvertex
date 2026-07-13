@@ -150,7 +150,7 @@ function App() {
 
   // Estado da Navegação (Aba ativa)
   const [abaAtiva, setAbaAtiva] = useState<'simulador' | 'configuracoes'>('simulador');
-  const [subAbaAtiva, setSubAbaAtiva] = useState(0);
+  const [subAbaAtiva, setSubAbaAtiva] = useState<'regras' | 'vendedores' | 'acessos'>('regras');
 
   // Estado de sincronização com o Supabase
   const [statusSincronizacao, setStatusSincronizacao] = useState<'sincronizando' | 'sincronizado' | 'erro'>('sincronizando');
@@ -532,7 +532,7 @@ function App() {
             onChange={(_, val) => {
               setAbaAtiva(val);
               // Ao mudar a aba principal, reseta para a primeira sub-aba
-              if (val === 'configuracoes') setSubAbaAtiva(0);
+              if (val === 'configuracoes') setSubAbaAtiva('regras');
             }}
             textColor="primary"
             indicatorColor="primary"
@@ -617,16 +617,16 @@ function App() {
                   }
                 }}
               >
-                <Tab icon={<StorageIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Banco de Regras (BD Master)" />
-                <Tab icon={<PeopleIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Vendedores" />
-                {usuarioLogado.role === 'master' && (
-                  <Tab icon={<AdminPanelSettingsIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Gestão de Acessos" />
+                <Tab value="regras" icon={<StorageIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Banco de Regras (BD Master)" />
+                <Tab value="vendedores" icon={<PeopleIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Vendedores" />
+                {usuarioLogado?.role === 'master' && (
+                  <Tab value="acessos" icon={<AdminPanelSettingsIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Gestão de Acessos" />
                 )}
               </Tabs>
             </Box>
 
             {/* Renderização das Sub-Abas */}
-            {subAbaAtiva === 0 && (
+            {subAbaAtiva === 'regras' && (
               <RegrasMaster
                 regras={regras}
                 onAdicionarRegra={handleAdicionarRegra}
@@ -636,7 +636,7 @@ function App() {
               />
             )}
 
-            {subAbaAtiva === 1 && (
+            {subAbaAtiva === 'vendedores' && (
               <VendedoresCadastro
                 vendedores={vendedores}
                 onAdicionarVendedor={handleAdicionarVendedor}
@@ -645,7 +645,7 @@ function App() {
               />
             )}
 
-            {subAbaAtiva === 2 && usuarioLogado?.role === 'master' && (
+            {subAbaAtiva === 'acessos' && usuarioLogado?.role === 'master' && (
               <UsuariosCadastro />
             )}
           </Box>
