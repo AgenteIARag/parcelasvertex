@@ -18,6 +18,7 @@ import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import PeopleIcon from '@mui/icons-material/People';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
@@ -158,6 +159,9 @@ function App() {
   const [dataInicio, setDataInicio] = useState<string>('2026-01-01');
   const [dataFim, setDataFim] = useState<string>('2026-12-31');
 
+  // Estados temporários para os inputs de data antes do clique no botão Filtrar
+  const [tempDataInicio, setTempDataInicio] = useState<string>('2026-01-01');
+  const [tempDataFim, setTempDataFim] = useState<string>('2026-12-31');
 
   // Expande automaticamente a dataFim do filtro geral quando alguma parcela ativa ultrapassar o ano de 2026
   useEffect(() => {
@@ -174,8 +178,14 @@ function App() {
     const novaDataFim = `${ano}-12-31`;
     if (novaDataFim > dataFim) {
       setDataFim(novaDataFim);
+      setTempDataFim(novaDataFim);
     }
   }, [vendas, dataFim]);
+
+  const handleFiltrar = () => {
+    setDataInicio(tempDataInicio);
+    setDataFim(tempDataFim);
+  };
 
   // Estado de sincronização com o Supabase
   const [statusSincronizacao, setStatusSincronizacao] = useState<'sincronizando' | 'sincronizado' | 'erro'>('sincronizando');
@@ -599,8 +609,8 @@ function App() {
                     label="De"
                     type="date"
                     size="small"
-                    value={dataInicio}
-                    onChange={(e: any) => setDataInicio(e.target.value)}
+                    value={tempDataInicio}
+                    onChange={(e: any) => setTempDataInicio(e.target.value)}
                     slotProps={{ inputLabel: { shrink: true } }}
                     sx={{ width: 135 }}
                   />
@@ -608,11 +618,30 @@ function App() {
                     label="Até"
                     type="date"
                     size="small"
-                    value={dataFim}
-                    onChange={(e: any) => setDataFim(e.target.value)}
+                    value={tempDataFim}
+                    onChange={(e: any) => setTempDataFim(e.target.value)}
                     slotProps={{ inputLabel: { shrink: true } }}
                     sx={{ width: 135 }}
                   />
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<FilterAltIcon />}
+                    onClick={handleFiltrar}
+                    sx={{
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontFamily: 'Outfit, sans-serif',
+                      py: 1,
+                      px: 2,
+                      height: 40,
+                      background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                      boxShadow: '0 4px 12px rgba(99, 102, 241, 0.15)',
+                    }}
+                  >
+                    Filtrar
+                  </Button>
                 </Box>
               )}
               {/* Indicador de Sincronização Supabase */}
