@@ -69,10 +69,16 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({ vendas
     vendasDoVendedor.forEach((venda) => {
       const pctMensalVendedor = pctVendedor / venda.qtdParcelas;
 
-      Object.keys(venda.projecaoMensal).forEach((mesChave, idx) => {
+      // Filtra e ordena apenas os meses que de fato possuem parcelas ativas da venda
+      const mesesAtivos = Object.keys(venda.projecaoMensal)
+        .filter((mesChave) => {
+          const celula = venda.projecaoMensal[mesChave];
+          return celula && celula.valorVenda && celula.valorVenda > 0;
+        })
+        .sort();
+
+      mesesAtivos.forEach((mesChave, idx) => {
         const celula = venda.projecaoMensal[mesChave];
-        
-        // A comissão do vendedor é calculada aplicando o percentual dele sobre a venda proporcional ao mês
         const comissaoVendedorCalculada = (venda.valorVenda * (pctMensalVendedor / 100));
 
         linhas.push({
