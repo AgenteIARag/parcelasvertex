@@ -127,7 +127,7 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={handleOpenDialog}
+            onClick={() => handleOpenDialog()}
             sx={{
               borderRadius: 2.5,
               textTransform: 'none',

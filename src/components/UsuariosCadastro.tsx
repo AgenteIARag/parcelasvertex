@@ -223,7 +223,7 @@ export const UsuariosCadastro: React.FC = () => {
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={handleOpenDialog}
+          onClick={() => handleOpenDialog()}
           sx={{
             borderRadius: 2,
             background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
