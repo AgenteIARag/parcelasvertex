@@ -12,13 +12,14 @@ import {
   IconButton,
   Tooltip
 } from '@mui/material';
-import DashboardCustomizeIcon from '@mui/icons-material/DashboardCustomize';
 import StorageIcon from '@mui/icons-material/Storage';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import PeopleIcon from '@mui/icons-material/People';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 
 import { type RegraMaster, type LancamentoVenda, type Vendedor, type Usuario } from './types';
 import { INITIAL_REGRAS, INITIAL_VENDAS, INITIAL_VENDEDORES, calcularTotaisLinha } from './data/initialData';
@@ -148,7 +149,7 @@ function App() {
   });
 
   // Estado da Navegação (Aba ativa)
-  const [abaAtiva, setAbaAtiva] = useState<'simulador' | 'configuracoes'>('simulador');
+  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'vendas' | 'configuracoes'>('dashboard');
   const [subAbaAtiva, setSubAbaAtiva] = useState<'regras' | 'vendedores' | 'acessos'>('regras');
 
   // Estado de sincronização com o Supabase
@@ -390,9 +391,9 @@ function App() {
           {/* Menu de Navegação da Sidebar */}
           <Box sx={{ flexGrow: 1, px: 2, py: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Button
-              variant={abaAtiva === 'simulador' ? 'contained' : 'text'}
-              startIcon={<DashboardCustomizeIcon />}
-              onClick={() => setAbaAtiva('simulador')}
+              variant={abaAtiva === 'dashboard' ? 'contained' : 'text'}
+              startIcon={<DashboardIcon />}
+              onClick={() => setAbaAtiva('dashboard')}
               fullWidth
               sx={{
                 justifyContent: 'flex-start',
@@ -402,16 +403,41 @@ function App() {
                 fontWeight: 600,
                 fontFamily: 'Outfit, sans-serif',
                 fontSize: '0.9rem',
-                color: abaAtiva === 'simulador' ? '#ffffff' : 'text.secondary',
-                background: abaAtiva === 'simulador' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
-                boxShadow: abaAtiva === 'simulador' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
+                color: abaAtiva === 'dashboard' ? '#ffffff' : 'text.secondary',
+                background: abaAtiva === 'dashboard' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                boxShadow: abaAtiva === 'dashboard' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
                 '&:hover': {
-                  background: abaAtiva === 'simulador' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
-                  color: abaAtiva === 'simulador' ? '#ffffff' : 'primary.main'
+                  background: abaAtiva === 'dashboard' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
+                  color: abaAtiva === 'dashboard' ? '#ffffff' : 'primary.main'
                 }
               }}
             >
-              Simulador & Timeline
+              Dashboard
+            </Button>
+
+            <Button
+              variant={abaAtiva === 'vendas' ? 'contained' : 'text'}
+              startIcon={<ReceiptLongIcon />}
+              onClick={() => setAbaAtiva('vendas')}
+              fullWidth
+              sx={{
+                justifyContent: 'flex-start',
+                py: 1.25,
+                px: 2,
+                borderRadius: 2,
+                fontWeight: 600,
+                fontFamily: 'Outfit, sans-serif',
+                fontSize: '0.9rem',
+                color: abaAtiva === 'vendas' ? '#ffffff' : 'text.secondary',
+                background: abaAtiva === 'vendas' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                boxShadow: abaAtiva === 'vendas' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
+                '&:hover': {
+                  background: abaAtiva === 'vendas' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
+                  color: abaAtiva === 'vendas' ? '#ffffff' : 'primary.main'
+                }
+              }}
+            >
+              Painel de Vendas
             </Button>
 
             {(usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
@@ -510,7 +536,9 @@ function App() {
             }}
           >
             <Typography variant="h6" sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 750, color: 'text.primary' }}>
-              {abaAtiva === 'simulador' ? 'Painel de Simulações' : 'Configurações Administrativas'}
+              {abaAtiva === 'dashboard' && 'Dashboard de Performance'}
+              {abaAtiva === 'vendas' && 'Painel de Vendas / Simulador'}
+              {abaAtiva === 'configuracoes' && 'Configurações Administrativas'}
             </Typography>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -596,12 +624,19 @@ function App() {
 
           {/* Container de Informações e Views */}
           <Container maxWidth="xl" sx={{ mt: 4 }}>
-            {/* KPI Section */}
-            <KPISection vendas={vendas} />
-
             {/* Renderização Condicional de Conteúdo */}
-            {abaAtiva === 'simulador' && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4, mt: 4 }}>
+            {abaAtiva === 'dashboard' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {/* KPI Section */}
+                <KPISection vendas={vendas} />
+                
+                {/* Gráficos Analíticos */}
+                <AnalyticsCharts vendas={vendas} />
+              </Box>
+            )}
+
+            {abaAtiva === 'vendas' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {/* Tabela Timeline Principal */}
                 <SimuladorVendas
                   vendas={vendas}
@@ -612,15 +647,12 @@ function App() {
                   onExcluirVenda={handleExcluirVenda}
                   permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
                 />
-
-                {/* Gráficos Analíticos */}
-                <AnalyticsCharts vendas={vendas} />
               </Box>
             )}
 
             {abaAtiva === 'configuracoes' && (usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
               <ErrorBoundary>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 4 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   {/* Header das Configurações */}
                   <Box>
                     <Typography
