@@ -8,34 +8,19 @@ export const INITIAL_VENDEDORES: Vendedor[] = [
 
 export const INITIAL_REGRAS: RegraMaster[] = [
   // Imóveis
-  { id: 'r_imoveis_1', segmento: 'Imóveis', tabela: 'REAJUSTE INCC - Normal - Integral', qtdParcelas: 10, percentualComissao: 4.0 },
-  { id: 'r_imoveis_2', segmento: 'Imóveis', tabela: 'REAJUSTE INCC - Normal - Adesão 1%', qtdParcelas: 8, percentualComissao: 4.0 },
-  { id: 'r_imoveis_3', segmento: 'Imóveis', tabela: 'REAJUSTE INCC - Normal - Adesão 2%', qtdParcelas: 7, percentualComissao: 4.0 },
-  { id: 'r_imoveis_4', segmento: 'Imóveis', tabela: 'REAJUSTE INCC - Plano 70% - Integral', qtdParcelas: 13, percentualComissao: 4.0 },
-  { id: 'r_imoveis_5', segmento: 'Imóveis', tabela: 'REAJUSTE INCC - Plano 70% - Adesão 1%', qtdParcelas: 11, percentualComissao: 4.0 },
-  { id: 'r_imoveis_6', segmento: 'Imóveis', tabela: 'REAJUSTE INCC - Plano 70% - Adesão 2%', qtdParcelas: 9, percentualComissao: 4.0 },
-  { id: 'r_imoveis_7', segmento: 'Imóveis', tabela: 'REAJUSTE INCC - Plano 50% - Integral', qtdParcelas: 20, percentualComissao: 4.0 },
-  { id: 'r_imoveis_8', segmento: 'Imóveis', tabela: 'REAJUSTE INCC - Plano 50% - Adesão 1%', qtdParcelas: 17, percentualComissao: 4.0 },
-  { id: 'r_imoveis_9', segmento: 'Imóveis', tabela: 'REAJUSTE INCC - Plano 50% - Adesão 2%', qtdParcelas: 13, percentualComissao: 4.0 },
-  { id: 'r_imoveis_10', segmento: 'Imóveis', tabela: 'GRUPO 708 - Normal', qtdParcelas: 13, percentualComissao: 4.0 },
-  { id: 'r_imoveis_11', segmento: 'Imóveis', tabela: 'GRUPO 708 - Plano 70%', qtdParcelas: 17, percentualComissao: 4.0 },
-  { id: 'r_imoveis_12', segmento: 'Imóveis', tabela: 'GRUPO 708 - Plano 50%', qtdParcelas: 20, percentualComissao: 4.0 },
-  { id: 'r_imoveis_13', segmento: 'Imóveis', tabela: 'GRUPO 708 - ACELERADO - Normal 6x', qtdParcelas: 5, percentualComissao: 4.0 },
-  { id: 'r_imoveis_14', segmento: 'Imóveis', tabela: 'GRUPO 708 - ACELERADO - Normal 8x', qtdParcelas: 8, percentualComissao: 4.0 },
-  { id: 'r_imoveis_15', segmento: 'Imóveis', tabela: 'GRUPO 708 - ACELERADO - Plano 50% 16x', qtdParcelas: 16, percentualComissao: 4.0 },
-
+  { id: 'r1', segmento: 'Imóveis', tabela: 'Tabela Padrão', qtdParcelas: 120, percentualComissao: 4.5 },
+  { id: 'r2', segmento: 'Imóveis', tabela: 'Tabela Platinum', qtdParcelas: 180, percentualComissao: 5.5 },
+  { id: 'r3', segmento: 'Imóveis', tabela: 'Tabela Gold', qtdParcelas: 240, percentualComissao: 6.0 },
+  
   // Autos Leves
-  { id: 'r_autos_1', segmento: 'Autos Leves', tabela: 'Carro/Motos/IGPM - Normal', qtdParcelas: 4, percentualComissao: 4.0 },
-  { id: 'r_autos_2', segmento: 'Autos Leves', tabela: 'Carro/Motos/IGPM - Adesão 1%', qtdParcelas: 4, percentualComissao: 4.0 },
-  { id: 'r_autos_3', segmento: 'Autos Leves', tabela: 'Carro/Motos/IGPM - Adesão 2%', qtdParcelas: 3, percentualComissao: 4.0 },
-  { id: 'r_autos_4', segmento: 'Autos Leves', tabela: 'Carro/Motos/IGPM - Plano 70%', qtdParcelas: 8, percentualComissao: 4.0 },
-  { id: 'r_autos_5', segmento: 'Autos Leves', tabela: 'Carro/Motos/IGPM - Plano 50%', qtdParcelas: 8, percentualComissao: 4.0 },
-  { id: 'r_autos_6', segmento: 'Autos Leves', tabela: 'Carro/Motos/IGPM - Acelera Aí', qtdParcelas: 15, percentualComissao: 4.0 },
+  { id: 'r4', segmento: 'Autos Leves', tabela: 'Tabela Linear Flex', qtdParcelas: 36, percentualComissao: 8.0 },
+  { id: 'r5', segmento: 'Autos Leves', tabela: 'Tabela Linear Flex', qtdParcelas: 48, percentualComissao: 9.0 },
+  { id: 'r6', segmento: 'Autos Leves', tabela: 'Tabela Express', qtdParcelas: 60, percentualComissao: 10.0 },
 
   // Pesados
-  { id: 'r_pesados_1', segmento: 'Pesados', tabela: 'Carro/Motos/IGPM - Normal', qtdParcelas: 5, percentualComissao: 4.0 },
-  { id: 'r_pesados_2', segmento: 'Pesados', tabela: 'Carro/Motos/IGPM - Plano 70%', qtdParcelas: 8, percentualComissao: 4.0 },
-  { id: 'r_pesados_3', segmento: 'Pesados', tabela: 'Carro/Motos/IGPM - Plano 50%', qtdParcelas: 16, percentualComissao: 4.0 }
+  { id: 'r7', segmento: 'Pesados', tabela: 'Tabela Agro-Frota', qtdParcelas: 60, percentualComissao: 7.0 },
+  { id: 'r8', segmento: 'Pesados', tabela: 'Tabela Agro-Frota', qtdParcelas: 72, percentualComissao: 7.5 },
+  { id: 'r9', segmento: 'Pesados', tabela: 'Tabela Pesados Plus', qtdParcelas: 84, percentualComissao: 8.5 }
 ];
 
 export const MAP_MES_NUMERO: Record<MesesAno, string> = {
