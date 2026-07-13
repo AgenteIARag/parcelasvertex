@@ -41,6 +41,7 @@ export interface Vendedor {
   nome: string;
   email: string;
   ativo: boolean;
+  percentualComissao?: number; // Comissão padrão do vendedor (%)
 }
 
 export interface LancamentoVenda {

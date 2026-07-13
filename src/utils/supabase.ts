@@ -21,22 +21,46 @@ export const obterVendedoresSupabase = async (): Promise<Vendedor[]> => {
     console.error('Erro ao buscar vendedores do Supabase:', error);
     throw error;
   }
-  return data || [];
+  return (data || []).map((v: any) => ({
+    id: v.id,
+    nome: v.nome,
+    email: v.email,
+    ativo: v.ativo,
+    percentualComissao: Number(v.percentual_comissao ?? v.percentualComissao ?? 0)
+  }));
 };
 
 export const salvarVendedorSupabase = async (vendedor: Vendedor): Promise<void> => {
-  const { error } = await supabase
-    .from('vendedores')
-    .upsert({
-      id: vendedor.id,
-      nome: vendedor.nome,
-      email: vendedor.email,
-      ativo: vendedor.ativo
-    });
+  try {
+    const { error } = await supabase
+      .from('vendedores')
+      .upsert({
+        id: vendedor.id,
+        nome: vendedor.nome,
+        email: vendedor.email,
+        ativo: vendedor.ativo,
+        percentual_comissao: vendedor.percentualComissao || 0
+      });
 
-  if (error) {
-    console.error('Erro ao salvar vendedor no Supabase:', error);
-    throw error;
+    if (error) {
+      if (error.code === '42703') {
+        console.warn('Coluna percentual_comissao não existe no Supabase. Tentando salvar sem ela.');
+        const { error: retryError } = await supabase
+          .from('vendedores')
+          .upsert({
+            id: vendedor.id,
+            nome: vendedor.nome,
+            email: vendedor.email,
+            ativo: vendedor.ativo
+          });
+        if (retryError) throw retryError;
+      } else {
+        throw error;
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao salvar vendedor no Supabase:', err);
+    throw err;
   }
 };
 

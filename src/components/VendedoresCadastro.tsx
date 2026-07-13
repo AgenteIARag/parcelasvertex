@@ -17,7 +17,8 @@ import {
   DialogActions,
   TextField,
   Grid,
-  useTheme
+  useTheme,
+  InputAdornment
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -42,11 +43,13 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
   const [openDialog, setOpenDialog] = useState(false);
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
+  const [percentualComissao, setPercentualComissao] = useState<number | ''>('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleOpenDialog = () => {
     setNome('');
     setEmail('');
+    setPercentualComissao('');
     setErrors({});
     setOpenDialog(true);
   };
@@ -63,6 +66,9 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
     } else if (!/\S+@\S+\.\S+/.test(email)) {
       tempErrors.email = 'Insira um e-mail válido.';
     }
+    if (percentualComissao !== '' && (Number(percentualComissao) < 0 || Number(percentualComissao) > 100)) {
+      tempErrors.percentualComissao = 'Insira um percentual válido entre 0% e 100%.';
+    }
 
     setErrors(tempErrors);
 
@@ -72,7 +78,8 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
       id: `vend_${Date.now()}`,
       nome: nome.trim(),
       email: email.trim(),
-      ativo: true
+      ativo: true,
+      percentualComissao: percentualComissao === '' ? 0 : Number(percentualComissao)
     };
 
     onAdicionarVendedor(novoVendedor);
@@ -137,6 +144,9 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
               <TableCell sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
                 E-mail
               </TableCell>
+              <TableCell align="right" sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
+                Comissão Padrão (%)
+              </TableCell>
               {permissoes?.cadastrarVendedores && (
                 <TableCell align="center" sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5, width: 120 }}>
                   Ações
@@ -147,7 +157,7 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
           <TableBody>
             {vendedores.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={permissoes.cadastrarVendedores ? 3 : 2} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={permissoes?.cadastrarVendedores ? 4 : 3} align="center" sx={{ py: 6 }}>
                   <PersonIcon sx={{ fontSize: 40, color: '#64748b', mb: 1, opacity: 0.5 }} />
                   <Typography variant="body1" sx={{ color: theme.palette.mode === 'dark' ? '#64748b' : '#94a3b8' }}>
                     Nenhum vendedor cadastrado.
@@ -171,6 +181,9 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
                   </TableCell>
                   <TableCell sx={{ color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
                     {vendedor.email}
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 650, color: theme.palette.success.main, py: 1.5 }}>
+                    {Number(vendedor.percentualComissao || 0).toFixed(2).replace('.', ',')}%
                   </TableCell>
                   {permissoes?.cadastrarVendedores && (
                     <TableCell align="center" sx={{ py: 1 }}>
@@ -249,6 +262,31 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
                 onChange={(e) => setEmail(e.target.value)}
                 error={!!errors.email}
                 helperText={errors.email}
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                label="Comissão Padrão (%)"
+                type="number"
+                placeholder="Ex: 1.5"
+                value={percentualComissao}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
+                  setPercentualComissao(val);
+                }}
+                error={!!errors.percentualComissao}
+                helperText={errors.percentualComissao}
+                slotProps={{
+                  input: {
+                    endAdornment: <InputAdornment position="end">%</InputAdornment>
+                  },
+                  htmlInput: {
+                    step: '0.1',
+                    min: '0',
+                    max: '100'
+                  }
+                }}
               />
             </Grid>
           </Grid>
