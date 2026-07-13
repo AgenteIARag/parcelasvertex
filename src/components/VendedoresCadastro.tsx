@@ -100,7 +100,7 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
             Gerencie os vendedores da consultoria para associá-los aos lançamentos e simulações.
           </Typography>
         </Box>
-        {permissoes.cadastrarVendedores && (
+        {permissoes?.cadastrarVendedores && (
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -137,7 +137,7 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
               <TableCell sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
                 E-mail
               </TableCell>
-              {permissoes.cadastrarVendedores && (
+              {permissoes?.cadastrarVendedores && (
                 <TableCell align="center" sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5, width: 120 }}>
                   Ações
                 </TableCell>
@@ -172,7 +172,7 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
                   <TableCell sx={{ color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
                     {vendedor.email}
                   </TableCell>
-                  {permissoes.cadastrarVendedores && (
+                  {permissoes?.cadastrarVendedores && (
                     <TableCell align="center" sx={{ py: 1 }}>
                       <IconButton
                         color="error"

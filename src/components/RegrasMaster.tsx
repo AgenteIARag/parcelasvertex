@@ -140,7 +140,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
             Gerencie as tabelas de comissionamento por segmento e número de parcelas
           </Typography>
         </Box>
-        {permissoes.cadastrarRegras && (
+        {permissoes?.cadastrarRegras && (
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -176,7 +176,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
               <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }}>Tabela</TableCell>
               <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="right">Qtd. Parcelas</TableCell>
               <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="right">% Comissão</TableCell>
-              {permissoes.cadastrarRegras && (
+              {permissoes?.cadastrarRegras && (
                 <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="center">Ações</TableCell>
               )}
             </TableRow>
@@ -230,9 +230,9 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                         color: theme.palette.success.main
                       }}
                     >
-                      {regra.percentualComissao.toFixed(2).replace('.', ',')}%
+                      {Number(regra.percentualComissao || 0).toFixed(2).replace('.', ',')}%
                     </TableCell>
-                    {permissoes.cadastrarRegras && (
+                    {permissoes?.cadastrarRegras && (
                       <TableCell align="center">
                         <IconButton
                           color="primary"

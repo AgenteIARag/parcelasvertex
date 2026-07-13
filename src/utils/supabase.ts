@@ -64,7 +64,14 @@ export const obterRegrasSupabase = async (): Promise<RegraMaster[]> => {
     console.error('Erro ao buscar regras do Supabase:', error);
     throw error;
   }
-  return data || [];
+  // Mapear snake_case -> camelCase e garantir tipos numéricos corretos
+  return (data || []).map((r: any) => ({
+    id: r.id,
+    segmento: r.segmento,
+    tabela: r.tabela,
+    qtdParcelas: Number(r.qtd_parcelas ?? r.qtdParcelas ?? 0),
+    percentualComissao: Number(r.percentual_comissao ?? r.percentualComissao ?? 0)
+  }));
 };
 
 export const salvarRegraSupabase = async (regra: RegraMaster): Promise<void> => {
