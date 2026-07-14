@@ -404,34 +404,42 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     '2026-09', '2026-10', '2026-11', '2026-12'
   ];
 
-  // Gera dinamicamente a lista de chaves "YYYY-MM" no intervalo do filtro geral "De" e "Até"
-  const obterMesesNoIntervalo = (inicio: string, fim: string): string[] => {
-    if (!inicio || !fim) return FALLBACK_MESES;
 
-    try {
-      const meses: string[] = [];
-      const dataI = new Date(inicio + 'T00:00:00');
-      const dataF = new Date(fim + 'T00:00:00');
 
-      if (isNaN(dataI.getTime()) || isNaN(dataF.getTime())) return FALLBACK_MESES;
+  // Gera dinamicamente a lista de chaves "YYYY-MM" cobrindo TODOS os meses que possuem parcelas reais
+  const mesesFiltrados = useMemo(() => {
+    // Coleta todos os meses que possuem dados de parcelas nas vendas
+    const mesesComDados = new Set<string>();
+    vendas.forEach((venda) => {
+      Object.keys(venda.projecaoMensal).forEach((mesChave) => {
+        const celula = venda.projecaoMensal[mesChave];
+        if (celula && celula.valorVenda > 0) {
+          mesesComDados.add(mesChave);
+        }
+      });
+    });
 
-      let dataAtual = new Date(dataI.getFullYear(), dataI.getMonth(), 15);
-      const dataLimite = new Date(dataF.getFullYear(), dataF.getMonth(), 15);
-
-      while (dataAtual <= dataLimite) {
-        const ano = dataAtual.getFullYear();
-        const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
-        meses.push(`${ano}-${mes}`);
-        dataAtual.setMonth(dataAtual.getMonth() + 1);
-      }
-      return meses.length > 0 ? meses : FALLBACK_MESES;
-    } catch {
-      return FALLBACK_MESES;
+    // Também inclui os meses do intervalo do filtro para não perder colunas vazias do período
+    if (dataInicio && dataFim) {
+      try {
+        const dataI = new Date(dataInicio + 'T00:00:00');
+        const dataF = new Date(dataFim + 'T00:00:00');
+        if (!isNaN(dataI.getTime()) && !isNaN(dataF.getTime())) {
+          let dataAtual = new Date(dataI.getFullYear(), dataI.getMonth(), 15);
+          const dataLimite = new Date(dataF.getFullYear(), dataF.getMonth(), 15);
+          while (dataAtual <= dataLimite) {
+            const ano = dataAtual.getFullYear();
+            const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+            mesesComDados.add(`${ano}-${mes}`);
+            dataAtual.setMonth(dataAtual.getMonth() + 1);
+          }
+        }
+      } catch { /* fallback silencioso */ }
     }
-  };
 
-  // Filtro de meses (limita colunas geradas aos meses setados pelo filtro De/Até)
-  const mesesFiltrados = useMemo(() => obterMesesNoIntervalo(dataInicio, dataFim), [dataInicio, dataFim]);
+    const resultado = Array.from(mesesComDados).sort();
+    return resultado.length > 0 ? resultado : FALLBACK_MESES;
+  }, [vendas, dataInicio, dataFim]);
 
   // Totais de vendas e comissões acumulados no período filtrado para cada linha
   const obterTotaisFiltrados = (venda: LancamentoVenda) => {
@@ -628,7 +636,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           maxWidth: '100%'
         }}
       >
-        <Table size="small" sx={{ minWidth: 1800, borderCollapse: 'collapse' }}>
+        <Table size="small" sx={{ minWidth: 2200, borderCollapse: 'collapse' }}>
           <TableHead sx={{ background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc' }}>
             <TableRow>
               <TableCell
@@ -752,7 +760,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                       color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b',
                       borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
                       borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                      minWidth: 85
+                      minWidth: 120, whiteSpace: 'nowrap'
                     }}
                   >
                     Venda
@@ -764,7 +772,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                       fontWeight: 600,
                       color: theme.palette.success.main,
                       borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                      minWidth: 110
+                      minWidth: 130, whiteSpace: 'nowrap'
                     }}
                   >
                     Comissão

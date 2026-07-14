@@ -64,38 +64,6 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
   const [vendedorId, setVendedorId] = useState<string>('');
   const [abaInterna, setAbaInterna] = useState<'timeline' | 'matriz'>('timeline');
 
-  // Gera dinamicamente a lista de chaves "YYYY-MM" no intervalo do filtro geral "De" e "Até"
-  const listaMesesTimeline = useMemo(() => {
-    const FALLBACK_MESES = [
-      '2026-01', '2026-02', '2026-03', '2026-04',
-      '2026-05', '2026-06', '2026-07', '2026-08',
-      '2026-09', '2026-10', '2026-11', '2026-12'
-    ];
-
-    if (!dataInicio || !dataFim) return FALLBACK_MESES;
-
-    try {
-      const meses: string[] = [];
-      const dataI = new Date(dataInicio + 'T00:00:00');
-      const dataF = new Date(dataFim + 'T00:00:00');
-
-      if (isNaN(dataI.getTime()) || isNaN(dataF.getTime())) return FALLBACK_MESES;
-
-      let dataAtual = new Date(dataI.getFullYear(), dataI.getMonth(), 15);
-      const dataLimite = new Date(dataF.getFullYear(), dataF.getMonth(), 15);
-
-      while (dataAtual <= dataLimite) {
-        const ano = dataAtual.getFullYear();
-        const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
-        meses.push(`${ano}-${mes}`);
-        dataAtual.setMonth(dataAtual.getMonth() + 1);
-      }
-      return meses.length > 0 ? meses : FALLBACK_MESES;
-    } catch {
-      return FALLBACK_MESES;
-    }
-  }, [dataInicio, dataFim]);
-
   const vendedorSelecionado = useMemo(() => {
     return vendedores.find((v) => v.id === vendedorId) || null;
   }, [vendedorId, vendedores]);
@@ -105,6 +73,47 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
     if (!vendedorSelecionado) return [];
     return vendas.filter((v) => v.vendedorId === vendedorSelecionado.id);
   }, [vendedorSelecionado, vendas]);
+
+  // Gera dinamicamente a lista de chaves "YYYY-MM" cobrindo TODOS os meses que possuem parcelas reais do vendedor selecionado
+  const listaMesesTimeline = useMemo(() => {
+    const FALLBACK_MESES = [
+      '2026-01', '2026-02', '2026-03', '2026-04',
+      '2026-05', '2026-06', '2026-07', '2026-08',
+      '2026-09', '2026-10', '2026-11', '2026-12'
+    ];
+
+    // Coleta todos os meses que possuem dados de parcelas nas vendas deste vendedor
+    const mesesComDados = new Set<string>();
+    vendasDoVendedor.forEach((venda) => {
+      Object.keys(venda.projecaoMensal).forEach((mesChave) => {
+        const celula = venda.projecaoMensal[mesChave];
+        if (celula && celula.valorVenda > 0) {
+          mesesComDados.add(mesChave);
+        }
+      });
+    });
+
+    // Também inclui os meses do intervalo do filtro para não perder colunas vazias do período
+    if (dataInicio && dataFim) {
+      try {
+        const dataI = new Date(dataInicio + 'T00:00:00');
+        const dataF = new Date(dataFim + 'T00:00:00');
+        if (!isNaN(dataI.getTime()) && !isNaN(dataF.getTime())) {
+          let dataAtual = new Date(dataI.getFullYear(), dataI.getMonth(), 15);
+          const dataLimite = new Date(dataF.getFullYear(), dataF.getMonth(), 15);
+          while (dataAtual <= dataLimite) {
+            const ano = dataAtual.getFullYear();
+            const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+            mesesComDados.add(`${ano}-${mes}`);
+            dataAtual.setMonth(dataAtual.getMonth() + 1);
+          }
+        }
+      } catch { /* fallback silencioso */ }
+    }
+
+    const resultado = Array.from(mesesComDados).sort();
+    return resultado.length > 0 ? resultado : FALLBACK_MESES;
+  }, [vendasDoVendedor, dataInicio, dataFim]);
 
   // Obtém o rótulo do número da parcela (ex: "1/36")
   const obterNumeroParcela = (venda: LancamentoVenda, mesChave: string): string => {
@@ -482,7 +491,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                 maxWidth: '100%'
               }}
             >
-              <Table size="small" sx={{ minWidth: 1800, borderCollapse: 'collapse' }}>
+              <Table size="small" sx={{ minWidth: 2200, borderCollapse: 'collapse' }}>
                 <TableHead sx={{ background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc' }}>
                   {/* Primeira linha do cabeçalho */}
                   <TableRow>
@@ -593,7 +602,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                             color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b',
                             borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
                             borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                            minWidth: 85
+                            minWidth: 120, whiteSpace: 'nowrap'
                           }}
                         >
                           Venda
@@ -605,7 +614,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                             fontWeight: 600,
                             color: theme.palette.success.main,
                             borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                            minWidth: 110
+                            minWidth: 130, whiteSpace: 'nowrap'
                           }}
                         >
                           Comissão
