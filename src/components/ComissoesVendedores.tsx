@@ -42,6 +42,7 @@ interface LinhaComissao {
   id: string; // id da venda + mes
   vendaId: string;
   cliente: string;
+  pac?: string; // Código do Contrato/PAC
   segmento: string;
   tabela: string;
   mesChave: string; // YYYY-MM
@@ -164,6 +165,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
           id: `${venda.id}_${mesChave}`,
           vendaId: venda.id,
           cliente: venda.cliente,
+          pac: venda.pac || '',
           segmento: venda.segmento,
           tabela: venda.tabela,
           mesChave,
@@ -446,7 +448,24 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                         <TableCell sx={{ fontWeight: 700 }}>
                           {formatarChaveMesExibicao(linha.mesChave)}
                         </TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>{linha.cliente}</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                            <span>{linha.cliente}</span>
+                            {linha.pac && (
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: 'text.secondary',
+                                  fontWeight: 700,
+                                  fontSize: '0.68rem',
+                                  display: 'block'
+                                }}
+                              >
+                                Contrato: {linha.pac}
+                              </Typography>
+                            )}
+                          </Box>
+                        </TableCell>
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <span style={{ fontSize: '0.8rem', color: theme.palette.text.secondary }}>
@@ -666,6 +685,20 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                   {venda.statusCliente}
                                 </Box>
                               </Box>
+                              {venda.pac && (
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: 'text.secondary',
+                                    fontWeight: 700,
+                                    fontSize: '0.72rem',
+                                    display: 'block',
+                                    mt: 0.1
+                                  }}
+                                >
+                                  Contrato / PAC: {venda.pac}
+                                </Typography>
+                              )}
                               {(venda.dataSegundaParcela || venda.segmento) && (
                                 <Typography
                                   variant="caption"

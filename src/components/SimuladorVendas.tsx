@@ -75,6 +75,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   // Estados para inclusão de nova venda
   const [openDialog, setOpenDialog] = useState(false);
   const [cliente, setCliente] = useState('');
+  const [pac, setPac] = useState('');
   const [vendedorId, setVendedorId] = useState('');
   const [segmento, setSegmento] = useState<SegmentoType | ''>('');
   const [tabela, setTabela] = useState('');
@@ -156,6 +157,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
   const handleOpenDialog = () => {
     setCliente('');
+    setPac('');
     setVendedorId('');
     setSegmento('');
     setTabela('');
@@ -246,6 +248,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     const novaVenda: LancamentoVenda = {
       id: `v_${Date.now()}`,
       cliente: cliente.trim(),
+      pac: pac.trim(),
       vendedorId,
       vendedorNome: vendedorSelecionado?.nome || '',
       dataVenda: dataVendaInput,
@@ -502,6 +505,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       id: string;
       vendaId: string;
       cliente: string;
+      pac?: string;
       vendedorNome: string;
       segmento: string;
       tabela: string;
@@ -543,6 +547,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           id: `${venda.id}_${mesChave}`,
           vendaId: venda.id,
           cliente: venda.cliente,
+          pac: venda.pac || '',
           vendedorNome: venda.vendedorNome || '',
           segmento: venda.segmento,
           tabela: venda.tabela,
@@ -822,6 +827,20 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           {venda.statusCliente}
                         </Box>
                       </Box>
+                      {venda.pac && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: 'text.secondary',
+                            fontWeight: 700,
+                            fontSize: '0.72rem',
+                            display: 'block',
+                            mt: 0.1
+                          }}
+                        >
+                          Contrato / PAC: {venda.pac}
+                        </Typography>
+                      )}
                       {venda.vendedorNome && (
                         <Typography
                           variant="caption"
@@ -1325,7 +1344,24 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                     <TableCell sx={{ fontWeight: 700 }}>
                       {formatarChaveMesExibicao(linha.mesChave)}
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>{linha.cliente}</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        <span>{linha.cliente}</span>
+                        {linha.pac && (
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: 'text.secondary',
+                              fontWeight: 700,
+                              fontSize: '0.68rem',
+                              display: 'block'
+                            }}
+                          >
+                            Contrato: {linha.pac}
+                          </Typography>
+                        )}
+                      </Box>
+                    </TableCell>
                     <TableCell sx={{ fontWeight: 500, color: theme.palette.primary.main }}>
                       {linha.vendedorNome || '-'}
                     </TableCell>
@@ -1445,6 +1481,15 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 onChange={(e) => setCliente(e.target.value)}
                 error={!!errors.cliente}
                 helperText={errors.cliente}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                label="PAC (Contrato)"
+                placeholder="Ex: PAC-987654"
+                value={pac}
+                onChange={(e) => setPac(e.target.value)}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>

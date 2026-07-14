@@ -62,6 +62,7 @@ export interface LancamentoVenda {
   totalVendas: number; // Calculado (faturamento nominal ativo consolidado)
   totalComissoes: number; // Calculado (soma das comissões geradas dos meses ativos e não cancelados)
   statusCliente: StatusCliente;
+  pac?: string; // Código do Contrato/PAC
 }
 
 export const LISTA_MESES: MesesAno[] = [
