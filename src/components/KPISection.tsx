@@ -20,7 +20,7 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
   const mesInicioChave = dataInicio.substring(0, 7);
   const mesFimChave = dataFim.substring(0, 7);
 
-  // Cálculos dinâmicos baseados apenas nas parcelas do período filtrado
+  // Cálculos dinâmicos baseados nas parcelas do período filtrado
   let volumeTotalVendas = 0;
   let receitaTotalComissoes = 0;
   let comissoesRecebidasNoPeriodo = 0;
@@ -29,12 +29,12 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
   let valorTotalCancelado = 0;
 
   vendas.forEach((v) => {
+    // 1. Acumulador Mensal de Fluxo de Caixa (Comissões e Status no Período)
     Object.keys(v.projecaoMensal).forEach((mes) => {
       if (mes >= mesInicioChave && mes <= mesFimChave) {
         const celula = v.projecaoMensal[mes];
         if (celula) {
           if (celula.status !== 'Cancelada' && celula.valorVenda > 0) {
-            volumeTotalVendas += celula.valorVenda;
             receitaTotalComissoes += celula.comissaoGerada || 0;
             clientesAtivosSet.add(v.cliente);
             if (celula.status === 'Recebida') {
@@ -47,6 +47,14 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
         }
       }
     });
+
+    // 2. Acumulador de Faturamento (VGV - Volume Geral de Vendas no momento do fechamento)
+    const dataDaVenda = v.dataVenda || (v.mesInicio ? `${v.mesInicio}-01` : '');
+    if (dataDaVenda && dataDaVenda >= dataInicio && dataDaVenda <= dataFim) {
+      if (v.statusCliente !== 'Cancelado') {
+        volumeTotalVendas += v.valorVenda; // Computa o valor de crédito APENAS 1 VEZ por venda
+      }
+    }
   });
 
   const totalClientesAtivos = clientesAtivosSet.size;
