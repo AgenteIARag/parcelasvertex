@@ -397,23 +397,37 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     return '';
   };
 
+  // Fallback estático dos 12 meses de 2026
+  const FALLBACK_MESES = [
+    '2026-01', '2026-02', '2026-03', '2026-04',
+    '2026-05', '2026-06', '2026-07', '2026-08',
+    '2026-09', '2026-10', '2026-11', '2026-12'
+  ];
+
   // Gera dinamicamente a lista de chaves "YYYY-MM" no intervalo do filtro geral "De" e "Até"
   const obterMesesNoIntervalo = (inicio: string, fim: string): string[] => {
-    const meses: string[] = [];
-    const dataI = new Date(inicio + 'T00:00:00');
-    const dataF = new Date(fim + 'T00:00:00');
+    if (!inicio || !fim) return FALLBACK_MESES;
 
-    let dataAtual = new Date(dataI.getFullYear(), dataI.getMonth(), 15);
-    const dataLimite = new Date(dataF.getFullYear(), dataF.getMonth(), 15);
+    try {
+      const meses: string[] = [];
+      const dataI = new Date(inicio + 'T00:00:00');
+      const dataF = new Date(fim + 'T00:00:00');
 
-    while (dataAtual <= dataLimite) {
-      const ano = dataAtual.getFullYear();
-      const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
-      meses.push(`${ano}-${mes}`);
-      
-      dataAtual.setMonth(dataAtual.getMonth() + 1);
+      if (isNaN(dataI.getTime()) || isNaN(dataF.getTime())) return FALLBACK_MESES;
+
+      let dataAtual = new Date(dataI.getFullYear(), dataI.getMonth(), 15);
+      const dataLimite = new Date(dataF.getFullYear(), dataF.getMonth(), 15);
+
+      while (dataAtual <= dataLimite) {
+        const ano = dataAtual.getFullYear();
+        const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+        meses.push(`${ano}-${mes}`);
+        dataAtual.setMonth(dataAtual.getMonth() + 1);
+      }
+      return meses.length > 0 ? meses : FALLBACK_MESES;
+    } catch {
+      return FALLBACK_MESES;
     }
-    return meses;
   };
 
   // Filtro de meses (limita colunas geradas aos meses setados pelo filtro De/Até)

@@ -1,0 +1,890 @@
+{
+  "updatedAt": "2026-06-22T08:16:08.059Z",
+  "createdAt": "2026-06-22T08:16:08.059Z",
+  "id": "iJEULYVrb59jBsp7",
+  "name": "Agente Consulta Processual Jurídico",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8,14 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "3ab89a32-b402-48cc-aa5f-b3087b886192",
+      "name": "Schedule - Dias Úteis",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -768,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "consulta-processo",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f938c718-9ad4-47bc-9ff7-819dd88f6854",
+      "name": "Webhook - Consulta Manual",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        -768,
+        352
+      ],
+      "webhookId": "consulta-processo-001"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": {
+          "__rl": true,
+          "value": "SEU_SPREADSHEET_ID_AQUI",
+          "mode": "id"
+        }
+      },
+      "id": "6c8b8e4c-91cb-499e-9247-8eed1f502dcc",
+      "name": "Buscar Processos Ativos",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        -496,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normaliza entrada manual para o mesmo formato da planilha\nconst body = items[0].json.body || items[0].json;\nreturn [{\n  json: {\n    numero_processo: body.numero_processo,\n    telefone_cliente: body.telefone_cliente || '',\n    nome_cliente: body.nome_cliente || 'Cliente',\n    ativo: 'TRUE',\n    ultima_movimentacao_conhecida: '',\n    data_ultima_verificacao: '',\n    is_manual: true\n  }\n}];"
+      },
+      "id": "3eb113e5-7c22-4bb2-9ee8-b47f17e4f1be",
+      "name": "Preparar Item Manual",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -496,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "afb55fee-6555-4f31-aa48-554e40e3e227",
+      "name": "Loop Processos",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -240,
+        128
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "40b43e93-4e00-4bd3-a3c9-d91f98d1c63e",
+      "name": "Loop Finalizado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─── Identificação do sistema pelo número CNJ ─────────────────────\n// Formato: NNNNNNN-DD.AAAA.J.TT.OOOO (20 dígitos sem formatação)\nconst item = items[0].json;\nconst processo = (item.numero_processo || '').trim();\nconst d = processo.replace(/\\D/g, '');\n\nif (d.length !== 20) {\n  throw new Error('Número CNJ inválido: ' + processo + ' (' + d.length + ' dígitos, esperado 20)');\n}\n\nconst seg = d.charAt(13);        // J = segmento de justiça\nconst tCod = d.substring(14,16); // TT = código do tribunal\n\nconst tjMap = {\n  '01':'TJAC','02':'TJAL','03':'TJAM','04':'TJAP','05':'TJBA',\n  '06':'TJCE','07':'TJDF','08':'TJES','09':'TJGO','10':'TJMA',\n  '11':'TJMT','12':'TJMS','13':'TJMG','14':'TJPA','15':'TJPB',\n  '16':'TJPR','17':'TJPE','18':'TJPI','19':'TJRJ','20':'TJRN',\n  '21':'TJRS','22':'TJRO','23':'TJRR','24':'TJSC','25':'TJSE',\n  '26':'TJSP','27':'TJTO'\n};\nconst esajHosts = {\n  'TJSP':'esaj.tjsp.jus.br','TJBA':'esaj.tjba.jus.br','TJSC':'esaj.tjsc.jus.br',\n  'TJCE':'esaj.tjce.jus.br','TJMG':'esaj.tjmg.jus.br','TJMS':'esaj.tjms.jus.br',\n  'TJPR':'esaj.tjpr.jus.br','TJRJ':'esaj.tjrj.jus.br','TJRS':'esaj.tjrs.jus.br'\n};\n\nlet sistema = 'pje', tribunalNome = 'Tribunal', esajHost = '';\n\nif (seg === '8') {\n  sistema = 'esaj';\n  tribunalNome = tjMap[tCod] || 'TJ' + tCod;\n  esajHost = esajHosts[tribunalNome] || 'esaj.' + tribunalNome.toLowerCase() + '.jus.br';\n} else if (seg === '4') {\n  if (tCod === '01')      { sistema = 'eproc'; tribunalNome = 'TRF1'; }\n  else if (tCod === '04') { sistema = 'eproc'; tribunalNome = 'TRF4'; }\n  else                    { sistema = 'pje';   tribunalNome = 'TRF' + parseInt(tCod); }\n} else if (seg === '5') {\n  sistema = 'pje';\n  tribunalNome = 'TRT' + parseInt(tCod);\n} else {\n  sistema = 'pje';\n  tribunalNome = 'Tribunal Seg.' + seg + '-' + tCod;\n}\n\nreturn [{ json: {\n  ...item,\n  segmento: seg,\n  tribunal_codigo: tCod,\n  tribunal_nome: tribunalNome,\n  esaj_host: esajHost,\n  sistema,\n  numero_processo_limpo: d\n}}];"
+      },
+      "id": "ab0a41a7-a5dd-49ca-b267-824da55fd815",
+      "name": "Identificar Sistema CNJ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r1",
+                    "leftValue": "={{ $json.sistema }}",
+                    "rightValue": "esaj",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "e-SAJ"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r2",
+                    "leftValue": "={{ $json.sistema }}",
+                    "rightValue": "pje",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PJe"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r3",
+                    "leftValue": "={{ $json.sistema }}",
+                    "rightValue": "eproc",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "eproc"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f323e78c-3f08-421f-810c-948b9de19507",
+      "name": "Rotear Sistema",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        240,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://{{ $json.esaj_host }}/cpopg/search.do?conversationId=&cbPesquisa=NUMPROC&numeroDigitoAnoUnificado={{ $json.numero_processo.substring(0,13) }}&foroNumeroUnificado={{ $json.numero_processo_limpo.substring(16) }}&dadosConsulta.valorConsultaNuUnificado={{ $json.numero_processo }}&dadosConsulta.tipoNuProcesso=UNIFICADO",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "1a4eecd3-48ed-44a2-8a22-b195ef31de37",
+      "name": "Consultar e-SAJ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://pje.{{ $json.tribunal_nome.toLowerCase() }}.jus.br/pje/Processo/ConsultaProcesso/listView.seam?numeroProcesso={{ $json.numero_processo }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "01e83d20-6566-477b-af4e-74ff3fb3e5e8",
+      "name": "Consultar PJe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://eproc.{{ $json.tribunal_nome.toLowerCase() }}.jus.br/eproc/externo_controlador.php?acao=processo_consultar_publico&num_processo={{ $json.numero_processo }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "63bbe699-b033-42b1-a8ed-7d4df9312551",
+      "name": "Consultar eproc",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─── Extrai dados da resposta do tribunal ──────────────────────────\n// Recupera dados originais do processo (perdidos após HTTP Request)\nconst proc = $('Identificar Sistema CNJ').first().json;\nconst resp = items[0].json;\nconst html = resp.data || '';\nconst sistema = proc.sistema;\n\nlet ultima_mov = 'Não identificado automaticamente — verificar manualmente';\nlet data_mov = '', autor = '', reu = '', proxima_audiencia = null;\n\nif (sistema === 'esaj') {\n  // ── e-SAJ (HTML) ──────────────────────────────────────────────────\n  const movM = html.match(/class[^>]*descricao[^>]*>\\s*([^<]{10,120})/i)\n             || html.match(/Andamento[^<]*<\\/th>([\\s\\S]{0,200}?)<td[^>]*>([^<]{10,})/i);\n  if (movM) ultima_mov = (movM[2] || movM[1]).trim();\n\n  const dateM = html.match(/(\\d{2}\\/\\d{2}\\/\\d{4})/);\n  if (dateM) data_mov = dateM[1];\n\n  const autorM = html.match(/Requerente[^:]*:\\s*<[^>]*>([^<]{5,60})/i)\n               || html.match(/Autor[^:]*:\\s*<[^>]*>([^<]{5,60})/i);\n  const reuM   = html.match(/Requerido[^:]*:\\s*<[^>]*>([^<]{5,60})/i)\n               || html.match(/R[eé]u[^:]*:\\s*<[^>]*>([^<]{5,60})/i);\n  if (autorM) autor = autorM[1].trim();\n  if (reuM)   reu   = reuM[1].trim();\n\n} else if (sistema === 'pje') {\n  // ── PJe (JSON ou HTML) ────────────────────────────────────────────\n  try {\n    const j = typeof resp === 'object' && resp.content ? resp : JSON.parse(html);\n    const m = j?.movimento?.[0] || j?.movimentos?.[0] || j?.data?.[0];\n    if (m) {\n      ultima_mov = m.descricao || m.nome || m.complementoTabelado || 'Ver PJe';\n      data_mov   = (m.dataHora || m.dtMovimento || '').substring(0,10);\n    }\n    autor = j?.polo?.ativo?.[0]?.nome || '';\n    reu   = j?.polo?.passivo?.[0]?.nome || '';\n  } catch(e) {\n    const m = html.match(/class[^>]*descricao[^>]*>([^<]{10,120})/i);\n    if (m) ultima_mov = m[1].trim();\n  }\n\n} else if (sistema === 'eproc') {\n  // ── eproc (HTML) ──────────────────────────────────────────────────\n  const m = html.match(/class[^>]*evento[^>]*>[\\s\\S]*?<td[^>]*>([^<]{10,120})/i);\n  if (m) ultima_mov = m[1].trim();\n  const d = html.match(/(\\d{2}\\/\\d{2}\\/\\d{4})/);\n  if (d) data_mov = d[1];\n}\n\nreturn [{ json: {\n  ...proc,\n  ultima_movimentacao: ultima_mov,\n  data_movimentacao: data_mov,\n  status: 'Em andamento',\n  autor, reu, proxima_audiencia\n}}];"
+      },
+      "id": "baf4e431-a4fc-46f9-ac43-a2651b0aa09e",
+      "name": "Extrair Dados Tribunal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cnd-nov",
+              "leftValue": "={{ $json.ultima_movimentacao }}",
+              "rightValue": "={{ $json.ultima_movimentacao_conhecida }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3c74a615-2aa5-4c27-bd04-ef593fa07ff5",
+      "name": "Tem Novidade?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        960,
+        224
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a54175db-db7a-4d2f-a1f0-d8104942da60",
+      "name": "Sem Novidade - Volta ao Loop",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $vars.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'claude-sonnet-4-6',\n  max_tokens: 1000,\n  system: 'Você é um assistente jurídico especializado em comunicação com clientes leigos. Receba dados técnicos de processos judiciais e gere mensagens claras, humanas e tranquilizadoras.\\n\\nRegras obrigatórias:\\n- NUNCA use termos técnicos sem explicação\\n- NUNCA mencione PJe, e-SAJ, eproc ou outros sistemas\\n- Use primeira pessoa do plural: \"estamos acompanhando\", \"seu processo\"\\n- Seja empático e transmita segurança\\n- Máximo de 5 linhas no resumo_cliente\\n- Finalize com orientação clara sobre o que o cliente deve (ou não) fazer agora\\n- Responda SOMENTE em JSON válido, sem markdown, sem backticks',\n  messages: [{\n    role: 'user',\n    content: 'Dados do processo:\\n- Número: ' + $json.numero_processo + '\\n- Tribunal: ' + $json.tribunal_nome + '\\n- Última movimentação: ' + $json.ultima_movimentacao + '\\n- Data: ' + ($json.data_movimentacao || 'Não informada') + '\\n- Status: ' + ($json.status || 'Em andamento') + '\\n- Próxima audiência: ' + ($json.proxima_audiencia || 'Não informada') + '\\n- Autor: ' + ($json.autor || 'Não informado') + '\\n- Réu: ' + ($json.reu || 'Não informado') + '\\n\\nGere JSON com os campos:\\n1. resumo_cliente (string, máx 5 linhas, linguagem simples, sem juridiquês)\\n2. status_interno (enum: aguardando_decisao | audiencia_marcada | sentenciado | recurso_pendente | arquivado | outro)\\n3. urgencia (enum: baixa | media | alta)\\n4. acao_necessaria (string — o que o advogado deve fazer, ou \"nenhuma\")'\n  }]\n}) }}",
+        "options": {}
+      },
+      "id": "0f7afa57-8210-4957-a481-addab41d9798",
+      "name": "Consultar Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─── Parseia resposta do Claude e recupera dados do processo ───────\nconst prev = $('Tem Novidade?').first().json;\nconst r    = items[0].json;\n\nlet text = '';\nif (Array.isArray(r.content)) {\n  text = r.content.find(b => b.type === 'text')?.text || '';\n} else {\n  text = String(r.content || '');\n}\n\nconst clean = text.replace(/```json|```/g, '').trim();\n\nlet p = {};\ntry {\n  p = JSON.parse(clean);\n} catch(e) {\n  p = { resumo_cliente: text || 'Não foi possível gerar o resumo.', status_interno: 'outro', urgencia: 'baixa', acao_necessaria: 'nenhuma' };\n}\n\nreturn [{ json: {\n  ...prev,\n  resumo_claude:    p.resumo_cliente  || '',\n  status_interno:   p.status_interno  || 'outro',\n  urgencia:         p.urgencia        || 'baixa',\n  acao_necessaria:  p.acao_necessaria || 'nenhuma'\n}}];"
+      },
+      "id": "77c7aa5e-02bf-4ecf-a192-9766486950bc",
+      "name": "Parsear Resposta Claude",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cnd-urg",
+              "leftValue": "={{ $json.urgencia }}",
+              "rightValue": "alta",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "90e1b623-3ee7-41ad-bd63-0a856b8c7918",
+      "name": "Urgência Alta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.EVOLUTION_API_URL }}/message/sendText/{{ $vars.EVOLUTION_INSTANCE }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $vars.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.telefone_cliente, textMessage: { text: '⚠️ *Atualização importante do seu processo*\\n\\n' + $json.resumo_claude + '\\n\\nNossa equipe já está cuidando disso. Em breve entraremos em contato.' } }) }}",
+        "options": {}
+      },
+      "id": "04f5fe84-f9d9-462f-aff5-78c12aa3b19b",
+      "name": "WA Cliente - Urgente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.EVOLUTION_API_URL }}/message/sendText/{{ $vars.EVOLUTION_INSTANCE }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $vars.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $vars.TELEFONE_ADVOGADO, textMessage: { text: '🔴 *Alerta Processual — Ação Necessária*\\n\\n*Processo:* ' + $json.numero_processo + '\\n*Tribunal:* ' + $json.tribunal_nome + '\\n*Movimentação:* ' + $json.ultima_movimentacao + '\\n\\n*Ação necessária:* ' + $json.acao_necessaria } }) }}",
+        "options": {}
+      },
+      "id": "48f51203-02f1-4bd2-a578-7487ca5c688a",
+      "name": "WA Advogado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.EVOLUTION_API_URL }}/message/sendText/{{ $vars.EVOLUTION_INSTANCE }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $vars.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.telefone_cliente, textMessage: { text: '📋 *Novidade no seu processo, ' + $json.nome_cliente + '!*\\n\\n' + $json.resumo_claude + '\\n\\nQualquer dúvida, estamos à disposição. 😊' } }) }}",
+        "options": {}
+      },
+      "id": "fd200de8-42ba-4617-bd67-09203109f9d5",
+      "name": "WA Cliente - Normal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cnd-man",
+              "leftValue": "={{ $json.is_manual }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "feb313a7-c7da-47b9-9649-df121f31cde9",
+      "name": "É Consulta Manual?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "SEU_SPREADSHEET_ID_AQUI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Processos",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ultima_movimentacao_conhecida": "={{ $json.ultima_movimentacao }}",
+            "data_ultima_verificacao": "={{ new Date().toISOString().substring(0,10) }}"
+          },
+          "matchingColumns": [
+            "numero_processo"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "0ee3a6ab-de3d-481c-9578-762296885349",
+      "name": "Atualizar Planilha",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        2640,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  success: true,\n  numero_processo:   $json.numero_processo,\n  tribunal:          $json.tribunal_nome,\n  sistema:           $json.sistema,\n  resumo_cliente:    $json.resumo_claude,\n  status_interno:    $json.status_interno,\n  urgencia:          $json.urgencia,\n  acao_necessaria:   $json.acao_necessaria,\n  ultima_movimentacao: $json.ultima_movimentacao\n}) }}",
+        "options": {}
+      },
+      "id": "7d47b94a-9129-419f-afc2-3f9d1ddd9e73",
+      "name": "Responder Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2640,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule - Dias Úteis": {
+      "main": [
+        [
+          {
+            "node": "Buscar Processos Ativos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Consulta Manual": {
+      "main": [
+        [
+          {
+            "node": "Preparar Item Manual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Processos Ativos": {
+      "main": [
+        [
+          {
+            "node": "Loop Processos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Item Manual": {
+      "main": [
+        [
+          {
+            "node": "Identificar Sistema CNJ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Processos": {
+      "main": [
+        [
+          {
+            "node": "Identificar Sistema CNJ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Finalizado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identificar Sistema CNJ": {
+      "main": [
+        [
+          {
+            "node": "Rotear Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rotear Sistema": {
+      "main": [
+        [
+          {
+            "node": "Consultar e-SAJ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Consultar PJe",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Consultar eproc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar e-SAJ": {
+      "main": [
+        [
+          {
+            "node": "Extrair Dados Tribunal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar PJe": {
+      "main": [
+        [
+          {
+            "node": "Extrair Dados Tribunal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar eproc": {
+      "main": [
+        [
+          {
+            "node": "Extrair Dados Tribunal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair Dados Tribunal": {
+      "main": [
+        [
+          {
+            "node": "Tem Novidade?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem Novidade?": {
+      "main": [
+        [
+          {
+            "node": "Consultar Claude API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sem Novidade - Volta ao Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sem Novidade - Volta ao Loop": {
+      "main": [
+        [
+          {
+            "node": "Loop Processos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Claude API": {
+      "main": [
+        [
+          {
+            "node": "Parsear Resposta Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Resposta Claude": {
+      "main": [
+        [
+          {
+            "node": "Urgência Alta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Urgência Alta?": {
+      "main": [
+        [
+          {
+            "node": "WA Cliente - Urgente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WA Cliente - Normal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA Cliente - Urgente": {
+      "main": [
+        [
+          {
+            "node": "WA Advogado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA Advogado": {
+      "main": [
+        [
+          {
+            "node": "É Consulta Manual?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA Cliente - Normal": {
+      "main": [
+        [
+          {
+            "node": "É Consulta Manual?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Consulta Manual?": {
+      "main": [
+        [
+          {
+            "node": "Responder Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Atualizar Planilha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Planilha": {
+      "main": [
+        [
+          {
+            "node": "Loop Processos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "43e146f9-0015-4c9d-8574-c7e9e55c8b9a",
+  "activeVersionId": null,
+  "versionCounter": 1,
+  "triggerCount": 0,
+  "sourceWorkflowId": null,
+  "shared": [
+    {
+      "updatedAt": "2026-06-22T08:16:08.064Z",
+      "createdAt": "2026-06-22T08:16:08.064Z",
+      "role": "workflow:owner",
+      "workflowId": "iJEULYVrb59jBsp7",
+      "projectId": "bieY9ssJvLOg3Lua",
+      "project": {
+        "updatedAt": "2026-06-13T14:43:50.868Z",
+        "createdAt": "2026-06-13T14:35:47.849Z",
+        "id": "bieY9ssJvLOg3Lua",
+        "name": "Leonardo Ferreira <falecom.impulsioneconsultoria@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "49e0a809-90fd-402d-ae0e-4dc6a632966a"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
+}

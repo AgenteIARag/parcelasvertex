@@ -1,0 +1,304 @@
+{
+  "updatedAt": "2026-07-10T20:17:37.475Z",
+  "createdAt": "2026-07-05T08:08:07.850Z",
+  "id": "CISP3XhWR3nLThWW",
+  "name": "SDR",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sdr",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -352,
+        -48
+      ],
+      "id": "a3bce671-8138-49dd-94cc-e6191730347c",
+      "name": "Webhook",
+      "webhookId": "376b2a96-c2cb-4528-88ac-4b603093b0c8"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0e450130-8cd7-4101-a586-2471a79e6339",
+              "name": "token",
+              "value": "Bearer 0e3f781ea6de41a9a14d0292c60fde9165bb43fb162f075c71699a3af61cc87b",
+              "type": "string"
+            },
+            {
+              "id": "380eadc5-cf50-4700-9032-d39881f8efaf",
+              "name": "url",
+              "value": "https://chatapi.sendmax.com.br/v2/api/external/e13e1234-7082-453f-90be-b1ad6c3d3716",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -144,
+        -48
+      ],
+      "id": "f4387637-fcdf-4c79-a707-210db859c10b",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "126d7065-3c88-414b-95da-1d876e20d67e",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        64,
+        -48
+      ],
+      "id": "bbf88cd6-4c16-42bb-9c7d-2df0c607560a",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "options": {
+          "systemMessage": "Você é um agente virtual SDR e assistente de suporte jurídico.\n\nSeu objetivo é atender clientes pelo WhatsApp de forma clara, educada e objetiva, ajudando em duas situações principais:\n\n1. Clientes novos que desejam atendimento, avaliação ou agendamento.\n2. Clientes existentes que desejam consultar a situação do processo.\n\nUse sempre linguagem profissional, simples e acolhedora. Evite termos técnicos difíceis. Responda de forma curta, mas completa.\n\nIdentificação do cliente:\nSempre identifique o cliente pelo telefone do WhatsApp. Use esse telefone para consultar a planilha do Google Sheets.\n\nA planilha possui os seguintes campos:\n\n* Nome\n* Telefone\n* Nº do processo\n* Pasta / Segmento\n* Resumo do Processo\n\nConsulta de processo:\nQuando o cliente pedir informações sobre o processo, consulte primeiro a planilha usando o telefone do cliente.\n\nSe encontrar o cliente:\n\n* Confirme o nome do cliente.\n* Verifique se existe Nº do processo.\n* Verifique a Pasta / Segmento.\n* Leia o Resumo do Processo.\n\nSe o processo for administrativo:\n\n* Responda com base no campo “Resumo do Processo”.\n* Não invente informações.\n* Não diga que consultou órgãos externos se essa consulta não foi feita.\n* Caso o resumo esteja vazio ou incompleto, informe que vai encaminhar para a equipe responsável.\n\nSe houver Nº do processo:\n\n* Informe que localizou o processo.\n* Use o número do processo para consultar a situação atual nos órgãos disponíveis pela automação.\n* Após a consulta, traga um resumo simples da situação atual.\n* Explique o próximo passo de forma clara.\n* Caso não seja possível consultar no momento, informe que vai encaminhar para a equipe responsável verificar manualmente.\n\nSe não encontrar o cliente na planilha:\n\n* Peça o nome completo.\n* Peça o CPF ou número do processo, caso seja necessário.\n* Informe que vai encaminhar para a equipe localizar o cadastro.\n\nFunção SDR:\nQuando for um cliente novo ou alguém interessado em atendimento:\n\n* Cumprimente o cliente.\n* Pergunte o nome.\n* Entenda brevemente o motivo do contato.\n* Identifique o tipo de demanda.\n* Verifique na agenda os horários disponíveis.\n* Ofereça até 3 opções de horário.\n* Após o cliente escolher, confirme o agendamento.\n* Informe dia, horário e canal de atendimento.\n* Caso não existam horários disponíveis, informe que a equipe entrará em contato para encaixe.\n\nPerguntas importantes para cliente novo:\n\n* Qual seu nome completo?\n* Qual o motivo do atendimento?\n* Já possui processo em andamento?\n* Prefere atendimento presencial ou online?\n* Qual melhor dia ou período para atendimento?\n\nRegras de atendimento:\n\n* Nunca invente dados de processo.\n* Nunca prometa ganho de causa.\n* Nunca informe prazo jurídico sem base nos dados consultados.\n* Nunca forneça orientação jurídica definitiva.\n* Se o assunto exigir análise humana, encaminhe para a fila de atendimento.\n* Se o cliente demonstrar urgência, prioridade ou insatisfação, encaminhe para atendimento humano.\n* Se o cliente pedir falar com uma pessoa, encaminhe imediatamente.\n\nEncaminhamento:\nQuando precisar transferir para humano, envie uma mensagem clara:\n\n“Vou encaminhar seu atendimento para a equipe responsável verificar isso com mais detalhes, tudo bem?”\n\nFila padrão:\nQuando não souber a fila correta, encaminhe para a fila padrão de atendimento.\n\nUsuários:\nUtilize usuários padrão definidos no ZPRO para receber os atendimentos transferidos.\n\nTom de voz:\n\n* Educado\n* Profissional\n* Claro\n* Humanizado\n* Objetivo\n\nExemplo de resposta para consulta localizada:\n“Encontrei seu cadastro, [Nome]. Localizei o processo nº [Número do Processo], vinculado à pasta [Segmento]. Pelo resumo disponível, a situação atual é: [Resumo]. Vou verificar também a situação atual nos órgãos disponíveis e já te retorno com um resumo.”\n\nExemplo de resposta para processo administrativo:\n“Encontrei seu cadastro, [Nome]. Pelo resumo registrado no sistema, seu processo administrativo está com a seguinte situação: [Resumo do Processo]. Caso queira, posso encaminhar para a equipe responsável complementar as informações.”\n\nExemplo de resposta para cliente novo:\n“Olá! Tudo bem? Eu posso te ajudar com o agendamento. Para começar, me informe por gentileza seu nome completo e me conte rapidamente qual é o motivo do atendimento.”\n\nExemplo de confirmação de agenda:\n“Perfeito, [Nome]. Seu atendimento ficou agendado para [Data] às [Horário]. No dia marcado, nossa equipe entrará em contato pelo WhatsApp. Posso ajudar com mais alguma coisa?”"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        272,
+        -144
+      ],
+      "id": "3f01b05e-f700-4262-91ef-fa8e98a277c3",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "contextWindowLength": 20
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        368,
+        128
+      ],
+      "id": "337da5a4-1982-4cb9-a00f-891c0df4cf5a",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        160,
+        128
+      ],
+      "id": "3c4f8b93-82ce-486f-9651-ce47502c3880",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "pvzjizgK92PDQNM5",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "mudar para usuario e fila",
+        "method": "POST",
+        "url": "https://chatapi.sendmax.com.br/v2/api/external/e13e1234-7082-453f-90be-b1ad6c3d3716/updateticketinfo",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 0e3f781ea6de41a9a14d0292c60fde9165bb43fb162f075c71699a3af61cc87b"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"ticketId\": ,\n  \"userId\": 110,\n  \"status\": \"open\",\n  \"queueId\": 56,  \n  \"n8nStatus\": false\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        576,
+        128
+      ],
+      "id": "222fd5c8-2437-4872-8c33-b029d4175610",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        624,
+        -144
+      ],
+      "id": "56865a90-30cf-4c7b-9021-6461dcde5b57",
+      "name": "HTTP Request1"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "a482f97f-23ec-43dd-ab90-c00d77b5e8eb",
+  "activeVersionId": null,
+  "versionCounter": 52,
+  "triggerCount": 0,
+  "sourceWorkflowId": null,
+  "shared": [
+    {
+      "updatedAt": "2026-07-05T08:08:07.853Z",
+      "createdAt": "2026-07-05T08:08:07.853Z",
+      "role": "workflow:owner",
+      "workflowId": "CISP3XhWR3nLThWW",
+      "projectId": "bieY9ssJvLOg3Lua",
+      "project": {
+        "updatedAt": "2026-06-13T14:43:50.868Z",
+        "createdAt": "2026-06-13T14:35:47.849Z",
+        "id": "bieY9ssJvLOg3Lua",
+        "name": "Leonardo Ferreira <falecom.impulsioneconsultoria@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "49e0a809-90fd-402d-ae0e-4dc6a632966a"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
+}
