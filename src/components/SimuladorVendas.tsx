@@ -20,7 +20,6 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  InputAdornment,
   Grid,
   useTheme,
   Alert,
@@ -81,8 +80,9 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   const [tabela, setTabela] = useState('');
   const [qtdParcelas, setQtdParcelas] = useState<number | ''>('');
   const [percentualComissao, setPercentualComissao] = useState<number>(0);
-  const [valorVendaInput, setValorVendaInput] = useState<number | ''>('');
-  const [valorParcelaInput, setValorParcelaInput] = useState<number | ''>('');
+
+  const [valorVendaExibicao, setValorVendaExibicao] = useState('');
+  const [valorParcelaExibicao, setValorParcelaExibicao] = useState('');
   const [dataVendaInput, setDataVendaInput] = useState<string>('');
   const [dataSegundaParcelaInput, setDataSegundaParcelaInput] = useState<string>('');
 
@@ -163,8 +163,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     setTabela('');
     setQtdParcelas('');
     setPercentualComissao(0);
-    setValorVendaInput('');
-    setValorParcelaInput('');
+    setValorVendaExibicao('');
+    setValorParcelaExibicao('');
     setDataVendaInput('');
     setDataSegundaParcelaInput('');
     setErrors({});
@@ -175,17 +175,40 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     setOpenDialog(false);
   };
 
+  // Funções utilitárias de máscara financeira
+  const formatarMascaraDinheiro = (valor: string): string => {
+    const apenasNumeros = valor.replace(/\D/g, '');
+    if (!apenasNumeros) return '';
+    const valorNumerico = parseFloat(apenasNumeros) / 100;
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2
+    }).format(valorNumerico);
+  };
+
+  const extrairValorCru = (valorFormatado: string): number => {
+    if (!valorFormatado) return 0;
+    const apenasNumeros = valorFormatado.replace(/\D/g, '');
+    return parseFloat(apenasNumeros) / 100 || 0;
+  };
+
   const handleSalvarVenda = () => {
     const tempErrors: Record<string, string> = {};
     if (!cliente.trim()) tempErrors.cliente = 'Nome do cliente é obrigatório.';
+    if (!pac.trim()) tempErrors.pac = 'PAC (Contrato) é obrigatório.';
     if (!vendedorId) tempErrors.vendedorId = 'Selecione o vendedor.';
     if (!segmento) tempErrors.segmento = 'Selecione o segmento.';
     if (!tabela) tempErrors.tabela = 'Selecione a tabela.';
     if (qtdParcelas === '') tempErrors.qtdParcelas = 'Selecione a quantidade de parcelas.';
-    if (valorVendaInput === '' || Number(valorVendaInput) <= 0) {
+    
+    const valorVendaV = extrairValorCru(valorVendaExibicao);
+    const valorParcelaV = extrairValorCru(valorParcelaExibicao);
+    
+    if (valorVendaV <= 0) {
       tempErrors.valorVendaInput = 'O valor do crédito é obrigatório e deve ser maior que zero.';
     }
-    if (valorParcelaInput === '' || Number(valorParcelaInput) <= 0) {
+    if (valorParcelaV <= 0) {
       tempErrors.valorParcelaInput = 'O valor da parcela é obrigatório e deve ser maior que zero.';
     }
     if (!dataVendaInput) {
@@ -201,8 +224,6 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
     const proj: ProjecaoMensalType = {};
     const parcelas = Number(qtdParcelas);
-    const valorVendaV = Number(valorVendaInput);
-    const valorParcelaV = Number(valorParcelaInput);
     const percentualMensal = percentualComissao / parcelas;
     const vendedorSelecionado = vendedores.find((v) => v.id === vendedorId);
 
@@ -827,20 +848,6 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           {venda.statusCliente}
                         </Box>
                       </Box>
-                      {venda.pac && (
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: 'text.secondary',
-                            fontWeight: 700,
-                            fontSize: '0.72rem',
-                            display: 'block',
-                            mt: 0.1
-                          }}
-                        >
-                          Contrato / PAC: {venda.pac}
-                        </Typography>
-                      )}
                       {venda.vendedorNome && (
                         <Typography
                           variant="caption"
@@ -854,7 +861,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           Vend: {venda.vendedorNome}
                         </Typography>
                       )}
-                      {(venda.dataSegundaParcela || venda.segmento) && (
+                      {(venda.dataSegundaParcela || venda.segmento || venda.pac) && (
                         <Typography
                           variant="caption"
                           sx={{
@@ -866,8 +873,10 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           }}
                         >
                           {venda.dataSegundaParcela && `2ª Parc: ${venda.dataSegundaParcela.split('-').reverse().join('/')}`}
-                          {venda.dataSegundaParcela && venda.segmento && ' | '}
+                          {venda.dataSegundaParcela && (venda.segmento || venda.pac) && ' | '}
                           {venda.segmento}
+                          {(venda.dataSegundaParcela || venda.segmento) && venda.pac && ' | '}
+                          {venda.pac && `PAC: ${venda.pac}`}
                         </Typography>
                       )}
                     </Box>
@@ -1472,7 +1481,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         </DialogTitle>
         <DialogContent>
           <Grid container spacing={3} sx={{ mt: 0.5 }}>
-            <Grid size={{ xs: 12, sm: 8 }}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Cliente / Projeto"
@@ -1483,16 +1492,6 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 helperText={errors.cliente}
               />
             </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="PAC (Contrato)"
-                placeholder="Ex: PAC-987654"
-                value={pac}
-                onChange={(e) => setPac(e.target.value)}
-              />
-            </Grid>
-
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth error={!!errors.vendedorId}>
                 <InputLabel id="vend-venda-label">Vendedor Responsável</InputLabel>
@@ -1515,6 +1514,38 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 )}
               </FormControl>
             </Grid>
+
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                label="Valor do Crédito"
+                type="text"
+                placeholder="Ex: R$ 1.200.000,00"
+                value={valorVendaExibicao}
+                onChange={(e) => {
+                  const formatado = formatarMascaraDinheiro(e.target.value);
+                  setValorVendaExibicao(formatado);
+                }}
+                error={!!errors.valorVendaInput}
+                helperText={errors.valorVendaInput}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                label="Valor da Parcela"
+                type="text"
+                placeholder="Ex: R$ 10.000,00"
+                value={valorParcelaExibicao}
+                onChange={(e) => {
+                  const formatado = formatarMascaraDinheiro(e.target.value);
+                  setValorParcelaExibicao(formatado);
+                }}
+                error={!!errors.valorParcelaInput}
+                helperText={errors.valorParcelaInput}
+              />
+            </Grid>
+
             <Grid size={{ xs: 12, sm: 3 }}>
               <TextField
                 fullWidth
@@ -1539,8 +1570,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 helperText={errors.dataSegundaParcelaInput}
               />
             </Grid>
-
-            <Grid size={{ xs: 12, sm: 4 }}>
+            <Grid size={{ xs: 12, sm: 3 }}>
               <FormControl fullWidth error={!!errors.segmento}>
                 <InputLabel id="seg-venda-label">Segmento</InputLabel>
                 <Select
@@ -1560,7 +1590,19 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 )}
               </FormControl>
             </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
+            <Grid size={{ xs: 12, sm: 3 }}>
+              <TextField
+                fullWidth
+                label="PAC (Contrato)"
+                placeholder="Ex: PAC-987654"
+                value={pac}
+                onChange={(e) => setPac(e.target.value)}
+                error={!!errors.pac}
+                helperText={errors.pac}
+              />
+            </Grid>
+
+            <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth error={!!errors.tabela} disabled={!segmento}>
                 <InputLabel id="tab-venda-label">Tabela</InputLabel>
                 <Select
@@ -1582,7 +1624,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 )}
               </FormControl>
             </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth error={!!errors.qtdParcelas} disabled={!tabela}>
                 <InputLabel id="parc-venda-label">Prazo (Parcelas)</InputLabel>
                 <Select
@@ -1603,47 +1645,6 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                   </Typography>
                 )}
               </FormControl>
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Valor do Crédito"
-                type="number"
-                placeholder="Ex: 1200000"
-                value={valorVendaInput}
-                onChange={(e) => {
-                  const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
-                  setValorVendaInput(val);
-                }}
-                error={!!errors.valorVendaInput}
-                helperText={errors.valorVendaInput}
-                slotProps={{
-                  input: {
-                    startAdornment: <InputAdornment position="start">R$</InputAdornment>
-                  }
-                }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Valor da Parcela"
-                type="number"
-                placeholder="Ex: 10000"
-                value={valorParcelaInput}
-                onChange={(e) => {
-                  const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
-                  setValorParcelaInput(val);
-                }}
-                error={!!errors.valorParcelaInput}
-                helperText={errors.valorParcelaInput}
-                slotProps={{
-                  input: {
-                    startAdornment: <InputAdornment position="start">R$</InputAdornment>
-                  }
-                }}
-              />
             </Grid>
 
             {/* Informações da comissão buscada */}
@@ -1681,7 +1682,6 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           <Button
             variant="contained"
             onClick={handleSalvarVenda}
-            disabled={!cliente || !vendedorId || !segmento || !tabela || qtdParcelas === '' || valorVendaInput === '' || valorParcelaInput === '' || !dataVendaInput || !dataSegundaParcelaInput}
             sx={{
               borderRadius: 2,
               textTransform: 'none',

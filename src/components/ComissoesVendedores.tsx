@@ -685,21 +685,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                   {venda.statusCliente}
                                 </Box>
                               </Box>
-                              {venda.pac && (
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    color: 'text.secondary',
-                                    fontWeight: 700,
-                                    fontSize: '0.72rem',
-                                    display: 'block',
-                                    mt: 0.1
-                                  }}
-                                >
-                                  Contrato / PAC: {venda.pac}
-                                </Typography>
-                              )}
-                              {(venda.dataSegundaParcela || venda.segmento) && (
+                              {(venda.dataSegundaParcela || venda.segmento || venda.pac) && (
                                 <Typography
                                   variant="caption"
                                   sx={{
@@ -711,8 +697,10 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                   }}
                                 >
                                   {venda.dataSegundaParcela && `2ª Parc: ${venda.dataSegundaParcela.split('-').reverse().join('/')}`}
-                                  {venda.dataSegundaParcela && venda.segmento && ' | '}
+                                  {venda.dataSegundaParcela && (venda.segmento || venda.pac) && ' | '}
                                   {venda.segmento}
+                                  {(venda.dataSegundaParcela || venda.segmento) && venda.pac && ' | '}
+                                  {venda.pac && `PAC: ${venda.pac}`}
                                 </Typography>
                               )}
                             </Box>
