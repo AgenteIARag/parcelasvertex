@@ -491,17 +491,15 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                 maxWidth: '100%'
               }}
             >
-              <Table size="small" sx={{ minWidth: 2200, borderCollapse: 'collapse' }}>
+              <Table size="small" sx={{ minWidth: 1600, borderCollapse: 'collapse' }}>
                 <TableHead sx={{ background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc' }}>
-                  {/* Primeira linha do cabeçalho */}
                   <TableRow>
                     <TableCell
-                      rowSpan={2}
                       sx={{
                         fontWeight: 700,
                         color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
                         borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                        minWidth: 220,
+                        minWidth: 320,
                         position: 'sticky',
                         left: 0,
                         background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
@@ -511,14 +509,13 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                       Cliente / Projeto
                     </TableCell>
                     <TableCell
-                      rowSpan={2}
                       sx={{
                         fontWeight: 700,
                         color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
                         borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                        minWidth: 130,
+                        minWidth: 200,
                         position: 'sticky',
-                        left: 220,
+                        left: 320,
                         background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
                         zIndex: 4
                       }}
@@ -526,15 +523,14 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                       Regra Aplicada
                     </TableCell>
                     <TableCell
-                      rowSpan={2}
                       align="center"
                       sx={{
                         fontWeight: 700,
                         color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
                         borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                        minWidth: 90,
+                        minWidth: 70,
                         position: 'sticky',
-                        left: 350,
+                        left: 520,
                         background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
                         zIndex: 4
                       }}
@@ -546,15 +542,16 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                     {listaMesesTimeline.map((mes) => (
                       <TableCell
                         key={mes}
-                        colSpan={2}
-                        align="center"
+                        align="right"
                         sx={{
                           fontWeight: 700,
                           textTransform: 'capitalize',
-                          borderBottom: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                          borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
                           borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
                           color: theme.palette.mode === 'dark' ? '#e2e8f0' : '#334155',
-                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.01)' : 'rgba(0, 0, 0, 0.005)'
+                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.01)' : 'rgba(0, 0, 0, 0.005)',
+                          minWidth: 140,
+                          whiteSpace: 'nowrap'
                         }}
                       >
                         {formatarChaveMesExibicao(mes)}
@@ -562,7 +559,6 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                     ))}
 
                     <TableCell
-                      rowSpan={2}
                       align="right"
                       sx={{
                         fontWeight: 700,
@@ -575,59 +571,13 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                     >
                       Total Vendas
                     </TableCell>
-                    <TableCell
-                      rowSpan={2}
-                      align="right"
-                      sx={{
-                        fontWeight: 700,
-                        color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
-                        borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                        minWidth: 140,
-                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(16, 185, 129, 0.02)'
-                      }}
-                    >
-                      Total Comissões
-                    </TableCell>
-                  </TableRow>
-
-                  {/* Segunda linha do cabeçalho */}
-                  <TableRow>
-                    {listaMesesTimeline.map((mes) => (
-                      <React.Fragment key={`sub-${mes}`}>
-                        <TableCell
-                          align="right"
-                          sx={{
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b',
-                            borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                            borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                            minWidth: 120, whiteSpace: 'nowrap'
-                          }}
-                        >
-                          Venda
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            color: theme.palette.success.main,
-                            borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                            minWidth: 130, whiteSpace: 'nowrap'
-                          }}
-                        >
-                          Comissão
-                        </TableCell>
-                      </React.Fragment>
-                    ))}
                   </TableRow>
                 </TableHead>
 
                 <TableBody>
                   {vendasDoVendedor.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5 + listaMesesTimeline.length * 2} align="center" sx={{ py: 6 }}>
+                      <TableCell colSpan={4 + listaMesesTimeline.length} align="center" sx={{ py: 6 }}>
                         Nenhuma venda cadastrada para este corretor.
                       </TableCell>
                     </TableRow>
@@ -635,15 +585,6 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                     vendasDoVendedor.map((venda) => {
                       const pctVendedor = Number(vendedorSelecionado.percentualComissao || 0);
                       const pctProporcionalParcela = pctVendedor / venda.qtdParcelas;
-                      
-                      // Calcula a comissão total da venda para o corretor (ignorando parcelas canceladas)
-                      let totalComissaoCorretorVenda = 0;
-                      Object.keys(venda.projecaoMensal).forEach((mesChave) => {
-                        const cel = venda.projecaoMensal[mesChave];
-                        if (cel && cel.valorVenda && cel.valorVenda > 0 && cel.status !== 'Cancelada') {
-                          totalComissaoCorretorVenda += venda.valorVenda * (pctProporcionalParcela / 100);
-                        }
-                      });
 
                       return (
                         <TableRow
@@ -664,6 +605,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                               color: theme.palette.mode === 'dark' ? '#f1f5f9' : '#1e293b',
                               position: 'sticky',
                               left: 0,
+                              minWidth: 320,
                               background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
                               zIndex: 1,
                               borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`
@@ -690,7 +632,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                   {venda.statusCliente}
                                 </Box>
                               </Box>
-                              {venda.dataSegundaParcela && (
+                              {(venda.dataSegundaParcela || venda.segmento) && (
                                 <Typography
                                   variant="caption"
                                   sx={{
@@ -701,12 +643,11 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                     mt: 0.1
                                   }}
                                 >
-                                  2ª Parc: {venda.dataSegundaParcela.split('-').reverse().join('/')}
+                                  {venda.dataSegundaParcela && `2ª Parc: ${venda.dataSegundaParcela.split('-').reverse().join('/')}`}
+                                  {venda.dataSegundaParcela && venda.segmento && ' | '}
+                                  {venda.segmento}
                                 </Typography>
                               )}
-                              <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 400, display: 'block', mt: 0.1 }}>
-                                {venda.segmento}
-                              </Typography>
                             </Box>
                           </TableCell>
 
@@ -716,7 +657,8 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                               color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
                               fontSize: '0.8rem',
                               position: 'sticky',
-                              left: 220,
+                              left: 320,
+                              minWidth: 200,
                               background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
                               zIndex: 2,
                               borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`
@@ -735,7 +677,8 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                               fontWeight: 600,
                               color: theme.palette.primary.main,
                               position: 'sticky',
-                              left: 350,
+                              left: 520,
+                              minWidth: 70,
                               background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
                               zIndex: 2,
                               borderRight: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`
@@ -753,136 +696,93 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                           {listaMesesTimeline.map((mes) => {
                             const celula = venda.projecaoMensal[mes];
                             const possuiDados = celula && celula.valorVenda && celula.valorVenda > 0;
-                            const comissaoVendedorCalculada = possuiDados 
-                              ? (venda.valorVenda * (pctProporcionalParcela / 100))
-                              : 0;
 
                             return (
-                              <React.Fragment key={`cell-${venda.id}-${mes}`}>
-                                {/* Venda (proporcional) */}
-                                <TableCell
-                                  align="right"
-                                  sx={{
-                                    borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                                    p: 0.5,
-                                    bgcolor: celula?.status === 'Cancelada' 
-                                      ? 'rgba(239, 68, 68, 0.02)' 
-                                      : (!possuiDados 
-                                        ? (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.015)' : 'rgba(0, 0, 0, 0.01)')
-                                        : 'inherit'),
-                                    opacity: !possuiDados ? 0.35 : 1
-                                  }}
-                                >
-                                  {possuiDados ? (
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                      <span style={{ fontWeight: 650 }}>{formatarMoeda(celula.valorVenda)}</span>
-                                      <Typography
-                                        variant="caption"
-                                        sx={{
-                                          fontSize: '0.68rem',
-                                          color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b',
-                                          fontWeight: 500,
-                                          mt: 0.1
-                                        }}
-                                      >
-                                        Parc: {formatarMoeda(celula.valorParcela || (venda.valorParcela || 0))}
-                                      </Typography>
-                                      {celula.status !== 'Cancelada' && (
-                                        <Box
-                                          component="span"
-                                          sx={{
-                                            fontSize: '0.58rem',
-                                            fontWeight: 700,
-                                            px: 0.5,
-                                            py: 0.1,
-                                            borderRadius: 0.4,
-                                            backgroundColor: mes === venda.mesInicio 
-                                              ? 'rgba(99, 102, 241, 0.15)' 
-                                              : (theme.palette.mode === 'dark' ? 'rgba(234, 179, 8, 0.18)' : 'rgba(234, 179, 8, 0.12)'),
-                                            color: mes === venda.mesInicio 
-                                              ? '#818cf8' 
-                                              : (theme.palette.mode === 'dark' ? '#facc15' : '#b45309'),
-                                            textTransform: 'uppercase',
-                                            mt: 0.2,
-                                            display: 'inline-block',
-                                            lineHeight: 1
-                                          }}
-                                        >
-                                          {mes === venda.mesInicio 
-                                            ? `Venda (${obterNumeroParcela(venda, mes)})` 
-                                            : `Recor. (${obterNumeroParcela(venda, mes)})`}
-                                        </Box>
-                                      )}
-                                    </Box>
-                                  ) : ''}
-                                </TableCell>
+                              <TableCell
+                                key={`cell-${venda.id}-${mes}`}
+                                align="right"
+                                sx={{
+                                  borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                                  p: 0.5,
+                                  bgcolor: celula?.status === 'Cancelada' 
+                                    ? 'rgba(239, 68, 68, 0.02)' 
+                                    : (!possuiDados 
+                                      ? (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.015)' : 'rgba(0, 0, 0, 0.01)')
+                                      : 'inherit'),
+                                  opacity: !possuiDados ? 0.35 : 1
+                                }}
+                              >
+                                {possuiDados ? (
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                    <span style={{ fontWeight: 650 }}>{formatarMoeda(celula.valorVenda)}</span>
+                                    <Typography
+                                      variant="caption"
+                                      sx={{
+                                        fontSize: '0.68rem',
+                                        color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b',
+                                        fontWeight: 500,
+                                        mt: 0.1
+                                      }}
+                                    >
+                                      Parc: {formatarMoeda(celula.valorParcela || (venda.valorParcela || 0))}
+                                    </Typography>
 
-                                {/* Comissão */}
-                                <TableCell
-                                  align="right"
-                                  sx={{
-                                    fontSize: '0.8rem',
-                                    fontWeight: 600,
-                                    borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                                    color: celula?.status === 'Cancelada' ? '#ef4444' : (possuiDados ? theme.palette.success.main : theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'),
-                                    bgcolor: celula?.status === 'Cancelada' 
-                                      ? 'rgba(239, 68, 68, 0.02)' 
-                                      : (!possuiDados 
-                                        ? (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.015)' : 'rgba(0, 0, 0, 0.01)')
-                                        : 'inherit'),
-                                    opacity: !possuiDados ? 0.35 : 1,
-                                    p: 0.5
-                                  }}
-                                >
-                                  {possuiDados ? (
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', whiteSpace: 'nowrap' }}>
-                                        <span style={{ textDecoration: celula.status === 'Cancelada' ? 'line-through' : 'none' }}>
-                                          {formatarMoeda(comissaoVendedorCalculada)}
-                                        </span>
-                                        <Typography
-                                          component="span"
-                                          sx={{
-                                            fontSize: '0.65rem',
-                                            color: celula.status === 'Cancelada' ? '#ef4444' : (theme.palette.mode === 'dark' ? '#64748b' : '#94a3b8'),
-                                            ml: 0.5,
-                                            fontWeight: 500
-                                          }}
-                                        >
-                                          ({pctProporcionalParcela.toFixed(3).replace('.', ',')}%)
-                                        </Typography>
-                                      </Box>
-                                      
+                                    {/* Status Badge */}
+                                    <Box
+                                      sx={{
+                                        fontSize: '0.62rem',
+                                        fontWeight: 700,
+                                        py: 0.1,
+                                        px: 0.5,
+                                        borderRadius: 0.5,
+                                        mt: 0.5,
+                                        color: celula.status === 'Cancelada' ? '#ef4444' :
+                                               celula.status === 'Recebida' ? '#818cf8' :
+                                               celula.status === 'Paga' ? '#34d399' :
+                                               celula.status === 'Vendida' ? '#38bdf8' : '#94a3b8',
+                                        background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                                        display: 'inline-block'
+                                      }}
+                                    >
+                                      {celula.status}
+                                    </Box>
+
+                                    {/* Tag de Venda / Recorrência */}
+                                    {celula.status !== 'Cancelada' && (
                                       <Box
+                                        component="span"
                                         sx={{
-                                          fontSize: '0.62rem',
+                                          fontSize: '0.58rem',
                                           fontWeight: 700,
-                                          py: 0.1,
                                           px: 0.5,
-                                          borderRadius: 0.5,
-                                          color: celula.status === 'Cancelada' ? '#ef4444' :
-                                                 celula.status === 'Recebida' ? '#818cf8' :
-                                                 celula.status === 'Paga' ? '#34d399' :
-                                                 celula.status === 'Vendida' ? '#38bdf8' : '#94a3b8',
-                                          background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-                                          display: 'inline-block'
+                                          py: 0.1,
+                                          borderRadius: 0.4,
+                                          backgroundColor: mes === venda.mesInicio 
+                                            ? 'rgba(99, 102, 241, 0.15)' 
+                                            : (theme.palette.mode === 'dark' ? 'rgba(234, 179, 8, 0.18)' : 'rgba(234, 179, 8, 0.12)'),
+                                          color: mes === venda.mesInicio 
+                                            ? '#818cf8' 
+                                            : (theme.palette.mode === 'dark' ? '#facc15' : '#b45309'),
+                                          textTransform: 'uppercase',
+                                          mt: 0.5,
+                                          display: 'inline-block',
+                                          lineHeight: 1
                                         }}
                                       >
-                                        {celula.status}
+                                        {mes === venda.mesInicio 
+                                          ? `Venda (${obterNumeroParcela(venda, mes)})` 
+                                          : `Recor. (${obterNumeroParcela(venda, mes)})`}
                                       </Box>
-                                    </Box>
-                                  ) : ''}
-                                </TableCell>
-                              </React.Fragment>
+                                    )}
+                                  </Box>
+                                ) : ''}
+                              </TableCell>
                             );
                           })}
 
                           {/* Totais do Lado Direito */}
                           <TableCell align="right" sx={{ borderLeft: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`, fontWeight: 700, fontSize: '0.85rem', bgcolor: theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.05)' : 'rgba(99, 102, 241, 0.02)' }}>
                             {venda.statusCliente === 'Cancelado' ? '-' : formatarMoeda(venda.valorVenda)}
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 700, color: theme.palette.success.main, fontSize: '0.85rem', bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(16, 185, 129, 0.02)' }}>
-                            {formatarMoeda(totalComissaoCorretorVenda)}
                           </TableCell>
                         </TableRow>
                       );
@@ -898,6 +798,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                           color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a',
                           position: 'sticky',
                           left: 0,
+                          minWidth: 320,
                           background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
                           zIndex: 2,
                           borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
@@ -910,7 +811,8 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                         sx={{
                           borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
                           position: 'sticky',
-                          left: 220,
+                          left: 320,
+                          minWidth: 200,
                           background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
                           zIndex: 2,
                           borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`
@@ -920,7 +822,8 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                         sx={{
                           borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
                           position: 'sticky',
-                          left: 350,
+                          left: 520,
+                          minWidth: 70,
                           background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
                           zIndex: 2,
                           borderRight: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`
@@ -931,31 +834,19 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                       {listaMesesTimeline.map((mes) => {
                         const tot = totaisMensaisMatriz[mes];
                         return (
-                          <React.Fragment key={`tot-${mes}`}>
-                            <TableCell
-                              align="right"
-                              sx={{
-                                fontWeight: 700,
-                                color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a',
-                                borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
-                                borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                                fontSize: '0.8rem'
-                              }}
-                            >
-                              {tot.faturamento > 0 ? formatarMoeda(tot.faturamento) : '-'}
-                            </TableCell>
-                            <TableCell
-                              align="right"
-                              sx={{
-                                fontWeight: 700,
-                                color: theme.palette.success.main,
-                                borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
-                                fontSize: '0.8rem'
-                              }}
-                            >
-                              {tot.comissao > 0 ? formatarMoeda(tot.comissao) : '-'}
-                            </TableCell>
-                          </React.Fragment>
+                          <TableCell
+                            key={`tot-${mes}`}
+                            align="right"
+                            sx={{
+                              fontWeight: 700,
+                              color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a',
+                              borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                              borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                              fontSize: '0.8rem'
+                            }}
+                          >
+                            {tot.faturamento > 0 ? formatarMoeda(tot.faturamento) : '-'}
+                          </TableCell>
                         );
                       })}
 
@@ -972,18 +863,6 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                         }}
                       >
                         {formatarMoeda(vendasDoVendedor.reduce((acc, v) => v.statusCliente !== 'Cancelado' ? acc + v.valorVenda : acc, 0))}
-                      </TableCell>
-                      <TableCell
-                        align="right"
-                        sx={{
-                          fontWeight: 800,
-                          color: theme.palette.success.main,
-                          borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
-                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.05)',
-                          fontSize: '0.85rem'
-                        }}
-                      >
-                        {formatarMoeda(resumoFinanceiro.comissaoTotal)}
                       </TableCell>
                     </TableRow>
                   )}
