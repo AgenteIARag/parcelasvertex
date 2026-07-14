@@ -57,23 +57,24 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
         const pctVendedor = Number(vendedor.percentualComissao || 0);
         const pctMensalVendedor = pctVendedor / venda.qtdParcelas;
         
-        let temParcelaAtivaNoPeriodo = false;
-
+        // 1. Calcula a Comissão fluindo no período (Fluxo de Caixa / Parcelas ativas)
         Object.keys(venda.projecaoMensal).forEach((mesChave) => {
           const celula = venda.projecaoMensal[mesChave];
           if (celula && celula.valorVenda > 0 && celula.status !== 'Cancelada') {
-            // Verifica se está dentro do filtro de período
             if (mesChave >= mesInicioChave && mesChave <= mesFimChave) {
-              faturamentoTotal += celula.valorParcela || (venda.valorVenda / venda.qtdParcelas); // Valor faturado no mês
               const comissaoParcela = (venda.valorVenda * (pctMensalVendedor / 100));
               comissaoTotal += comissaoParcela;
-              temParcelaAtivaNoPeriodo = true;
             }
           }
         });
 
-        if (temParcelaAtivaNoPeriodo) {
-          vendasSet.add(venda.id);
+        // 2. Calcula o Volume Geral de Vendas (Faturamento e Qtd) baseado no momento em que a venda ocorreu
+        const dataDaVenda = venda.dataVenda || (venda.mesInicio ? `${venda.mesInicio}-01` : '');
+        if (dataDaVenda && dataDaVenda >= dataInicio && dataDaVenda <= dataFim) {
+          if (venda.statusCliente !== 'Cancelado') {
+            faturamentoTotal += venda.valorVenda; // Soma o Crédito Total vendido!
+            vendasSet.add(venda.id); // Contabiliza a Venda para o Ticket Médio
+          }
         }
       });
 
