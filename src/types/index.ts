@@ -102,6 +102,7 @@ export interface UserPermissions {
   editarVendas: boolean;
   cadastrarVendedores: boolean;
   cadastrarRegras: boolean;
+  visualizarDashboardVendedores?: boolean;
 }
 
 export interface Usuario {

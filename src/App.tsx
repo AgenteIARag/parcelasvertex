@@ -23,6 +23,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import GroupIcon from '@mui/icons-material/Group';
 
 import { type RegraMaster, type LancamentoVenda, type Vendedor, type Usuario } from './types';
 import { INITIAL_REGRAS, INITIAL_VENDAS, INITIAL_VENDEDORES, calcularTotaisLinha } from './data/initialData';
@@ -35,6 +36,7 @@ import { Login } from './components/Login';
 import { UsuariosCadastro } from './components/UsuariosCadastro';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ComissoesVendedores } from './components/ComissoesVendedores';
+import { DashboardVendedores } from './components/DashboardVendedores';
 import {
   obterVendedoresSupabase,
   obterRegrasSupabase,
@@ -152,7 +154,7 @@ function App() {
     return saved ? JSON.parse(saved) : INITIAL_VENDEDORES;
   });
 
-  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'vendas' | 'comissoes' | 'configuracoes'>('dashboard');
+  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'dashboard_vendedores' | 'vendas' | 'comissoes' | 'configuracoes'>('dashboard');
   const [subAbaAtiva, setSubAbaAtiva] = useState<'regras' | 'vendedores' | 'acessos'>('regras');
 
   // Filtro de data global compartilhado entre Dashboard, Painel de Vendas e Comissões
@@ -450,6 +452,33 @@ function App() {
               Dashboard
             </Button>
 
+            {(!usuarioLogado || usuarioLogado.role === 'master' || usuarioLogado.permissoes?.visualizarDashboardVendedores) && (
+              <Button
+                variant={abaAtiva === 'dashboard_vendedores' ? 'contained' : 'text'}
+                startIcon={<GroupIcon />}
+                onClick={() => setAbaAtiva('dashboard_vendedores')}
+                fullWidth
+                sx={{
+                  justifyContent: 'flex-start',
+                  py: 1.25,
+                  px: 2,
+                  borderRadius: 2,
+                  fontWeight: 600,
+                  fontFamily: 'Outfit, sans-serif',
+                  fontSize: '0.9rem',
+                  color: abaAtiva === 'dashboard_vendedores' ? '#ffffff' : 'text.secondary',
+                  background: abaAtiva === 'dashboard_vendedores' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                  boxShadow: abaAtiva === 'dashboard_vendedores' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
+                  '&:hover': {
+                    background: abaAtiva === 'dashboard_vendedores' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
+                    color: abaAtiva === 'dashboard_vendedores' ? '#ffffff' : 'primary.main'
+                  }
+                }}
+              >
+                Dashboard Vendedores
+              </Button>
+            )}
+
             <Button
               variant={abaAtiva === 'vendas' ? 'contained' : 'text'}
               startIcon={<ReceiptLongIcon />}
@@ -597,6 +626,7 @@ function App() {
           >
             <Typography variant="h6" sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 750, color: 'text.primary' }}>
               {abaAtiva === 'dashboard' && 'Dashboard de Performance'}
+              {abaAtiva === 'dashboard_vendedores' && 'Dashboard de Vendedores'}
               {abaAtiva === 'vendas' && 'Painel de Vendas / Simulador'}
               {abaAtiva === 'comissoes' && 'Comissões de Corretores'}
               {abaAtiva === 'configuracoes' && 'Configurações Administrativas'}
@@ -733,6 +763,12 @@ function App() {
                 
                 {/* Gráficos Analíticos */}
                 <AnalyticsCharts vendas={vendas} dataInicio={dataInicio} dataFim={dataFim} />
+              </Box>
+            )}
+
+            {abaAtiva === 'dashboard_vendedores' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <DashboardVendedores vendas={vendas} vendedores={vendedores} dataInicio={dataInicio} dataFim={dataFim} />
               </Box>
             )}
 

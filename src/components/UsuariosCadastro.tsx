@@ -52,7 +52,8 @@ export const UsuariosCadastro: React.FC = () => {
     visualizar: true,
     editarVendas: false,
     cadastrarVendedores: false,
-    cadastrarRegras: false
+    cadastrarRegras: false,
+    visualizarDashboardVendedores: false
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -88,7 +89,8 @@ export const UsuariosCadastro: React.FC = () => {
         visualizar: true,
         editarVendas: false,
         cadastrarVendedores: false,
-        cadastrarRegras: false
+        cadastrarRegras: false,
+        visualizarDashboardVendedores: false
       });
     } else {
       setEditId(null);
@@ -100,7 +102,8 @@ export const UsuariosCadastro: React.FC = () => {
         visualizar: true,
         editarVendas: false,
         cadastrarVendedores: false,
-        cadastrarRegras: false
+        cadastrarRegras: false,
+        visualizarDashboardVendedores: false
       });
     }
     setErrors({});
@@ -119,21 +122,24 @@ export const UsuariosCadastro: React.FC = () => {
         visualizar: true,
         editarVendas: true,
         cadastrarVendedores: true,
-        cadastrarRegras: true
+        cadastrarRegras: true,
+        visualizarDashboardVendedores: true
       });
     } else if (selectedRole === 'editor') {
       setPermissoes({
         visualizar: true,
         editarVendas: true,
         cadastrarVendedores: true,
-        cadastrarRegras: false
+        cadastrarRegras: false,
+        visualizarDashboardVendedores: true
       });
     } else {
       setPermissoes({
         visualizar: true,
         editarVendas: false,
         cadastrarVendedores: false,
-        cadastrarRegras: false
+        cadastrarRegras: false,
+        visualizarDashboardVendedores: false
       });
     }
   };
@@ -406,6 +412,16 @@ export const UsuariosCadastro: React.FC = () => {
                     />
                   }
                   label="Permitir visualizar Dashboard e Timeline (Padrão)"
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={!!permissoes.visualizarDashboardVendedores}
+                      onChange={(e) => handleCheckboxChange('visualizarDashboardVendedores', e.target.checked)}
+                      disabled={role === 'master'}
+                    />
+                  }
+                  label="Permitir visualizar Dashboard de Vendedores e Rankings"
                 />
                 <FormControlLabel
                   control={
