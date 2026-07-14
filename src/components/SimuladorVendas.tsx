@@ -1472,7 +1472,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         </DialogTitle>
         <DialogContent>
           <Grid container spacing={3} sx={{ mt: 0.5 }}>
-            <Grid size={{ xs: 12, sm: 6 }}>
+            <Grid size={{ xs: 12, sm: 8 }}>
               <TextField
                 fullWidth
                 label="Cliente / Projeto"
@@ -1483,7 +1483,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 helperText={errors.cliente}
               />
             </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="PAC (Contrato)"
@@ -1492,6 +1492,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 onChange={(e) => setPac(e.target.value)}
               />
             </Grid>
+
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth error={!!errors.vendedorId}>
                 <InputLabel id="vend-venda-label">Vendedor Responsável</InputLabel>
@@ -1514,47 +1515,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 )}
               </FormControl>
             </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Valor do Crédito"
-                type="number"
-                placeholder="Ex: 1200000"
-                value={valorVendaInput}
-                onChange={(e) => {
-                  const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
-                  setValorVendaInput(val);
-                }}
-                error={!!errors.valorVendaInput}
-                helperText={errors.valorVendaInput}
-                slotProps={{
-                  input: {
-                    startAdornment: <InputAdornment position="start">R$</InputAdornment>
-                  }
-                }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Valor da Parcela"
-                type="number"
-                placeholder="Ex: 10000"
-                value={valorParcelaInput}
-                onChange={(e) => {
-                  const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
-                  setValorParcelaInput(val);
-                }}
-                error={!!errors.valorParcelaInput}
-                helperText={errors.valorParcelaInput}
-                slotProps={{
-                  input: {
-                    startAdornment: <InputAdornment position="start">R$</InputAdornment>
-                  }
-                }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
+            <Grid size={{ xs: 12, sm: 3 }}>
               <TextField
                 fullWidth
                 label="Data da Venda"
@@ -1566,7 +1527,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 helperText={errors.dataVendaInput}
               />
             </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
+            <Grid size={{ xs: 12, sm: 3 }}>
               <TextField
                 fullWidth
                 label="Vencimento da 2ª Parcela"
@@ -1578,6 +1539,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 helperText={errors.dataSegundaParcelaInput}
               />
             </Grid>
+
             <Grid size={{ xs: 12, sm: 4 }}>
               <FormControl fullWidth error={!!errors.segmento}>
                 <InputLabel id="seg-venda-label">Segmento</InputLabel>
@@ -1641,6 +1603,47 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                   </Typography>
                 )}
               </FormControl>
+            </Grid>
+
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                label="Valor do Crédito"
+                type="number"
+                placeholder="Ex: 1200000"
+                value={valorVendaInput}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
+                  setValorVendaInput(val);
+                }}
+                error={!!errors.valorVendaInput}
+                helperText={errors.valorVendaInput}
+                slotProps={{
+                  input: {
+                    startAdornment: <InputAdornment position="start">R$</InputAdornment>
+                  }
+                }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                label="Valor da Parcela"
+                type="number"
+                placeholder="Ex: 10000"
+                value={valorParcelaInput}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
+                  setValorParcelaInput(val);
+                }}
+                error={!!errors.valorParcelaInput}
+                helperText={errors.valorParcelaInput}
+                slotProps={{
+                  input: {
+                    startAdornment: <InputAdornment position="start">R$</InputAdornment>
+                  }
+                }}
+              />
             </Grid>
 
             {/* Informações da comissão buscada */}
