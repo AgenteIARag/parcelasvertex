@@ -103,6 +103,7 @@ export const UsuariosCadastro: React.FC = () => {
         editarVendas: false,
         cadastrarVendedores: false,
         cadastrarRegras: false,
+        receberParcelas: false,
         visualizarDashboardVendedores: false
       });
     }
@@ -123,6 +124,7 @@ export const UsuariosCadastro: React.FC = () => {
         editarVendas: true,
         cadastrarVendedores: true,
         cadastrarRegras: true,
+        receberParcelas: true,
         visualizarDashboardVendedores: true
       });
     } else if (selectedRole === 'editor') {
@@ -131,7 +133,17 @@ export const UsuariosCadastro: React.FC = () => {
         editarVendas: true,
         cadastrarVendedores: true,
         cadastrarRegras: false,
+        receberParcelas: true,
         visualizarDashboardVendedores: true
+      });
+    } else if (selectedRole === 'financeiro') {
+      setPermissoes({
+        visualizar: true,
+        editarVendas: false,
+        cadastrarVendedores: false,
+        cadastrarRegras: false,
+        receberParcelas: true,
+        visualizarDashboardVendedores: false
       });
     } else {
       setPermissoes({
@@ -139,6 +151,7 @@ export const UsuariosCadastro: React.FC = () => {
         editarVendas: false,
         cadastrarVendedores: false,
         cadastrarRegras: false,
+        receberParcelas: false,
         visualizarDashboardVendedores: false
       });
     }
@@ -393,6 +406,7 @@ export const UsuariosCadastro: React.FC = () => {
                 >
                   <MenuItem value="visualizador">Visualizador (Apenas consulta)</MenuItem>
                   <MenuItem value="editor">Editor (Lançar vendas e vendedores)</MenuItem>
+                  <MenuItem value="financeiro">Financeiro (Apenas receber parcelas)</MenuItem>
                   <MenuItem value="master">Master (Controle administrative completo)</MenuItem>
                 </Select>
               </FormControl>
@@ -431,7 +445,17 @@ export const UsuariosCadastro: React.FC = () => {
                       disabled={role === 'master'}
                     />
                   }
-                  label="Permitir Adicionar, Editar e Cancelar lançamentos de Vendas"
+                  label="Permitir cadastrar, editar e excluir Vendas/Comissões"
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={!!permissoes.receberParcelas}
+                      onChange={(e) => handleCheckboxChange('receberParcelas', e.target.checked)}
+                      disabled={role === 'master' || role === 'editor'}
+                    />
+                  }
+                  label="Permitir apenas marcar parcelas como Recebida"
                 />
                 <FormControlLabel
                   control={

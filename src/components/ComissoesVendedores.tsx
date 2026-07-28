@@ -63,6 +63,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
 }) => {
   const theme = useTheme();
   const [vendedorId, setVendedorId] = useState<string>('');
+  const [tipoFiltro, setTipoFiltro] = useState<'todos' | 'vendas' | 'recorrencia'>('todos');
   const [abaInterna, setAbaInterna] = useState<'timeline' | 'matriz'>('timeline');
 
   const vendedorSelecionado = useMemo(() => {
@@ -83,12 +84,13 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
       '2026-09', '2026-10', '2026-11', '2026-12'
     ];
 
-    // Coleta todos os meses que possuem dados de parcelas nas vendas deste vendedor
     const mesesComDados = new Set<string>();
     vendasDoVendedor.forEach((venda) => {
       Object.keys(venda.projecaoMensal).forEach((mesChave) => {
         const celula = venda.projecaoMensal[mesChave];
         if (celula && celula.valorVenda > 0) {
+          if (tipoFiltro === 'vendas' && mesChave !== venda.mesInicio) return;
+          if (tipoFiltro === 'recorrencia' && mesChave === venda.mesInicio) return;
           mesesComDados.add(mesChave);
         }
       });
@@ -114,7 +116,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
 
     const resultado = Array.from(mesesComDados).sort();
     return resultado.length > 0 ? resultado : FALLBACK_MESES;
-  }, [vendasDoVendedor, dataInicio, dataFim]);
+  }, [vendasDoVendedor, dataInicio, dataFim, tipoFiltro]);
 
   // Obtém o rótulo do número da parcela (ex: "1/36")
   const obterNumeroParcela = (venda: LancamentoVenda, mesChave: string): string => {
@@ -143,8 +145,12 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
       const mesesAtivos = Object.keys(venda.projecaoMensal)
         .filter((mesChave) => {
           const celula = venda.projecaoMensal[mesChave];
-          return celula && celula.valorVenda && celula.valorVenda > 0 &&
+          const isAtivo = celula && celula.valorVenda && celula.valorVenda > 0 &&
             mesChave >= mesInicioChave && mesChave <= mesFimChave;
+          if (!isAtivo) return false;
+          if (tipoFiltro === 'vendas' && mesChave !== venda.mesInicio) return false;
+          if (tipoFiltro === 'recorrencia' && mesChave === venda.mesInicio) return false;
+          return true;
         })
         .sort();
 
@@ -181,7 +187,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
     });
 
     return linhas.sort((a, b) => a.mesChave.localeCompare(b.mesChave));
-  }, [vendedorSelecionado, vendasDoVendedor, dataInicio, dataFim]);
+  }, [vendedorSelecionado, vendasDoVendedor, dataInicio, dataFim, tipoFiltro]);
 
   // Cálculos consolidados para os cards de resumo
   const resumoFinanceiro = useMemo(() => {
@@ -222,6 +228,8 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
       Object.keys(venda.projecaoMensal).forEach((mesChave) => {
         const celula = venda.projecaoMensal[mesChave];
         if (celula && celula.valorVenda && celula.valorVenda > 0 && celula.status !== 'Cancelada') {
+          if (tipoFiltro === 'vendas' && mesChave !== venda.mesInicio) return;
+          if (tipoFiltro === 'recorrencia' && mesChave === venda.mesInicio) return;
           const comissaoVendedorCalculada = (venda.valorVenda * (pctMensalVendedor / 100));
           if (totais[mesChave]) {
             totais[mesChave].faturamento += celula.valorVenda;
@@ -232,17 +240,22 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
     });
 
     return totais;
-  }, [vendedorSelecionado, vendasDoVendedor, listaMesesTimeline]);
+  }, [vendedorSelecionado, vendasDoVendedor, listaMesesTimeline, tipoFiltro]);
 
   const getStatusChip = (status: StatusParcela) => {
     switch (status) {
-      case 'Recebida':
+      case 'A vencer':
+        return <Chip label="A vencer" size="small" color="info" sx={{ fontWeight: 700, borderRadius: 1.5, fontSize: '0.7rem' }} />;
+      case 'Vencida':
+        return <Chip label="Vencida" size="small" color="error" sx={{ fontWeight: 700, borderRadius: 1.5, fontSize: '0.7rem' }} />;
       case 'Paga':
-        return <Chip label="Recebida" size="small" color="success" sx={{ fontWeight: 700, borderRadius: 1.5, fontSize: '0.7rem' }} />;
+        return <Chip label="Paga" size="small" color="success" sx={{ fontWeight: 700, borderRadius: 1.5, fontSize: '0.7rem' }} />;
+      case 'Recebida':
+        return <Chip label="Recebida" size="small" color="warning" sx={{ fontWeight: 700, borderRadius: 1.5, fontSize: '0.7rem' }} />;
       case 'Cancelada':
         return <Chip label="Cancelada" size="small" color="error" sx={{ fontWeight: 700, borderRadius: 1.5, fontSize: '0.7rem' }} />;
       default:
-        return <Chip label="A vencer" size="small" color="warning" sx={{ fontWeight: 700, borderRadius: 1.5, fontSize: '0.7rem' }} />;
+        return <Chip label={status} size="small" sx={{ fontWeight: 700, borderRadius: 1.5, fontSize: '0.7rem' }} />;
     }
   };
 
@@ -261,26 +274,44 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
           </Typography>
         </Box>
 
-        {/* Seleção do Vendedor */}
-        <FormControl size="small" sx={{ minWidth: 240 }}>
-          <InputLabel id="select-vendedor-label">Corretor / Vendedor</InputLabel>
-          <Select
-            labelId="select-vendedor-label"
-            value={vendedorId}
-            label="Corretor / Vendedor"
-            onChange={(e) => setVendedorId(e.target.value)}
-            sx={{ borderRadius: 2 }}
-          >
-            <MenuItem value="">
-              <em>Selecione um Corretor...</em>
-            </MenuItem>
-            {vendedores.map((v) => (
-              <MenuItem key={v.id} value={v.id}>
-                {v.nome} ({Number(v.percentualComissao || 0).toFixed(1)}%)
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          {/* Tipo de Lançamento */}
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <InputLabel id="select-tipo-filtro-label">Tipo de Lançamento</InputLabel>
+            <Select
+              labelId="select-tipo-filtro-label"
+              value={tipoFiltro}
+              label="Tipo de Lançamento"
+              onChange={(e) => setTipoFiltro(e.target.value as any)}
+              sx={{ borderRadius: 2 }}
+            >
+              <MenuItem value="todos">Todos</MenuItem>
+              <MenuItem value="vendas">Apenas Vendas</MenuItem>
+              <MenuItem value="recorrencia">Apenas Recorrência</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* Seleção do Vendedor */}
+          <FormControl size="small" sx={{ minWidth: 240 }}>
+            <InputLabel id="select-vendedor-label">Corretor / Vendedor</InputLabel>
+            <Select
+              labelId="select-vendedor-label"
+              value={vendedorId}
+              label="Corretor / Vendedor"
+              onChange={(e) => setVendedorId(e.target.value)}
+              sx={{ borderRadius: 2 }}
+            >
+              <MenuItem value="">
+                <em>Selecione um Corretor...</em>
               </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+              {vendedores.map((v) => (
+                <MenuItem key={v.id} value={v.id}>
+                  {v.nome} ({Number(v.percentualComissao || 0).toFixed(1)}%)
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
       </Box>
 
       {!vendedorSelecionado ? (
@@ -406,10 +437,11 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                 borderRadius: 4,
                 border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
                 background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
-                overflow: 'hidden'
+                overflow: 'auto',
+                maxHeight: 'calc(100vh - 260px)'
               }}
             >
-              <Table size="small">
+              <Table stickyHeader size="small">
                 <TableHead sx={{ background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc' }}>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Mês Ref.</TableCell>
@@ -507,88 +539,95 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                 border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
                 background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
                 overflowX: 'auto',
+                overflowY: 'auto',
+                maxHeight: 'calc(100vh - 260px)',
                 maxWidth: '100%'
               }}
             >
-              <Table size="small" sx={{ minWidth: 2200, borderCollapse: 'collapse' }}>
-                <TableHead sx={{ background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc' }}>
+              <Table size="small" sx={{ minWidth: 2200, borderCollapse: 'separate', borderSpacing: 0 }}>
+                <TableHead sx={{ 
+                  background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 10
+                }}>
                   {/* Primeira linha do cabeçalho */}
                   <TableRow>
-                    <TableCell
-                      rowSpan={2}
-                      sx={{
-                        fontWeight: 700,
-                        color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
-                        borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                        minWidth: 320,
-                        position: 'sticky',
-                        left: 0,
-                        background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
-                        zIndex: 4
-                      }}
-                    >
+                      <TableCell
+                        rowSpan={2}
+                        sx={{
+                          fontWeight: 700,
+                          color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
+                          borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                          minWidth: 320,
+                          position: 'sticky',
+                          left: 0,
+                          background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
+                          zIndex: 5
+                        }}
+                      >
                       Cliente / Projeto
                     </TableCell>
-                    <TableCell
-                      rowSpan={2}
-                      sx={{
-                        fontWeight: 700,
-                        color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
-                        borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                        minWidth: 200,
-                        position: 'sticky',
-                        left: 320,
-                        background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
-                        zIndex: 4
-                      }}
-                    >
+                      <TableCell
+                        rowSpan={2}
+                        sx={{
+                          fontWeight: 700,
+                          color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
+                          borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                          minWidth: 200,
+                          position: 'sticky',
+                          left: 320,
+                          background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
+                          zIndex: 5
+                        }}
+                      >
                       Regra Aplicada
                     </TableCell>
 
                     {/* Meses do calendário */}
                     {listaMesesTimeline.map((mes) => (
-                      <TableCell
-                        key={mes}
-                        colSpan={2}
-                        align="center"
-                        sx={{
-                          fontWeight: 700,
-                          textTransform: 'capitalize',
-                          borderBottom: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                          borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                          color: theme.palette.mode === 'dark' ? '#e2e8f0' : '#334155',
-                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.01)' : 'rgba(0, 0, 0, 0.005)'
-                        }}
-                      >
+                        <TableCell
+                          key={mes}
+                          colSpan={2}
+                          align="center"
+                          sx={{
+                            fontWeight: 700,
+                            textTransform: 'capitalize',
+                            borderBottom: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                            borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                            color: theme.palette.mode === 'dark' ? '#e2e8f0' : '#334155',
+                            bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc'
+                          }}
+                        >
                         {formatarChaveMesExibicao(mes)}
                       </TableCell>
                     ))}
 
-                    <TableCell
-                      rowSpan={2}
-                      align="right"
-                      sx={{
-                        fontWeight: 700,
-                        color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
-                        borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                        borderLeft: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
-                        minWidth: 140,
-                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.05)' : 'rgba(99, 102, 241, 0.02)'
-                      }}
-                    >
+                      <TableCell
+                        rowSpan={2}
+                        align="right"
+                        sx={{
+                          fontWeight: 700,
+                          color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
+                          borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                          borderLeft: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                          minWidth: 140,
+                          bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc'
+                        }}
+                      >
                       Total Vendas
                     </TableCell>
-                    <TableCell
-                      rowSpan={2}
-                      align="right"
-                      sx={{
-                        fontWeight: 700,
-                        color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
-                        borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                        minWidth: 140,
-                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(16, 185, 129, 0.02)'
-                      }}
-                    >
+                      <TableCell
+                        rowSpan={2}
+                        align="right"
+                        sx={{
+                          fontWeight: 700,
+                          color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
+                          borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                          minWidth: 140,
+                          bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc'
+                        }}
+                      >
                       Total Comissões
                     </TableCell>
                   </TableRow>
@@ -597,17 +636,17 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                   <TableRow>
                     {listaMesesTimeline.map((mes) => (
                       <React.Fragment key={`sub-${mes}`}>
-                        <TableCell
-                          align="right"
-                          sx={{
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b',
-                            borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                            borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                            minWidth: 120, whiteSpace: 'nowrap'
-                          }}
-                        >
+                          <TableCell
+                            align="right"
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b',
+                              borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                              borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                              minWidth: 120, whiteSpace: 'nowrap'
+                            }}
+                          >
                           Venda
                         </TableCell>
                         <TableCell
@@ -685,7 +724,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                   {venda.statusCliente}
                                 </Box>
                               </Box>
-                              {(venda.dataSegundaParcela || venda.segmento || venda.pac) && (
+                              {(venda.dataVenda || venda.dataSegundaParcela || venda.segmento || venda.pac) && (
                                 <Typography
                                   variant="caption"
                                   sx={{
@@ -696,11 +735,12 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                     mt: 0.1
                                   }}
                                 >
-                                  {venda.dataSegundaParcela && `2ª Parc: ${venda.dataSegundaParcela.split('-').reverse().join('/')}`}
-                                  {venda.dataSegundaParcela && (venda.segmento || venda.pac) && ' | '}
-                                  {venda.segmento}
-                                  {(venda.dataSegundaParcela || venda.segmento) && venda.pac && ' | '}
-                                  {venda.pac && `PAC: ${venda.pac}`}
+                                  {[
+                                    venda.dataVenda && `Venda: ${venda.dataVenda.split('-').reverse().join('/')}`,
+                                    venda.dataSegundaParcela && `2ª Parc: ${venda.dataSegundaParcela.split('-').reverse().join('/')}`,
+                                    venda.segmento,
+                                    venda.pac && `PAC: ${venda.pac}`
+                                  ].filter(Boolean).join(' | ')}
                                 </Typography>
                               )}
                             </Box>
@@ -728,7 +768,11 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                           {/* Meses */}
                           {listaMesesTimeline.map((mes) => {
                             const celula = venda.projecaoMensal[mes];
-                            const possuiDados = celula && celula.valorVenda && celula.valorVenda > 0;
+                            let possuiDados = celula && celula.valorVenda && celula.valorVenda > 0;
+                            if (possuiDados) {
+                              if (tipoFiltro === 'vendas' && mes !== venda.mesInicio) possuiDados = false;
+                              if (tipoFiltro === 'recorrencia' && mes === venda.mesInicio) possuiDados = false;
+                            }
                             const comissaoVendedorCalculada = (venda.valorVenda * (pctProporcionalParcela / 100));
 
                             return (
@@ -822,9 +866,9 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                           px: 0.5,
                                           borderRadius: 0.5,
                                           color: celula.status === 'Cancelada' ? '#ef4444' :
-                                                 celula.status === 'Recebida' ? '#818cf8' :
+                                                 celula.status === 'Recebida' ? '#f97316' :
                                                  celula.status === 'Paga' ? '#34d399' :
-                                                 celula.status === 'Vendida' ? '#38bdf8' : '#94a3b8',
+                                                 celula.status === 'Vencida' ? '#ef4444' : '#3b82f6',
                                           background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
                                           display: 'inline-block'
                                         }}
@@ -875,10 +919,11 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                           fontWeight: 750,
                           color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a',
                           position: 'sticky',
+                          bottom: 0,
                           left: 0,
                           minWidth: 320,
                           background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
-                          zIndex: 2,
+                          zIndex: 4,
                           borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
                           borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`
                         }}
@@ -889,10 +934,11 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                         sx={{
                           borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
                           position: 'sticky',
+                          bottom: 0,
                           left: 320,
                           minWidth: 200,
                           background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
-                          zIndex: 2,
+                          zIndex: 4,
                           borderRight: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`
                         }}
                       />
@@ -909,7 +955,11 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                 color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a',
                                 borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
                                 borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                                fontSize: '0.8rem'
+                                fontSize: '0.8rem',
+                                position: 'sticky',
+                                bottom: 0,
+                                zIndex: 2,
+                                background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
                               }}
                             >
                               {tot.faturamento > 0 ? formatarMoeda(tot.faturamento) : '-'}
@@ -920,7 +970,11 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                 fontWeight: 700,
                                 color: theme.palette.success.main,
                                 borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
-                                fontSize: '0.8rem'
+                                fontSize: '0.8rem',
+                                position: 'sticky',
+                                bottom: 0,
+                                zIndex: 2,
+                                background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
                               }}
                             >
                               {tot.comissao > 0 ? formatarMoeda(tot.comissao) : '-'}
@@ -967,7 +1021,10 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                 borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
                                 borderLeft: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
                                 bgcolor: theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.05)',
-                                fontSize: '0.85rem'
+                                fontSize: '0.85rem',
+                                position: 'sticky',
+                                bottom: 0,
+                                zIndex: 2,
                               }}
                             >
                               {formatarMoeda(totalGeralVendas)}
@@ -979,7 +1036,10 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                 color: theme.palette.success.main,
                                 borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
                                 bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.05)',
-                                fontSize: '0.85rem'
+                                fontSize: '0.85rem',
+                                position: 'sticky',
+                                bottom: 0,
+                                zIndex: 2,
                               }}
                             >
                               {formatarMoeda(totalGeralComissoes)}

@@ -86,6 +86,14 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
       description: 'Comissões marcadas como Recebida no período'
     },
     {
+      title: 'Parcelas a Receber',
+      value: formatarMoeda(receitaTotalComissoes - comissoesRecebidasNoPeriodo),
+      icon: <MonetizationOnIcon sx={{ fontSize: 20 }} />,
+      color: theme.palette.info.main,
+      gradient: `linear-gradient(135deg, ${theme.palette.info.dark} 0%, ${theme.palette.info.main} 100%)`,
+      description: 'Comissões pendentes de recebimento no período'
+    },
+    {
       title: 'Clientes Ativos',
       value: totalClientesAtivos,
       icon: <PeopleIcon sx={{ fontSize: 20 }} />,
@@ -106,7 +114,7 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
   return (
     <Grid container spacing={2} sx={{ mb: 4 }}>
       {kpis.map((kpi, index) => (
-        <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2.4 }} key={index}>
+        <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }} key={index}>
           <Paper
             elevation={0}
             sx={{

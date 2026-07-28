@@ -36,6 +36,7 @@ import { Login } from './components/Login';
 import { UsuariosCadastro } from './components/UsuariosCadastro';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ComissoesVendedores } from './components/ComissoesVendedores';
+import { RelatorioRecebimentos } from './components/RelatorioRecebimentos';
 import { DashboardVendedores } from './components/DashboardVendedores';
 import {
   obterVendedoresSupabase,
@@ -154,12 +155,24 @@ function App() {
     return saved ? JSON.parse(saved) : INITIAL_VENDEDORES;
   });
 
-  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'dashboard_vendedores' | 'vendas' | 'comissoes' | 'configuracoes'>('dashboard');
+  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'dashboard_vendedores' | 'vendas' | 'comissoes' | 'relatorio' | 'configuracoes'>('dashboard');
   const [subAbaAtiva, setSubAbaAtiva] = useState<'regras' | 'vendedores' | 'acessos'>('regras');
 
   // Filtro de data global compartilhado entre Dashboard, Painel de Vendas e Comissões
   const [dataInicio, setDataInicio] = useState<string>('2026-01-01');
   const [dataFim, setDataFim] = useState<string>('2026-12-31');
+
+  // Dias de corte para cálculo de previsão de recebimento de comissões
+  const [diasCorte, setDiasCorte] = useState<[number, number]>(() => {
+    const saved = localStorage.getItem('apex_dias_corte');
+    return saved ? JSON.parse(saved) : [10, 25];
+  });
+
+  // Dias de recebimento correspondentes às datas de corte
+  const [diasRecebimento, setDiasRecebimento] = useState<[number, number]>(() => {
+    const saved = localStorage.getItem('apex_dias_recebimento');
+    return saved ? JSON.parse(saved) : [15, 30];
+  });
 
   // Estados temporários para os inputs de data antes do clique no botão Filtrar
   const [tempDataInicio, setTempDataInicio] = useState<string>('2026-01-01');
@@ -206,9 +219,9 @@ function App() {
           obterVendasSupabase()
         ]);
         
-        if (vend.length > 0) setVendedores(vend);
-        if (reg.length > 0) setRegras(reg);
-        if (vendasData.length > 0) setVendas(vendasData);
+        setVendedores(vend);
+        setRegras(reg);
+        setVendas(vendasData);
         
         setStatusSincronizacao('sincronizado');
       } catch (err) {
@@ -236,6 +249,18 @@ function App() {
   useEffect(() => {
     localStorage.setItem('apex_dark_mode', String(darkMode));
   }, [darkMode]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_dias_corte', JSON.stringify(diasCorte));
+  }, [diasCorte]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_dias_recebimento', JSON.stringify(diasRecebimento));
+  }, [diasRecebimento]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_dias_corte', JSON.stringify(diasCorte));
+  }, [diasCorte]);
 
   // Ações de Regras
   const handleAdicionarRegra = (novaRegra: Omit<RegraMaster, 'id'>) => {
@@ -529,6 +554,31 @@ function App() {
               Comissões Vendedores
             </Button>
 
+            <Button
+              variant={abaAtiva === 'relatorio' ? 'contained' : 'text'}
+              startIcon={<AssessmentIcon />}
+              onClick={() => setAbaAtiva('relatorio')}
+              fullWidth
+              sx={{
+                justifyContent: 'flex-start',
+                py: 1.25,
+                px: 2,
+                borderRadius: 2,
+                fontWeight: 600,
+                fontFamily: 'Outfit, sans-serif',
+                fontSize: '0.9rem',
+                color: abaAtiva === 'relatorio' ? '#ffffff' : 'text.secondary',
+                background: abaAtiva === 'relatorio' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'transparent',
+                boxShadow: abaAtiva === 'relatorio' ? '0 4px 12px rgba(16, 185, 129, 0.25)' : 'none',
+                '&:hover': {
+                  background: abaAtiva === 'relatorio' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'rgba(16, 185, 129, 0.08)',
+                  color: abaAtiva === 'relatorio' ? '#ffffff' : '#10b981'
+                }
+              }}
+            >
+              Previsão de Recebimentos
+            </Button>
+
             {(usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
               <Button
                 variant={abaAtiva === 'configuracoes' ? 'contained' : 'text'}
@@ -629,6 +679,7 @@ function App() {
               {abaAtiva === 'dashboard_vendedores' && 'Dashboard de Vendedores'}
               {abaAtiva === 'vendas' && 'Painel de Vendas / Simulador'}
               {abaAtiva === 'comissoes' && 'Comissões de Corretores'}
+              {abaAtiva === 'relatorio' && 'Relatório de Previsão de Recebimentos'}
               {abaAtiva === 'configuracoes' && 'Configurações Administrativas'}
             </Typography>
 
@@ -785,12 +836,24 @@ function App() {
                   permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
                   dataInicio={dataInicio}
                   dataFim={dataFim}
+                  diasCorte={diasCorte}
+                  diasRecebimento={diasRecebimento}
                 />
               </Box>
             )}
 
             {abaAtiva === 'comissoes' && (
               <ComissoesVendedores vendas={vendas} vendedores={vendedores} dataInicio={dataInicio} dataFim={dataFim} />
+            )}
+
+            {abaAtiva === 'relatorio' && (
+              <RelatorioRecebimentos
+                vendas={vendas}
+                dataInicio={dataInicio}
+                dataFim={dataFim}
+                diasCorte={diasCorte}
+                diasRecebimento={diasRecebimento}
+              />
             )}
 
             {abaAtiva === 'configuracoes' && (usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
@@ -869,6 +932,112 @@ function App() {
                   {subAbaAtiva === 'acessos' && usuarioLogado?.role === 'master' && (
                     <UsuariosCadastro />
                   )}
+
+                  <Box
+                    sx={{
+                      mt: 4,
+                      p: 3,
+                      borderRadius: 3,
+                      border: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`,
+                      background: theme.palette.mode === 'dark' ? '#111827' : '#ffffff'
+                    }}
+                  >
+                    <Typography
+                      variant="subtitle1"
+                      sx={{ fontWeight: 700, fontFamily: 'Outfit, sans-serif', mb: 0.5 }}
+                    >
+                      💰 Financeiro — Dias de Corte e Recebimento de Comissões
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2.5 }}>
+                      Configure as datas de corte e suas respectivas datas de recebimento de comissões. Ao passar a data de corte, o valor será previsto para a data de recebimento correspondente mais próxima.
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, border: `1px dashed ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`, borderRadius: 2 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', color: theme.palette.primary.main }}>
+                          Lote 1 (Início do Mês)
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 2 }}>
+                          <TextField
+                            label="1º Dia de Corte"
+                            type="number"
+                            size="small"
+                            value={diasCorte[0]}
+                            onChange={(e) => {
+                              const v = Math.max(1, Math.min(28, Number(e.target.value)));
+                              setDiasCorte([v, diasCorte[1]]);
+                            }}
+                            slotProps={{ htmlInput: { min: 1, max: 28 } }}
+                            helperText="Dia Limite (1–28)"
+                            sx={{ width: 140 }}
+                          />
+                          <TextField
+                            label="1º Dia de Recebimento"
+                            type="number"
+                            size="small"
+                            value={diasRecebimento[0]}
+                            onChange={(e) => {
+                              const v = Math.max(1, Math.min(28, Number(e.target.value)));
+                              setDiasRecebimento([v, diasRecebimento[1]]);
+                            }}
+                            slotProps={{ htmlInput: { min: 1, max: 28 } }}
+                            helperText="Dia de Pagto (1–28)"
+                            sx={{ width: 140 }}
+                          />
+                        </Box>
+                      </Box>
+
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, border: `1px dashed ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`, borderRadius: 2 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', color: theme.palette.secondary.main }}>
+                          Lote 2 (Fim do Mês)
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 2 }}>
+                          <TextField
+                            label="2º Dia de Corte"
+                            type="number"
+                            size="small"
+                            value={diasCorte[1]}
+                            onChange={(e) => {
+                              const v = Math.max(1, Math.min(28, Number(e.target.value)));
+                              setDiasCorte([diasCorte[0], v]);
+                            }}
+                            slotProps={{ htmlInput: { min: 1, max: 28 } }}
+                            helperText="Dia Limite (1–28)"
+                            sx={{ width: 140 }}
+                          />
+                          <TextField
+                            label="2º Dia de Recebimento"
+                            type="number"
+                            size="small"
+                            value={diasRecebimento[1]}
+                            onChange={(e) => {
+                              const v = Math.max(1, Math.min(28, Number(e.target.value)));
+                              setDiasRecebimento([diasRecebimento[0], v]);
+                            }}
+                            slotProps={{ htmlInput: { min: 1, max: 28 } }}
+                            helperText="Dia de Pagto (1–28)"
+                            sx={{ width: 140 }}
+                          />
+                        </Box>
+                      </Box>
+                    </Box>
+
+                    <Box
+                      sx={{
+                        mt: 2,
+                        p: 1.5,
+                        borderRadius: 2,
+                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.08)',
+                        border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.2)'}`,
+                        fontSize: '0.82rem',
+                        color: theme.palette.primary.main,
+                        fontWeight: 600,
+                        textAlign: 'center'
+                      }}
+                    >
+                      Corte até dia <strong>{diasCorte[0]}</strong> paga no dia <strong>{diasRecebimento[0]}</strong> | Corte até dia <strong>{diasCorte[1]}</strong> paga no dia <strong>{diasRecebimento[1]}</strong>
+                    </Box>
+                  </Box>
+
                 </Box>
               </ErrorBoundary>
             )}

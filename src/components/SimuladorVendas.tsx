@@ -25,7 +25,9 @@ import {
   Alert,
   Tabs,
   Tab,
-  Chip
+  Chip,
+  Snackbar,
+  Slide
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -46,6 +48,75 @@ import {
 import { gerarProjecaoVazia, calcularTotaisLinha, getStatusInicial } from '../data/initialData';
 import { formatarMoeda, formatarChaveMesExibicao } from '../utils/formatters';
 
+// Funções utilitárias de máscara financeira e cálculos de vencimento
+const formatarMascaraDinheiro = (valor: string): string => {
+  const apenasNumeros = valor.replace(/\D/g, '');
+  if (!apenasNumeros) return '';
+  const valorNumerico = parseFloat(apenasNumeros) / 100;
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2
+  }).format(valorNumerico);
+};
+
+const extrairValorCru = (valorFormatado: string): number => {
+  if (!valorFormatado) return 0;
+  const apenasNumeros = valorFormatado.replace(/\D/g, '');
+  return parseFloat(apenasNumeros) / 100 || 0;
+};
+
+const calcularDataPrevisaoRecebimento = (
+  dataVenc: string,
+  cortes: [number, number],
+  recebimentos: [number, number]
+): string => {
+  if (!dataVenc || dataVenc.includes('undefined')) return '';
+  const dt = new Date(`${dataVenc}T00:00:00`);
+  if (isNaN(dt.getTime())) return '';
+  const dia = dt.getDate();
+  
+  const c1 = Math.min(...cortes);
+  const c2 = Math.max(...cortes);
+  
+  const idx1 = cortes.indexOf(c1);
+  const idx2 = cortes.indexOf(c2);
+  const r1 = (recebimentos && recebimentos[idx1 !== -1 && idx1 < recebimentos.length ? idx1 : 0]) ?? 15;
+  const r2 = (recebimentos && recebimentos[idx2 !== -1 && idx2 < recebimentos.length ? idx2 : 1]) ?? 30;
+  
+  let ano = dt.getFullYear();
+  let mes = dt.getMonth(); // 0-indexed
+  let diaPagto: number;
+
+  if (dia <= c1) {
+    diaPagto = r1;
+  } else if (dia <= c2) {
+    diaPagto = r2;
+  } else {
+    mes += 1;
+    if (mes > 11) { mes = 0; ano += 1; }
+    diaPagto = r1;
+  }
+
+  if (!diaPagto || isNaN(diaPagto)) {
+    diaPagto = 15;
+  }
+
+  const mesStr = String(mes + 1).padStart(2, '0');
+  const diaStr = String(diaPagto).padStart(2, '0');
+  return `${ano}-${mesStr}-${diaStr}`;
+};
+
+const obterStatusEfetivo = (status: StatusParcela, dataVencimento: string): StatusParcela => {
+  if (status === 'A vencer' && dataVencimento) {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const venc = new Date(`${dataVencimento}T00:00:00`);
+    if (venc <= hoje) return 'Vencida';
+  }
+  return status;
+};
+
 interface SimuladorVendasProps {
   vendas: LancamentoVenda[];
   regras: RegraMaster[];
@@ -56,6 +127,8 @@ interface SimuladorVendasProps {
   permissoes: UserPermissions;
   dataInicio: string;
   dataFim: string;
+  diasCorte: [number, number];
+  diasRecebimento: [number, number];
 }
 
 export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
@@ -67,228 +140,59 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   onExcluirVenda,
   permissoes,
   dataInicio,
-  dataFim
+  dataFim,
+  diasCorte,
+  diasRecebimento
 }) => {
   const theme = useTheme();
 
   // Estados para inclusão de nova venda
   const [openDialog, setOpenDialog] = useState(false);
-  const [cliente, setCliente] = useState('');
-  const [pac, setPac] = useState('');
-  const [vendedorId, setVendedorId] = useState('');
-  const [segmento, setSegmento] = useState<SegmentoType | ''>('');
-  const [tabela, setTabela] = useState('');
-  const [qtdParcelas, setQtdParcelas] = useState<number | ''>('');
-  const [percentualComissao, setPercentualComissao] = useState<number>(0);
-
-  const [valorVendaExibicao, setValorVendaExibicao] = useState('');
-  const [valorParcelaExibicao, setValorParcelaExibicao] = useState('');
-  const [dataVendaInput, setDataVendaInput] = useState<string>('');
-  const [dataSegundaParcelaInput, setDataSegundaParcelaInput] = useState<string>('');
 
   // Estado para controle de edição inline das células de venda
   const [editingCell, setEditingCell] = useState<{ vendaId: string; mes: string } | null>(null);
 
-  // Estado para controle de abas internas (Matriz horizontal vs Timeline vertical)
-  const [abaInterna, setAbaInterna] = useState<'matriz' | 'timeline'>('matriz');
+  // Estado para controle de abas internas (Matriz horizontal vs Timeline vertical vs Resumo)
+  const [abaInterna, setAbaInterna] = useState<'matriz' | 'timeline' | 'resumo'>('matriz');
+  const [tipoFiltro, setTipoFiltro] = useState<'todos' | 'vendas' | 'recorrencia'>('todos');
+  const [filtroStatus, setFiltroStatus] = useState<StatusParcela | 'Todos'>('Todos');
+  const [filtroPac, setFiltroPac] = useState('');
 
   // Estado para guardar ID da venda selecionada para exclusão (confirmação necessária)
   const [vendaParaExcluir, setVendaParaExcluir] = useState<string | null>(null);
 
-  // Validação
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  // Estados para edição de venda (Popup)
+  const [vendaEmEdicao, setVendaEmEdicao] = useState<LancamentoVenda | null>(null);
+  const [openEditDialog, setOpenEditDialog] = useState(false);
 
-  // Listas filtradas para os dropdowns dependentes
-  const [tabelasDisponiveis, setTabelasDisponiveis] = useState<string[]>([]);
-  const [parcelasDisponiveis, setParcelasDisponiveis] = useState<number[]>([]);
+  // Estado do Snackbar de sucesso
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'info' }>({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
 
-  // Monitora alterações nos dropdowns dependentes
-  useEffect(() => {
-    if (segmento) {
-      const tabs = regras
-        .filter((r) => r.segmento === segmento)
-        .map((r) => r.tabela);
-      setTabelasDisponiveis(Array.from(new Set(tabs)));
-      setTabela('');
-      setQtdParcelas('');
-      setPercentualComissao(0);
-    } else {
-      setTabelasDisponiveis([]);
-      setTabela('');
-      setQtdParcelas('');
-      setPercentualComissao(0);
-    }
-  }, [segmento, regras]);
+  const mostrarSnackbar = (message: string, severity: 'success' | 'info' = 'success') => {
+    setSnackbar({ open: true, message, severity });
+  };
 
-  useEffect(() => {
-    if (segmento && tabela) {
-      const parsFiltrado = regras
-        .filter((r) => r.segmento === segmento && r.tabela === tabela)
-        .map((r) => r.qtdParcelas);
-      setParcelasDisponiveis(Array.from(new Set(parsFiltrado)));
-      setQtdParcelas('');
-      setPercentualComissao(0);
-    } else {
-      setParcelasDisponiveis([]);
-      setQtdParcelas('');
-      setPercentualComissao(0);
-    }
-  }, [tabela, segmento, regras]);
-
-  useEffect(() => {
-    if (segmento && tabela && qtdParcelas !== '') {
-      const regra = regras.find(
-        (r) =>
-          r.segmento === segmento &&
-          r.tabela === tabela &&
-          r.qtdParcelas === Number(qtdParcelas)
-      );
-      if (regra) {
-        setPercentualComissao(regra.percentualComissao);
-      } else {
-        setPercentualComissao(0);
-      }
-    } else {
-      setPercentualComissao(0);
-    }
-  }, [qtdParcelas, tabela, segmento, regras]);
+  const handleCloseSnackbar = (_: React.SyntheticEvent | Event, reason?: string) => {
+    if (reason === 'clickaway') return;
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
 
 
+  const handleIniciarEdicao = (venda: LancamentoVenda) => {
+    setVendaEmEdicao(venda);
+    setOpenEditDialog(true);
+  };
 
   const handleOpenDialog = () => {
-    setCliente('');
-    setPac('');
-    setVendedorId('');
-    setSegmento('');
-    setTabela('');
-    setQtdParcelas('');
-    setPercentualComissao(0);
-    setValorVendaExibicao('');
-    setValorParcelaExibicao('');
-    setDataVendaInput('');
-    setDataSegundaParcelaInput('');
-    setErrors({});
     setOpenDialog(true);
   };
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
-  };
-
-  // Funções utilitárias de máscara financeira
-  const formatarMascaraDinheiro = (valor: string): string => {
-    const apenasNumeros = valor.replace(/\D/g, '');
-    if (!apenasNumeros) return '';
-    const valorNumerico = parseFloat(apenasNumeros) / 100;
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      minimumFractionDigits: 2
-    }).format(valorNumerico);
-  };
-
-  const extrairValorCru = (valorFormatado: string): number => {
-    if (!valorFormatado) return 0;
-    const apenasNumeros = valorFormatado.replace(/\D/g, '');
-    return parseFloat(apenasNumeros) / 100 || 0;
-  };
-
-  const handleSalvarVenda = () => {
-    const tempErrors: Record<string, string> = {};
-    if (!cliente.trim()) tempErrors.cliente = 'Nome do cliente é obrigatório.';
-    if (!pac.trim()) tempErrors.pac = 'PAC (Contrato) é obrigatório.';
-    if (!vendedorId) tempErrors.vendedorId = 'Selecione o vendedor.';
-    if (!segmento) tempErrors.segmento = 'Selecione o segmento.';
-    if (!tabela) tempErrors.tabela = 'Selecione a tabela.';
-    if (qtdParcelas === '') tempErrors.qtdParcelas = 'Selecione a quantidade de parcelas.';
-    
-    const valorVendaV = extrairValorCru(valorVendaExibicao);
-    const valorParcelaV = extrairValorCru(valorParcelaExibicao);
-    
-    if (valorVendaV <= 0) {
-      tempErrors.valorVendaInput = 'O valor do crédito é obrigatório e deve ser maior que zero.';
-    }
-    if (valorParcelaV <= 0) {
-      tempErrors.valorParcelaInput = 'O valor da parcela é obrigatório e deve ser maior que zero.';
-    }
-    if (!dataVendaInput) {
-      tempErrors.dataVendaInput = 'A data da venda é obrigatória.';
-    }
-    if (!dataSegundaParcelaInput) {
-      tempErrors.dataSegundaParcelaInput = 'Data da 2ª parcela é obrigatória.';
-    }
-
-    setErrors(tempErrors);
-
-    if (Object.keys(tempErrors).length > 0) return;
-
-    const proj: ProjecaoMensalType = {};
-    const parcelas = Number(qtdParcelas);
-    const percentualMensal = percentualComissao / parcelas;
-    const vendedorSelecionado = vendedores.find((v) => v.id === vendedorId);
-
-    // Inicializa a projeção de base de 2026 com valores zerados
-    const projVaziaBase = gerarProjecaoVazia();
-    Object.assign(proj, projVaziaBase);
-
-    // Extrai o ano e o mês de início da data da venda
-    const [anoStr, mesStr] = dataVendaInput.split('-');
-    let ano = Number(anoStr);
-    let mesNum = Number(mesStr);
-    const mesInicioChave = `${ano}-${String(mesNum).padStart(2, '0')}`;
-
-    for (let i = 0; i < parcelas; i++) {
-      const mesChave = `${ano}-${String(mesNum).padStart(2, '0')}`;
-      const dataVenc = `${mesChave}-15`;
-      const status = getStatusInicial(dataVenc);
-
-      proj[mesChave] = {
-        valorVenda: valorVendaV, // O valor do crédito se repete nas colunas
-        valorParcela: valorParcelaV, // O valor da parcela mensal
-        comissaoGerada: Number((valorVendaV * (percentualMensal / 100)).toFixed(2)),
-        status,
-        dataVencimento: dataVenc
-      };
-
-      // Avança para o próximo mês de vencimento da parcela
-      mesNum++;
-      if (mesNum > 12) {
-        mesNum = 1;
-        ano++;
-      }
-    }
-
-    const { totalVendas, totalComissoes, projecaoAtualizada } = calcularTotaisLinha(
-      proj,
-      percentualComissao,
-      parcelas
-    );
-
-    const dataSegundaParcela = dataSegundaParcelaInput;
-
-    const novaVenda: LancamentoVenda = {
-      id: `v_${Date.now()}`,
-      cliente: cliente.trim(),
-      pac: pac.trim(),
-      vendedorId,
-      vendedorNome: vendedorSelecionado?.nome || '',
-      dataVenda: dataVendaInput,
-      dataSegundaParcela,
-      mesInicio: mesInicioChave,
-      segmento: segmento as SegmentoType,
-      tabela,
-      qtdParcelas: parcelas,
-      percentualComissao,
-      valorVenda: valorVendaV,
-      valorParcela: valorParcelaV,
-      projecaoMensal: projecaoAtualizada,
-      totalVendas,
-      totalComissoes,
-      statusCliente: 'Ativo'
-    };
-
-    onAdicionarVenda(novaVenda);
-    handleCloseDialog();
   };
 
   // Edição inline de valores mensais na timeline
@@ -409,17 +313,29 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
 
 
+  // Retorna o índice cronológico da parcela (1-based)
+  const obterIndiceParcela = (venda: LancamentoVenda, mesChave: string): number => {
+    const mesesAtivos = Object.keys(venda.projecaoMensal)
+      .filter((m) => {
+        const c = venda.projecaoMensal[m];
+        return c && c.valorVenda && c.valorVenda > 0;
+      })
+      .sort();
+    return mesesAtivos.indexOf(mesChave) + 1;
+  };
+
   // Obtém o rótulo do número da parcela (ex: "1/36")
+  // Numera a parcela com base na ordem cronológica real dos meses ativos
+  // Funciona corretamente mesmo com gap entre o mês da venda e o mês da assembleia
   const obterNumeroParcela = (venda: LancamentoVenda, mesChave: string): string => {
-    if (!venda.mesInicio) return '';
-    const [anoI, mesI] = venda.mesInicio.split('-').map(Number);
-    const [anoC, mesC] = mesChave.split('-').map(Number);
-    const diferencaMeses = (anoC - anoI) * 12 + (mesC - mesI);
-    if (diferencaMeses >= 0 && diferencaMeses < venda.qtdParcelas) {
-      return `${diferencaMeses + 1}/${venda.qtdParcelas}`;
+    const idx = obterIndiceParcela(venda, mesChave);
+    if (idx > 0) {
+      return `${idx}/${venda.qtdParcelas}`;
     }
     return '';
   };
+
+
 
   // Fallback estático dos 12 meses de 2026
   const FALLBACK_MESES = [
@@ -430,17 +346,46 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
 
 
+  const vendasFiltradasPorPac = useMemo(() => {
+    return vendas.filter((venda) => {
+      if (!filtroPac.trim()) return true;
+      const query = filtroPac.toLowerCase().trim();
+      return (venda.pac || '').toLowerCase().includes(query) || 
+             (venda.cliente || '').toLowerCase().includes(query);
+    });
+  }, [vendas, filtroPac]);
+
   // Gera dinamicamente a lista de chaves "YYYY-MM" cobrindo TODOS os meses que possuem parcelas reais
   const mesesFiltrados = useMemo(() => {
     // Coleta todos os meses que possuem dados de parcelas nas vendas
     const mesesComDados = new Set<string>();
-    vendas.forEach((venda) => {
+    vendasFiltradasPorPac.forEach((venda) => {
       Object.keys(venda.projecaoMensal).forEach((mesChave) => {
         const celula = venda.projecaoMensal[mesChave];
         if (celula && celula.valorVenda > 0) {
+          if (tipoFiltro === 'vendas' && mesChave !== venda.mesInicio) return;
+          if (tipoFiltro === 'recorrencia' && mesChave === venda.mesInicio) return;
           mesesComDados.add(mesChave);
         }
       });
+
+      // Inclui o mês da venda para exibir o marcador de registro mesmo sem parcela nesse mês
+      if (venda.dataVenda) {
+        const mesVenda = venda.dataVenda.substring(0, 7);
+        const mesVendaChave = mesVenda;
+        // Só inclui se estiver dentro do intervalo do filtro (ou sem filtro de datas)
+        if (!dataInicio || !dataFim || (mesVendaChave >= dataInicio.substring(0, 7) && mesVendaChave <= dataFim.substring(0, 7))) {
+          mesesComDados.add(mesVendaChave);
+        }
+      }
+
+      // Inclui o mês da 1ª Assembleia para exibir o marcador de assembleia mesmo sem comissão
+      if (venda.dataAssembleia) {
+        const mesAssemb = venda.dataAssembleia.substring(0, 7);
+        if (!dataInicio || !dataFim || (mesAssemb >= dataInicio.substring(0, 7) && mesAssemb <= dataFim.substring(0, 7))) {
+          mesesComDados.add(mesAssemb);
+        }
+      }
     });
 
     // Também inclui os meses do intervalo do filtro para não perder colunas vazias do período
@@ -463,7 +408,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
     const resultado = Array.from(mesesComDados).sort();
     return resultado.length > 0 ? resultado : FALLBACK_MESES;
-  }, [vendas, dataInicio, dataFim]);
+  }, [vendasFiltradasPorPac, dataInicio, dataFim, tipoFiltro]);
+
 
   // Totais de vendas e comissões acumulados no período filtrado para cada linha
   const obterTotaisFiltrados = (venda: LancamentoVenda) => {
@@ -473,6 +419,13 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     mesesFiltrados.forEach((mes) => {
       const dadosMes = venda.projecaoMensal[mes];
       if (dadosMes && dadosMes.status !== 'Cancelada' && dadosMes.valorVenda > 0) {
+        if (tipoFiltro === 'vendas' && mes !== venda.mesInicio) return;
+        if (tipoFiltro === 'recorrencia' && mes === venda.mesInicio) return;
+        if (filtroStatus !== 'Todos') {
+          const statusEf = obterStatusEfetivo(dadosMes.status, dadosMes.dataVencimento);
+          if (statusEf !== filtroStatus) return;
+        }
+        
         totalComissoesPeriodo += dadosMes.comissaoGerada || 0;
         parcelasAtivasPeriodo += 1;
       }
@@ -496,7 +449,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     let totalGeralVendas = 0;
     let totalGeralComissoes = 0;
 
-    vendas.forEach((v) => {
+    vendasFiltradasPorPac.forEach((v) => {
       // Soma o faturamento nominal proporcional da linha no período filtrado
       const { totalVendasPeriodo } = obterTotaisFiltrados(v);
       totalGeralVendas += totalVendasPeriodo;
@@ -504,6 +457,13 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       mesesFiltrados.forEach((mes) => {
         const celula = v.projecaoMensal[mes];
         if (celula && celula.status !== 'Cancelada') {
+          if (tipoFiltro === 'vendas' && mes !== v.mesInicio) return;
+          if (tipoFiltro === 'recorrencia' && mes === v.mesInicio) return;
+          if (filtroStatus !== 'Todos') {
+            const statusEf = obterStatusEfetivo(celula.status, celula.dataVencimento);
+            if (statusEf !== filtroStatus) return;
+          }
+
           totais[mes].vendas += celula.valorVenda || 0;
           totais[mes].comissoes += celula.comissaoGerada || 0;
           totalGeralComissoes += celula.comissaoGerada || 0;
@@ -518,7 +478,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     };
   };
 
-  const totaisGerais = useMemo(() => calcularTotaisMensais(), [vendas, mesesFiltrados]);
+  const totaisGerais = useMemo(() => calcularTotaisMensais(), [vendasFiltradasPorPac, mesesFiltrados, tipoFiltro, filtroStatus]);
 
   // Processa todas as parcelas ativas de todas as vendas para a timeline consolidada vertical da empresa
   const parcelasEmpresaTimeline = useMemo(() => {
@@ -535,6 +495,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       valorParcela: number;
       comissaoMaster: number;
       status: StatusParcela;
+      dataVencimento: string;
+      dataPrevisaoRecebimento: string;
       parcelaIndex: number;
       qtdParcelas: number;
     }[] = [];
@@ -542,13 +504,21 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     const mesInicioChave = dataInicio.substring(0, 7);
     const mesFimChave = dataFim.substring(0, 7);
 
-    vendas.forEach((venda) => {
+    vendasFiltradasPorPac.forEach((venda) => {
       // Filtra os meses de faturamento ativos no período
       const mesesAtivos = Object.keys(venda.projecaoMensal)
         .filter((mesChave) => {
           const celula = venda.projecaoMensal[mesChave];
-          return celula && celula.valorVenda && celula.valorVenda > 0 &&
+          const isAtivo = celula && celula.valorVenda && celula.valorVenda > 0 &&
             mesChave >= mesInicioChave && mesChave <= mesFimChave;
+          if (!isAtivo) return false;
+          if (tipoFiltro === 'vendas' && mesChave !== venda.mesInicio) return false;
+          if (tipoFiltro === 'recorrencia' && mesChave === venda.mesInicio) return false;
+          if (filtroStatus !== 'Todos') {
+            const statusEf = obterStatusEfetivo(celula.status, celula.dataVencimento);
+            if (statusEf !== filtroStatus) return false;
+          }
+          return true;
         })
         .sort();
 
@@ -576,7 +546,11 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           valorVenda: venda.valorVenda,
           valorParcela: celula.valorParcela || venda.valorParcela,
           comissaoMaster: celula.comissaoGerada || 0,
-          status: celula.status,
+          status: obterStatusEfetivo(celula.status, celula.dataVencimento),
+          dataVencimento: celula.dataVencimento || `${mesChave}-15`,
+          dataPrevisaoRecebimento: (celula.dataPrevisaoRecebimento && !celula.dataPrevisaoRecebimento.includes('undefined'))
+            ? celula.dataPrevisaoRecebimento
+            : calcularDataPrevisaoRecebimento(celula.dataVencimento || `${mesChave}-15`, diasCorte, diasRecebimento),
           parcelaIndex: parcelaIndexReal,
           qtdParcelas: venda.qtdParcelas
         });
@@ -585,7 +559,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
     // Ordena de forma cronológica (mesChave)
     return linhas.sort((a, b) => a.mesChave.localeCompare(b.mesChave));
-  }, [vendas, dataInicio, dataFim]);
+  }, [vendasFiltradasPorPac, dataInicio, dataFim, tipoFiltro, filtroStatus, diasCorte, diasRecebimento]);
 
   return (
     <Box>
@@ -610,14 +584,62 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
             Lance vendas e acompanhe a projeção mensal de faturamento. Os cálculos de comissões e totais são em tempo real.
           </Typography>
         </Box>
-        {permissoes.editarVendas && (
-          <Box
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            flexWrap: 'wrap',
+            justifyContent: 'flex-end'
+          }}
+        >
+          <TextField
+            size="small"
+            placeholder="Filtrar por Cliente / PAC"
+            value={filtroPac}
+            onChange={(e) => setFiltroPac(e.target.value)}
             sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 2
+              minWidth: 220,
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2
+              }
             }}
-          >
+          />
+
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <InputLabel id="select-tipo-filtro-label">Tipo de Lançamento</InputLabel>
+            <Select
+              labelId="select-tipo-filtro-label"
+              value={tipoFiltro}
+              label="Tipo de Lançamento"
+              onChange={(e) => setTipoFiltro(e.target.value as any)}
+              sx={{ borderRadius: 2 }}
+            >
+              <MenuItem value="todos">Todos</MenuItem>
+              <MenuItem value="vendas">Apenas Vendas</MenuItem>
+              <MenuItem value="recorrencia">Apenas Recorrência</MenuItem>
+            </Select>
+          </FormControl>
+
+          <FormControl size="small" sx={{ minWidth: 180 }}>
+            <InputLabel id="select-filtro-status-label">Status da Parcela</InputLabel>
+            <Select
+              labelId="select-filtro-status-label"
+              value={filtroStatus}
+              label="Status da Parcela"
+              onChange={(e) => setFiltroStatus(e.target.value as StatusParcela | 'Todos')}
+              sx={{ borderRadius: 2 }}
+            >
+              <MenuItem value="Todos">Todos</MenuItem>
+              <MenuItem value="A vencer">A vencer</MenuItem>
+              <MenuItem value="Vencida">Vencida</MenuItem>
+              <MenuItem value="Paga">Paga</MenuItem>
+              <MenuItem value="Recebida">Recebida</MenuItem>
+              <MenuItem value="Cancelada">Cancelada</MenuItem>
+            </Select>
+          </FormControl>
+          
+          {permissoes.editarVendas && (
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -633,8 +655,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
             >
               Nova Venda
             </Button>
-          </Box>
-        )}
+          )}
+        </Box>
       </Box>
 
       {/* Abas internas para alternar visualizações */}
@@ -647,6 +669,17 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         >
           <Tab value="matriz" icon={<TableChartIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Acompanhamento Mensal" />
           <Tab value="timeline" icon={<ListAltIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Visualização por Parcela" />
+          <Tab
+            value="resumo"
+            iconPosition="start"
+            icon={
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 9h18M9 21V9" />
+              </svg>
+            }
+            label="Resumo por Venda"
+          />
         </Tabs>
       </Box>
 
@@ -659,11 +692,18 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
             border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
             background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
             overflowX: 'auto',
+            overflowY: 'auto',
+            maxHeight: 'calc(100vh - 260px)',
             maxWidth: '100%'
           }}
         >
-          <Table size="small" sx={{ minWidth: 2200, borderCollapse: 'collapse' }}>
-            <TableHead sx={{ background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc' }}>
+          <Table size="small" sx={{ minWidth: 2200, borderCollapse: 'separate', borderSpacing: 0 }}>
+            <TableHead sx={{ 
+              background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
+              position: 'sticky',
+              top: 0,
+              zIndex: 10
+            }}>
             {/* Primeira linha do cabeçalho */}
             <TableRow>
               <TableCell
@@ -676,7 +716,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                   position: 'sticky',
                   left: 0,
                   background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
-                  zIndex: 4
+                  zIndex: 5
                 }}
               >
                 Cliente / Projeto
@@ -687,11 +727,11 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                   fontWeight: 700,
                   color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
                   borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                  minWidth: 200,
+                  minWidth: 260,
                   position: 'sticky',
                   left: 320,
                   background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
-                  zIndex: 4
+                  zIndex: 5
                 }}
               >
                 Regra Aplicada
@@ -709,7 +749,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                     borderBottom: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
                     borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
                     color: theme.palette.mode === 'dark' ? '#e2e8f0' : '#334155',
-                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.01)' : 'rgba(0, 0, 0, 0.005)'
+                    bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc'
                   }}
                 >
                   {formatarChaveMesExibicao(mes)}
@@ -725,7 +765,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                   borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
                   borderLeft: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
                   minWidth: 140,
-                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.05)' : 'rgba(99, 102, 241, 0.02)'
+                  bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc'
                 }}
               >
                 Total Vendas
@@ -738,25 +778,12 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                   color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
                   borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
                   minWidth: 140,
-                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(16, 185, 129, 0.02)'
+                  bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc'
                 }}
               >
                 Total Comissões
               </TableCell>
-              {permissoes.editarVendas && (
-                <TableCell
-                  rowSpan={2}
-                  align="center"
-                  sx={{
-                    fontWeight: 700,
-                    color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
-                    borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                    minWidth: 80
-                  }}
-                >
-                  Ações
-                </TableCell>
-              )}
+
             </TableRow>
 
             {/* Segunda linha do cabeçalho */}
@@ -793,16 +820,16 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
             </TableRow>
           </TableHead>
           <TableBody>
-            {vendas.length === 0 ? (
+            {vendasFiltradasPorPac.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5 + mesesFiltrados.length * 2} align="center" sx={{ py: 6 }}>
                   <Typography variant="body1" sx={{ color: theme.palette.mode === 'dark' ? '#64748b' : '#94a3b8' }}>
-                    Nenhuma venda lançada. Clique em "Nova Venda" para cadastrar seu primeiro cliente.
+                    Nenhuma venda localizada para os filtros selecionados.
                   </Typography>
                 </TableCell>
               </TableRow>
             ) : (
-              vendas.map((venda) => (
+              vendasFiltradasPorPac.map((venda) => (
                 <TableRow
                   key={venda.id}
                   sx={{
@@ -829,9 +856,23 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                   >
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <span style={{ textDecoration: venda.statusCliente === 'Cancelado' ? 'line-through' : 'none' }}>
+                        <Typography
+                          component="span"
+                          onClick={() => permissoes.editarVendas && handleIniciarEdicao(venda)}
+                          sx={{
+                            cursor: permissoes.editarVendas ? 'pointer' : 'default',
+                            fontSize: '0.875rem',
+                            fontWeight: 650,
+                            textDecoration: venda.statusCliente === 'Cancelado' ? 'line-through' : 'none',
+                            '&:hover': permissoes.editarVendas ? {
+                              textDecoration: 'underline',
+                              color: theme.palette.primary.main
+                            } : {}
+                          }}
+                        >
                           {venda.cliente}
-                        </span>
+                        </Typography>
+
                         <Box
                           component="span"
                           sx={{
@@ -847,6 +888,52 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                         >
                           {venda.statusCliente}
                         </Box>
+                        {venda.pac && (
+                          <Chip
+                            label={venda.pac}
+                            size="small"
+                            color="secondary"
+                            variant="outlined"
+                            sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700, borderRadius: 1.5 }}
+                          />
+                        )}
+
+                        {/* Botões Editar / Excluir inline na coluna Cliente */}
+                        {permissoes.editarVendas && (
+                          <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleIniciarEdicao(venda)}
+                              sx={{
+                                p: 0.4,
+                                color: theme.palette.primary.main,
+                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.08)',
+                                borderRadius: 1.5,
+                                '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.18)' }
+                              }}
+                              title="Editar venda"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                              </svg>
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => setVendaParaExcluir(venda.id)}
+                              sx={{
+                                p: 0.4,
+                                color: '#ef4444',
+                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.07)',
+                                borderRadius: 1.5,
+                                '&:hover': { bgcolor: 'rgba(239,68,68,0.22)' }
+                              }}
+                              title="Excluir venda"
+                            >
+                              <DeleteIcon sx={{ fontSize: '0.9rem' }} />
+                            </IconButton>
+                          </Box>
+                        )}
                       </Box>
                       {venda.vendedorNome && (
                         <Typography
@@ -861,7 +948,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           Vend: {venda.vendedorNome}
                         </Typography>
                       )}
-                      {(venda.dataSegundaParcela || venda.segmento || venda.pac) && (
+                      {(venda.dataVenda || venda.dataVencimentoCliente || venda.dataAssembleia || venda.segmento) && (
                         <Typography
                           variant="caption"
                           sx={{
@@ -872,11 +959,12 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                             mt: 0.1
                           }}
                         >
-                          {venda.dataSegundaParcela && `2ª Parc: ${venda.dataSegundaParcela.split('-').reverse().join('/')}`}
-                          {venda.dataSegundaParcela && (venda.segmento || venda.pac) && ' | '}
-                          {venda.segmento}
-                          {(venda.dataSegundaParcela || venda.segmento) && venda.pac && ' | '}
-                          {venda.pac && `PAC: ${venda.pac}`}
+                          {[
+                            venda.dataVenda && `Venda: ${venda.dataVenda.split('-').reverse().join('/')}`,
+                            venda.dataVencimentoCliente && `Venc. Cliente: ${venda.dataVencimentoCliente.split('-').reverse().join('/')}`,
+                            venda.dataAssembleia && `1ª Assemb: ${venda.dataAssembleia.split('-').reverse().join('/')}`,
+                            venda.segmento
+                          ].filter(Boolean).join(' | ')}
                         </Typography>
                       )}
                     </Box>
@@ -889,7 +977,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                       fontSize: '0.8rem',
                       position: 'sticky',
                       left: 320,
-                      minWidth: 200,
+                      minWidth: 260,
                       background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
                       zIndex: 2,
                       borderRight: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`
@@ -903,12 +991,34 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
                   {/* Colunas mensais (Venda editável e Comissão calculada) */}
                   {mesesFiltrados.map((mes) => {
-                    const dadosMes = venda.projecaoMensal[mes] || {
+                    let dadosMes = venda.projecaoMensal[mes] || {
                       valorVenda: 0,
                       comissaoGerada: 0,
                       status: 'A vencer' as StatusParcela,
                       dataVencimento: `${mes}-15`
                     };
+                    
+                    if (tipoFiltro === 'vendas' && mes !== venda.mesInicio) {
+                      dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
+                    }
+                    if (tipoFiltro === 'recorrencia' && mes === venda.mesInicio) {
+                      dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
+                    }
+                    // Filtro por status da parcela
+                    if (filtroStatus !== 'Todos' && dadosMes.valorVenda > 0) {
+                      const statusEfCel = obterStatusEfetivo(dadosMes.status, dadosMes.dataVencimento || `${mes}-15`);
+                      if (statusEfCel !== filtroStatus) {
+                        dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
+                      }
+                    }
+                    // Verificação automática de vencimento para exibição
+                    if (dadosMes.valorVenda > 0 && dadosMes.status === 'A vencer') {
+                      const statusEfCel = obterStatusEfetivo(dadosMes.status, dadosMes.dataVencimento || `${mes}-15`);
+                      if (statusEfCel !== dadosMes.status) {
+                        dadosMes = { ...dadosMes, status: statusEfCel };
+                      }
+                    }
+
                     const pctMensal = (venda.percentualComissao / venda.qtdParcelas).toFixed(2).replace('.', ',');
                     return (
                       <React.Fragment key={`${venda.id}-${mes}`}>
@@ -1011,8 +1121,138 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                   >
                                     Parc: {formatarMoeda(dadosMes.valorParcela || (venda.valorParcela || 0))}
                                   </Typography>
+                                  {dadosMes.dataVencimento && (
+                                    <Typography
+                                      variant="caption"
+                                      sx={{
+                                        fontSize: '0.6rem',
+                                        color: dadosMes.status === 'Vencida'
+                                          ? '#ef4444'
+                                          : (theme.palette.mode === 'dark' ? '#64748b' : '#94a3b8'),
+                                        fontWeight: 600,
+                                        mt: 0.1
+                                      }}
+                                    >
+                                      {(() => {
+                                        const idx = obterIndiceParcela(venda, mes);
+                                        const dtFormato = dadosMes.dataVencimento.split('-').reverse().join('/');
+                                        return idx === 1 ? `Venc: ${dtFormato}` : `${idx}ª Assemb: ${dtFormato}`;
+                                      })()}
+                                    </Typography>
+                                  )}
+                                  {dadosMes.dataPrevisaoRecebimento && dadosMes.status !== 'Cancelada' && (
+                                    <Typography
+                                      variant="caption"
+                                      sx={{
+                                        fontSize: '0.58rem',
+                                        color: theme.palette.mode === 'dark' ? '#818cf8' : '#6366f1',
+                                        fontWeight: 700,
+                                        mt: 0.1,
+                                        whiteSpace: 'nowrap',
+                                        display: 'inline-block'
+                                      }}
+                                    >
+                                      {(() => {
+                                        let dtPrev = dadosMes.dataPrevisaoRecebimento;
+                                        if (!dtPrev || dtPrev.includes('undefined')) {
+                                          dtPrev = calcularDataPrevisaoRecebimento(dadosMes.dataVencimento || `${mes}-15`, diasCorte, diasRecebimento);
+                                        }
+                                        if (!dtPrev || dtPrev.includes('undefined')) return null;
+                                        return `💰 ${dtPrev.split('-').reverse().join('/')}`;
+                                      })()}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              ) : venda.dataAssembleia?.substring(0, 7) === mes ? (
+                                /* Marcador de registro de 1ª Assembleia (sem comissão) */
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'flex-end',
+                                    py: 0.5,
+                                    px: 1,
+                                    minHeight: '38px',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  {venda.dataAssembleia && (
+                                    <Typography
+                                      variant="caption"
+                                      sx={{
+                                        fontSize: '0.6rem',
+                                        color: theme.palette.mode === 'dark' ? '#64748b' : '#94a3b8',
+                                        fontWeight: 500,
+                                        mb: 0.3
+                                      }}
+                                    >
+                                      {venda.dataAssembleia.split('-').reverse().join('/')}
+                                    </Typography>
+                                  )}
+                                  <Box
+                                    component="span"
+                                    sx={{
+                                      fontSize: '0.58rem',
+                                      fontWeight: 700,
+                                      px: 0.5,
+                                      py: 0.1,
+                                      borderRadius: 0.4,
+                                      backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                                      color: '#f59e0b',
+                                      textTransform: 'uppercase',
+                                      display: 'inline-block',
+                                      lineHeight: 1
+                                    }}
+                                  >
+                                    1ª Assemb
+                                  </Box>
+                                </Box>
+                              ) : venda.dataVenda?.substring(0, 7) === mes ? (
+                                /* Marcador de registro de venda — visual idêntico ao badge de parcela */
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'flex-end',
+                                    py: 0.5,
+                                    px: 1,
+                                    minHeight: '38px',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  {venda.dataVenda && (
+                                    <Typography
+                                      variant="caption"
+                                      sx={{
+                                        fontSize: '0.6rem',
+                                        color: theme.palette.mode === 'dark' ? '#64748b' : '#94a3b8',
+                                        fontWeight: 500,
+                                        mb: 0.3
+                                      }}
+                                    >
+                                      {venda.dataVenda.split('-').reverse().join('/')}
+                                    </Typography>
+                                  )}
+                                  <Box
+                                    component="span"
+                                    sx={{
+                                      fontSize: '0.58rem',
+                                      fontWeight: 700,
+                                      px: 0.5,
+                                      py: 0.1,
+                                      borderRadius: 0.4,
+                                      backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                                      color: '#818cf8',
+                                      textTransform: 'uppercase',
+                                      display: 'inline-block',
+                                      lineHeight: 1
+                                    }}
+                                  >
+                                    Venda
+                                  </Box>
                                 </Box>
                               ) : ''}
+
                               {dadosMes.valorVenda > 0 && dadosMes.status !== 'Cancelada' && (
                                 <Box
                                   component="span"
@@ -1083,7 +1323,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                             {/* Controle de Status da Parcela e Ação de Cancelar - Apenas exibidos se houver parcela ativa faturada no mês */}
                             {dadosMes.valorVenda > 0 && (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                  {permissoes.editarVendas ? (
+                                  {(permissoes.editarVendas || permissoes.receberParcelas) ? (
                                     <Select
                                       value={dadosMes.status}
                                       onChange={(e) => handleAlterarStatusParcela(venda.id, mes, e.target.value as StatusParcela)}
@@ -1093,9 +1333,9 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                         fontSize: '0.62rem',
                                         fontWeight: 700,
                                         color: dadosMes.status === 'Cancelada' ? '#ef4444' :
-                                               dadosMes.status === 'Recebida' ? '#818cf8' :
+                                               dadosMes.status === 'Recebida' ? '#f97316' :
                                                dadosMes.status === 'Paga' ? '#34d399' :
-                                               dadosMes.status === 'Vendida' ? '#38bdf8' : '#94a3b8',
+                                               dadosMes.status === 'Vencida' ? '#ef4444' : '#3b82f6',
                                         '& .MuiSelect-select': {
                                           py: 0.1,
                                           px: 0.5,
@@ -1104,11 +1344,11 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                         }
                                       }}
                                     >
-                                      <MenuItem value="A vencer" sx={{ fontSize: '0.7rem' }}>A vencer</MenuItem>
-                                      <MenuItem value="Vendida" sx={{ fontSize: '0.7rem' }}>Vendida</MenuItem>
-                                      <MenuItem value="Paga" sx={{ fontSize: '0.7rem' }}>Paga</MenuItem>
-                                      <MenuItem value="Recebida" sx={{ fontSize: '0.7rem' }}>Recebida</MenuItem>
-                                      <MenuItem value="Cancelada" sx={{ fontSize: '0.7rem' }}>Cancelada</MenuItem>
+                                      {(permissoes.editarVendas || dadosMes.status === 'A vencer') && <MenuItem value="A vencer" sx={{ fontSize: '0.7rem' }}>A vencer</MenuItem>}
+                                      {(permissoes.editarVendas || dadosMes.status === 'Vencida') && <MenuItem value="Vencida" sx={{ fontSize: '0.7rem' }}>Vencida</MenuItem>}
+                                      {(permissoes.editarVendas || dadosMes.status === 'Paga') && <MenuItem value="Paga" sx={{ fontSize: '0.7rem' }}>Paga</MenuItem>}
+                                      {(permissoes.editarVendas || permissoes.receberParcelas || dadosMes.status === 'Recebida') && <MenuItem value="Recebida" sx={{ fontSize: '0.7rem' }}>Recebida</MenuItem>}
+                                      {(permissoes.editarVendas || dadosMes.status === 'Cancelada') && <MenuItem value="Cancelada" sx={{ fontSize: '0.7rem' }}>Cancelada</MenuItem>}
                                     </Select>
                                   ) : (
                                     <Box
@@ -1119,9 +1359,9 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                         px: 0.5,
                                         borderRadius: 0.5,
                                         color: dadosMes.status === 'Cancelada' ? '#ef4444' :
-                                               dadosMes.status === 'Recebida' ? '#818cf8' :
+                                               dadosMes.status === 'Recebida' ? '#f97316' :
                                                dadosMes.status === 'Paga' ? '#34d399' :
-                                               dadosMes.status === 'Vendida' ? '#38bdf8' : '#94a3b8',
+                                               dadosMes.status === 'Vencida' ? '#ef4444' : '#3b82f6',
                                         background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
                                         display: 'inline-block'
                                       }}
@@ -1184,22 +1424,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                     );
                   })()}
 
-                  {/* Ação de Excluir */}
-                  {permissoes.editarVendas && (
-                    <TableCell align="center">
-                      <IconButton
-                        color="error"
-                        onClick={() => setVendaParaExcluir(venda.id)}
-                        size="small"
-                        sx={{
-                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.05)',
-                          '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.2)' }
-                        }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  )}
+
                 </TableRow>
               ))
             )}
@@ -1212,10 +1437,11 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                     fontWeight: 750,
                     color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a',
                     position: 'sticky',
+                    bottom: 0,
                     left: 0,
                     minWidth: 320,
                     background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
-                    zIndex: 2,
+                    zIndex: 4,
                     borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
                     borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`
                   }}
@@ -1226,10 +1452,11 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                   sx={{
                     borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
                     position: 'sticky',
+                    bottom: 0,
                     left: 320,
                     minWidth: 200,
                     background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
-                    zIndex: 2,
+                    zIndex: 4,
                     borderRight: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`
                   }}
                 />
@@ -1246,7 +1473,11 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a',
                           borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
                           borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                          fontSize: '0.8rem'
+                          fontSize: '0.8rem',
+                          position: 'sticky',
+                          bottom: 0,
+                          zIndex: 2,
+                          background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
                         }}
                       >
                         {formatarMoeda(mVal.vendas)}
@@ -1258,7 +1489,11 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           fontWeight: 700,
                           color: theme.palette.success.main,
                           borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
-                          fontSize: '0.8rem'
+                          fontSize: '0.8rem',
+                          position: 'sticky',
+                          bottom: 0,
+                          zIndex: 2,
+                          background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
                         }}
                       >
                         {formatarMoeda(mVal.comissoes)}
@@ -1276,7 +1511,10 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                     borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
                     borderLeft: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
                     bgcolor: theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.05)',
-                    fontSize: '0.85rem'
+                    fontSize: '0.85rem',
+                    position: 'sticky',
+                    bottom: 0,
+                    zIndex: 2,
                   }}
                 >
                   {formatarMoeda(totaisGerais.totalGeralVendas)}
@@ -1288,20 +1526,401 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                     color: theme.palette.success.main,
                     borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
                     bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.05)',
-                    fontSize: '0.85rem'
+                    fontSize: '0.85rem',
+                    position: 'sticky',
+                    bottom: 0,
+                    zIndex: 2,
                   }}
                 >
                   {formatarMoeda(totaisGerais.totalGeralComissoes)}
                 </TableCell>
-                {permissoes.editarVendas && (
-                  <TableCell sx={{ borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}` }} />
-                )}
+
+
               </TableRow>
             )}
           </TableBody>
         </Table>
       </TableContainer>
     )}
+
+      {/* ========== ABA RESUMO POR VENDA ========== */}
+      {abaInterna === 'resumo' && (
+        <Box>
+          <TableContainer
+            component={Paper}
+            elevation={0}
+            sx={{
+              borderRadius: 4,
+              border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+              background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
+              overflow: 'auto',
+              maxHeight: 'calc(100vh - 260px)',
+              maxWidth: '100%'
+            }}
+          >
+            <Table size="small" sx={{ minWidth: 1500, borderCollapse: 'separate', borderSpacing: 0 }}>
+              <TableHead sx={{
+                background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
+                position: 'sticky', top: 0, zIndex: 10
+              }}>
+                <TableRow>
+                  {/* Cliente */}
+                  <TableCell sx={{
+                    fontWeight: 700, fontSize: '0.75rem',
+                    color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
+                    borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                    minWidth: 260,
+                    position: 'sticky', left: 0,
+                    background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
+                    zIndex: 5
+                  }}>
+                    Cliente / Projeto
+                  </TableCell>
+                  {/* Tabela / Parcelas */}
+                  <TableCell sx={{
+                    fontWeight: 700, fontSize: '0.75rem',
+                    color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
+                    borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                    minWidth: 220,
+                    position: 'sticky', left: 260,
+                    background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
+                    zIndex: 5,
+                    borderRight: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`
+                  }}>
+                    Tabela / Regra
+                  </TableCell>
+
+                  {/* Meses Filtrados */}
+                  {mesesFiltrados.map((mes) => (
+                    <TableCell
+                      key={mes}
+                      align="right"
+                      sx={{
+                        fontWeight: 700, fontSize: '0.75rem',
+                        textTransform: 'capitalize',
+                        borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                        borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                        color: theme.palette.mode === 'dark' ? '#e2e8f0' : '#334155',
+                        minWidth: 150,
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {formatarChaveMesExibicao(mes)} (V / C)
+                    </TableCell>
+                  ))}
+
+                  {/* Totais Consolidados por Linha Filtrados */}
+                  <TableCell
+                    align="right"
+                    sx={{
+                      fontWeight: 700, fontSize: '0.75rem',
+                      color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
+                      borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                      borderLeft: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                      minWidth: 130
+                    }}
+                  >
+                    Total Vendas
+                  </TableCell>
+                  <TableCell
+                    align="right"
+                    sx={{
+                      fontWeight: 700, fontSize: '0.75rem',
+                      color: theme.palette.success.main,
+                      borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                      minWidth: 130
+                    }}
+                  >
+                    Total Comissões
+                  </TableCell>
+
+                  {/* Ações */}
+                  {permissoes.editarVendas && (
+                    <TableCell
+                      align="center"
+                      sx={{
+                        fontWeight: 700, fontSize: '0.75rem',
+                        color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
+                        borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                        minWidth: 85
+                      }}
+                    >
+                      Ações
+                    </TableCell>
+                  )}
+                </TableRow>
+              </TableHead>
+
+              <TableBody>
+                {vendasFiltradasPorPac.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5 + mesesFiltrados.length} align="center" sx={{ py: 6, color: theme.palette.mode === 'dark' ? '#475569' : '#94a3b8' }}>
+                      Nenhuma venda encontrada para os filtros selecionados.
+                    </TableCell>
+                  </TableRow>
+                )}
+
+                {vendasFiltradasPorPac.map((venda, idx) => {
+                  const { totalVendasPeriodo, totalComissoesPeriodo } = obterTotaisFiltrados(venda);
+                  return (
+                    <TableRow
+                      key={venda.id}
+                      sx={{
+                        bgcolor: idx % 2 === 0
+                          ? (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.012)' : 'rgba(0,0,0,0.008)')
+                          : 'transparent',
+                        '&:hover': {
+                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.04)'
+                        },
+                        opacity: venda.statusCliente === 'Cancelado' ? 0.6 : 1,
+                        transition: 'background 0.15s',
+                        borderBottom: `1px solid ${theme.palette.mode === 'dark' ? '#1e293b' : '#f1f5f9'}`
+                      }}
+                    >
+                      {/* Cliente / Vendedor (Sticky) */}
+                      <TableCell sx={{
+                        position: 'sticky', left: 0,
+                        background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
+                        zIndex: 2,
+                        borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                        py: 0.8
+                      }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.2 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexWrap: 'wrap' }}>
+                            <Typography
+                              component="span"
+                              onClick={() => permissoes.editarVendas && handleIniciarEdicao(venda)}
+                              sx={{
+                                fontSize: '0.82rem', fontWeight: 650,
+                                cursor: permissoes.editarVendas ? 'pointer' : 'default',
+                                textDecoration: venda.statusCliente === 'Cancelado' ? 'line-through' : 'none',
+                                '&:hover': permissoes.editarVendas ? { textDecoration: 'underline', color: theme.palette.primary.main } : {}
+                              }}
+                            >
+                              {venda.cliente}
+                            </Typography>
+                            {venda.pac && (
+                              <Chip label={venda.pac} size="small" color="secondary" variant="outlined"
+                                sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, borderRadius: 1 }} />
+                            )}
+                          </Box>
+                          {venda.vendedorNome && (
+                            <Typography variant="caption" sx={{ fontSize: '0.68rem', color: theme.palette.primary.main, fontWeight: 500 }}>
+                              Vend: {venda.vendedorNome}
+                            </Typography>
+                          )}
+                        </Box>
+                      </TableCell>
+
+                      {/* Tabela / Parcelas (Sticky) */}
+                      <TableCell sx={{
+                        position: 'sticky', left: 260,
+                        background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
+                        zIndex: 2,
+                        borderRight: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                        py: 0.8
+                      }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{venda.tabela}</span>
+                          <span style={{ fontSize: '0.65rem', color: theme.palette.text.secondary }}>{venda.qtdParcelas}x de {formatarMoeda(venda.valorParcela)}</span>
+                        </Box>
+                      </TableCell>
+
+                      {/* Projeção Mês a Mês simplificada */}
+                      {mesesFiltrados.map((mes) => {
+                        let dadosMes = venda.projecaoMensal[mes] || {
+                          valorVenda: 0,
+                          comissaoGerada: 0,
+                          status: 'A vencer' as StatusParcela,
+                          dataVencimento: `${mes}-15`
+                        };
+
+                        if (tipoFiltro === 'vendas' && mes !== venda.mesInicio) {
+                          dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
+                        }
+                        if (tipoFiltro === 'recorrencia' && mes === venda.mesInicio) {
+                          dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
+                        }
+                        if (filtroStatus !== 'Todos' && dadosMes.valorVenda > 0) {
+                          const statusEfCel = obterStatusEfetivo(dadosMes.status, dadosMes.dataVencimento || `${mes}-15`);
+                          if (statusEfCel !== filtroStatus) {
+                            dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
+                          }
+                        }
+
+                        const temFaturamento = dadosMes.valorVenda > 0;
+
+                        return (
+                          <TableCell
+                            key={mes}
+                            align="right"
+                            sx={{
+                              py: 0.8,
+                              borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                              opacity: temFaturamento ? 1 : 0.25
+                            }}
+                          >
+                            {temFaturamento ? (
+                              <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'right', alignItems: 'center', whiteSpace: 'nowrap', fontSize: '0.78rem' }}>
+                                <span style={{ fontWeight: 600, color: dadosMes.status === 'Cancelada' ? '#ef4444' : 'inherit' }}>
+                                  {formatarMoeda(dadosMes.valorVenda)}
+                                </span>
+                                <span style={{ color: theme.palette.text.secondary }}>/</span>
+                                <span style={{ color: theme.palette.success.main, fontWeight: 700 }}>
+                                  {formatarMoeda(dadosMes.comissaoGerada)}
+                                </span>
+                              </Box>
+                            ) : (
+                              <span style={{ color: theme.palette.text.secondary, fontSize: '0.8rem' }}>—</span>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+
+                      {/* Totais da venda no período */}
+                      <TableCell
+                        align="right"
+                        sx={{
+                          py: 0.8,
+                          borderLeft: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.02)' : 'rgba(99, 102, 241, 0.01)'
+                        }}
+                      >
+                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 750 }}>
+                          {formatarMoeda(totalVendasPeriodo)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        sx={{
+                          py: 0.8,
+                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.02)' : 'rgba(16, 185, 129, 0.01)'
+                        }}
+                      >
+                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 750, color: theme.palette.success.main }}>
+                          {formatarMoeda(totalComissoesPeriodo)}
+                        </Typography>
+                      </TableCell>
+
+                      {/* Ações */}
+                      {permissoes.editarVendas && (
+                        <TableCell align="center" sx={{ py: 0.8 }}>
+                          <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleIniciarEdicao(venda)}
+                              sx={{
+                                p: 0.5,
+                                color: theme.palette.primary.main,
+                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.08)',
+                                borderRadius: 1.5,
+                                '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.18)' }
+                              }}
+                              title="Editar venda"
+                            >
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                              </svg>
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => setVendaParaExcluir(venda.id)}
+                              sx={{
+                                p: 0.5,
+                                color: '#ef4444',
+                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.07)',
+                                borderRadius: 1.5,
+                                '&:hover': { bgcolor: 'rgba(239,68,68,0.22)' }
+                              }}
+                              title="Excluir venda"
+                            >
+                              <DeleteIcon sx={{ fontSize: '0.85rem' }} />
+                            </IconButton>
+                          </Box>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+
+              {/* Rodapé de totais consolidados mês a mês */}
+              {vendasFiltradasPorPac.length > 0 && (
+                <TableBody>
+                  <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc', position: 'sticky', bottom: 0, zIndex: 3 }}>
+                    <TableCell colSpan={2} sx={{
+                      fontWeight: 750, fontSize: '0.78rem',
+                      color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a',
+                      borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                      borderRight: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                      position: 'sticky', left: 0,
+                      background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
+                      zIndex: 4
+                    }}>
+                      TOTAL CONSOLIDADO
+                    </TableCell>
+
+                    {mesesFiltrados.map((mes) => {
+                      const mVal = totaisGerais.mensais[mes];
+                      return (
+                        <TableCell
+                          key={`total-resumo-${mes}`}
+                          align="right"
+                          sx={{
+                            fontWeight: 700,
+                            borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                            borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                            fontSize: '0.78rem',
+                            bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc'
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'right', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontWeight: 700 }}>{formatarMoeda(mVal.vendas)}</span>
+                            <span style={{ color: theme.palette.text.secondary }}>/</span>
+                            <span style={{ color: theme.palette.success.main, fontWeight: 800 }}>{formatarMoeda(mVal.comissoes)}</span>
+                          </Box>
+                        </TableCell>
+                      );
+                    })}
+
+                    {/* Finais Globais */}
+                    <TableCell
+                      align="right"
+                      sx={{
+                        fontWeight: 800, fontSize: '0.88rem',
+                        color: theme.palette.mode === 'dark' ? '#f1f5f9' : '#0f172a',
+                        borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                        borderLeft: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.05)'
+                      }}
+                    >
+                      {formatarMoeda(totaisGerais.totalGeralVendas)}
+                    </TableCell>
+                    <TableCell
+                      align="right"
+                      sx={{
+                        fontWeight: 800, fontSize: '0.88rem',
+                        color: theme.palette.success.main,
+                        borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.05)'
+                      }}
+                    >
+                      {formatarMoeda(totaisGerais.totalGeralComissoes)}
+                    </TableCell>
+                    {permissoes.editarVendas && (
+                      <TableCell sx={{
+                        borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                        bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc'
+                      }} />
+                    )}
+                  </TableRow>
+                </TableBody>
+              )}
+            </Table>
+          </TableContainer>
+        </Box>
+      )}
 
       {abaInterna === 'timeline' && (
         <TableContainer
@@ -1311,10 +1930,11 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
             borderRadius: 4,
             border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
             background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
-            overflow: 'hidden'
+            overflow: 'auto',
+            maxHeight: 'calc(100vh - 260px)'
           }}
         >
-          <Table size="small">
+          <Table stickyHeader size="small">
             <TableHead sx={{ background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc' }}>
               <TableRow>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Mês Ref.</TableCell>
@@ -1322,6 +1942,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Corretor / Vendedor</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Segmento / Tabela</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700, py: 1.5 }}>Parcela</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700, py: 1.5 }}>Vencimento</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700, py: 1.5, color: theme.palette.mode === 'dark' ? '#818cf8' : '#6366f1' }}>Prev. Recebimento</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700, py: 1.5 }}>Valor Parcela</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700, py: 1.5, color: theme.palette.success.main }}>
                   Comissão Master (Empresa)
@@ -1332,7 +1954,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
             <TableBody>
               {parcelasEmpresaTimeline.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                  <TableCell colSpan={10} align="center" sx={{ py: 6, color: 'text.secondary' }}>
                     Nenhuma venda ou parcela ativa registrada no sistema.
                   </TableCell>
                 </TableRow>
@@ -1354,20 +1976,16 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                       {formatarChaveMesExibicao(linha.mesChave)}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexWrap: 'wrap' }}>
                         <span>{linha.cliente}</span>
                         {linha.pac && (
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: 'text.secondary',
-                              fontWeight: 700,
-                              fontSize: '0.68rem',
-                              display: 'block'
-                            }}
-                          >
-                            Contrato: {linha.pac}
-                          </Typography>
+                          <Chip
+                            label={linha.pac}
+                            size="small"
+                            color="secondary"
+                            variant="outlined"
+                            sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, borderRadius: 1 }}
+                          />
                         )}
                       </Box>
                     </TableCell>
@@ -1385,6 +2003,25 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                     <TableCell align="right">
                       {linha.parcelaIndex}/{linha.qtdParcelas}
                     </TableCell>
+                    <TableCell align="center">
+                      <Typography variant="caption" sx={{ fontWeight: 600, fontSize: '0.75rem', color: linha.status === 'Vencida' ? '#ef4444' : (theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b') }}>
+                        {linha.parcelaIndex === 1
+                          ? `Venda: ${linha.dataVencimento?.split('-').reverse().join('/')}`
+                          : `${linha.parcelaIndex}ª Assemb: ${linha.dataVencimento?.split('-').reverse().join('/')}`}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.75rem', color: theme.palette.mode === 'dark' ? '#818cf8' : '#6366f1', whiteSpace: 'nowrap' }}>
+                        {(() => {
+                          let dtPrev = linha.dataPrevisaoRecebimento;
+                          if (!dtPrev || dtPrev.includes('undefined')) {
+                            dtPrev = calcularDataPrevisaoRecebimento(linha.dataVencimento, diasCorte, diasRecebimento);
+                          }
+                          if (!dtPrev || dtPrev.includes('undefined')) return null;
+                          return `💰 ${dtPrev.split('-').reverse().join('/')}`;
+                        })()}
+                      </Typography>
+                    </TableCell>
                     <TableCell align="right">
                       {formatarMoeda(linha.valorParcela)}
                     </TableCell>
@@ -1392,7 +2029,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                       {formatarMoeda(linha.comissaoMaster)}
                     </TableCell>
                     <TableCell align="center">
-                      {permissoes.editarVendas ? (
+                      {(permissoes.editarVendas || permissoes.receberParcelas) ? (
                         <Select
                           value={linha.status}
                           onChange={(e) => handleAlterarStatusParcela(linha.vendaId, linha.mesChave, e.target.value as StatusParcela)}
@@ -1402,9 +2039,9 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                             fontSize: '0.62rem',
                             fontWeight: 700,
                             color: linha.status === 'Cancelada' ? '#ef4444' :
-                                   linha.status === 'Recebida' ? '#818cf8' :
+                                   linha.status === 'Recebida' ? '#f97316' :
                                    linha.status === 'Paga' ? '#34d399' :
-                                   linha.status === 'Vendida' ? '#38bdf8' : '#94a3b8',
+                                   linha.status === 'Vencida' ? '#ef4444' : '#3b82f6',
                             '& .MuiSelect-select': {
                               py: 0.1,
                               px: 0.5,
@@ -1413,11 +2050,11 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                             }
                           }}
                         >
-                          <MenuItem value="A vencer" sx={{ fontSize: '0.7rem' }}>A vencer</MenuItem>
-                          <MenuItem value="Vendida" sx={{ fontSize: '0.7rem' }}>Vendida</MenuItem>
-                          <MenuItem value="Paga" sx={{ fontSize: '0.7rem' }}>Paga</MenuItem>
-                          <MenuItem value="Recebida" sx={{ fontSize: '0.7rem' }}>Recebida</MenuItem>
-                          <MenuItem value="Cancelada" sx={{ fontSize: '0.7rem' }}>Cancelada</MenuItem>
+                          {(permissoes.editarVendas || linha.status === 'A vencer') && <MenuItem value="A vencer" sx={{ fontSize: '0.7rem' }}>A vencer</MenuItem>}
+                          {(permissoes.editarVendas || linha.status === 'Vencida') && <MenuItem value="Vencida" sx={{ fontSize: '0.7rem' }}>Vencida</MenuItem>}
+                          {(permissoes.editarVendas || linha.status === 'Paga') && <MenuItem value="Paga" sx={{ fontSize: '0.7rem' }}>Paga</MenuItem>}
+                          {(permissoes.editarVendas || permissoes.receberParcelas || linha.status === 'Recebida') && <MenuItem value="Recebida" sx={{ fontSize: '0.7rem' }}>Recebida</MenuItem>}
+                          {(permissoes.editarVendas || linha.status === 'Cancelada') && <MenuItem value="Cancelada" sx={{ fontSize: '0.7rem' }}>Cancelada</MenuItem>}
                         </Select>
                       ) : (
                         <Box
@@ -1428,9 +2065,9 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                             px: 0.5,
                             borderRadius: 0.5,
                             color: linha.status === 'Cancelada' ? '#ef4444' :
-                                   linha.status === 'Recebida' ? '#818cf8' :
+                                   linha.status === 'Recebida' ? '#f97316' :
                                    linha.status === 'Paga' ? '#34d399' :
-                                   linha.status === 'Vendida' ? '#38bdf8' : '#94a3b8',
+                                   linha.status === 'Vencida' ? '#ef4444' : '#3b82f6',
                             background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
                             display: 'inline-block'
                           }}
@@ -1447,252 +2084,23 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         </TableContainer>
       )}
 
+
+
+
       {/* Dialog para Nova Venda */}
-      <Dialog
+      <NovaVendaDialog
         open={openDialog}
         onClose={handleCloseDialog}
-        maxWidth="md"
-        fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              borderRadius: 3,
-              background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
-              backgroundImage: 'none',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)'
-            }
-          }
+        onSave={(novaVenda) => {
+          onAdicionarVenda(novaVenda);
+          handleCloseDialog();
+          mostrarSnackbar('✅ Venda lançada com sucesso!');
         }}
-      >
-        <DialogTitle
-          sx={{
-            fontFamily: 'Outfit, sans-serif',
-            fontWeight: 700,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a'
-          }}
-        >
-          Nova Venda
-          <IconButton onClick={handleCloseDialog} size="small">
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent>
-          <Grid container spacing={3} sx={{ mt: 0.5 }}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Cliente / Projeto"
-                placeholder="Ex: Condomínio Jardim Real"
-                value={cliente}
-                onChange={(e) => setCliente(e.target.value)}
-                error={!!errors.cliente}
-                helperText={errors.cliente}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth error={!!errors.vendedorId}>
-                <InputLabel id="vend-venda-label">Vendedor Responsável</InputLabel>
-                <Select
-                  labelId="vend-venda-label"
-                  value={vendedorId}
-                  label="Vendedor Responsável"
-                  onChange={(e) => setVendedorId(e.target.value)}
-                >
-                  {vendedores.map((v) => (
-                    <MenuItem key={v.id} value={v.id}>
-                      {v.nome}
-                    </MenuItem>
-                  ))}
-                </Select>
-                {errors.vendedorId && (
-                  <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                    {errors.vendedorId}
-                  </Typography>
-                )}
-              </FormControl>
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Valor do Crédito"
-                type="text"
-                placeholder="Ex: R$ 1.200.000,00"
-                value={valorVendaExibicao}
-                onChange={(e) => {
-                  const formatado = formatarMascaraDinheiro(e.target.value);
-                  setValorVendaExibicao(formatado);
-                }}
-                error={!!errors.valorVendaInput}
-                helperText={errors.valorVendaInput}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Valor da Parcela"
-                type="text"
-                placeholder="Ex: R$ 10.000,00"
-                value={valorParcelaExibicao}
-                onChange={(e) => {
-                  const formatado = formatarMascaraDinheiro(e.target.value);
-                  setValorParcelaExibicao(formatado);
-                }}
-                error={!!errors.valorParcelaInput}
-                helperText={errors.valorParcelaInput}
-              />
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 3 }}>
-              <TextField
-                fullWidth
-                label="Data da Venda"
-                type="date"
-                value={dataVendaInput}
-                onChange={(e) => setDataVendaInput(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-                error={!!errors.dataVendaInput}
-                helperText={errors.dataVendaInput}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 3 }}>
-              <TextField
-                fullWidth
-                label="Vencimento da 2ª Parcela"
-                type="date"
-                value={dataSegundaParcelaInput}
-                onChange={(e) => setDataSegundaParcelaInput(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-                error={!!errors.dataSegundaParcelaInput}
-                helperText={errors.dataSegundaParcelaInput}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 3 }}>
-              <FormControl fullWidth error={!!errors.segmento}>
-                <InputLabel id="seg-venda-label">Segmento</InputLabel>
-                <Select
-                  labelId="seg-venda-label"
-                  value={segmento}
-                  label="Segmento"
-                  onChange={(e) => setSegmento(e.target.value as SegmentoType)}
-                >
-                  <MenuItem value="Imóveis">Imóveis</MenuItem>
-                  <MenuItem value="Autos Leves">Autos Leves</MenuItem>
-                  <MenuItem value="Pesados">Pesados</MenuItem>
-                </Select>
-                {errors.segmento && (
-                  <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                    {errors.segmento}
-                  </Typography>
-                )}
-              </FormControl>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 3 }}>
-              <TextField
-                fullWidth
-                label="PAC (Contrato)"
-                placeholder="Ex: PAC-987654"
-                value={pac}
-                onChange={(e) => setPac(e.target.value)}
-                error={!!errors.pac}
-                helperText={errors.pac}
-              />
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth error={!!errors.tabela} disabled={!segmento}>
-                <InputLabel id="tab-venda-label">Tabela</InputLabel>
-                <Select
-                  labelId="tab-venda-label"
-                  value={tabela}
-                  label="Tabela"
-                  onChange={(e) => setTabela(e.target.value)}
-                >
-                  {tabelasDisponiveis.map((tab) => (
-                    <MenuItem key={tab} value={tab}>
-                      {tab}
-                    </MenuItem>
-                  ))}
-                </Select>
-                {errors.tabela && (
-                  <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                    {errors.tabela}
-                  </Typography>
-                )}
-              </FormControl>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth error={!!errors.qtdParcelas} disabled={!tabela}>
-                <InputLabel id="parc-venda-label">Prazo (Parcelas)</InputLabel>
-                <Select
-                  labelId="parc-venda-label"
-                  value={qtdParcelas}
-                  label="Prazo (Parcelas)"
-                  onChange={(e) => setQtdParcelas(Number(e.target.value))}
-                >
-                  {parcelasDisponiveis.map((parc) => (
-                    <MenuItem key={parc} value={parc}>
-                      {parc}x
-                    </MenuItem>
-                  ))}
-                </Select>
-                {errors.qtdParcelas && (
-                  <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                    {errors.qtdParcelas}
-                  </Typography>
-                )}
-              </FormControl>
-            </Grid>
-
-            {/* Informações da comissão buscada */}
-            {segmento && tabela && qtdParcelas !== '' && (
-              <Grid size={{ xs: 12 }}>
-                <Alert
-                  severity={percentualComissao > 0 ? 'success' : 'warning'}
-                  icon={<PercentIcon />}
-                  sx={{ borderRadius: 3 }}
-                >
-                  {percentualComissao > 0 ? (
-                    <span>
-                      Regra localizada! Comissão automática de <strong>{percentualComissao.toFixed(2).replace('.', ',')}%</strong> definida para esta venda.
-                    </span>
-                  ) : (
-                    <span>Não foi localizada nenhuma comissão para essa combinação no BD Master.</span>
-                  )}
-                </Alert>
-              </Grid>
-            )}
-          </Grid>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2, pt: 1 }}>
-          <Button
-            onClick={handleCloseDialog}
-            sx={{
-              borderRadius: 2,
-              textTransform: 'none',
-              fontWeight: 600,
-              color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'
-            }}
-          >
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleSalvarVenda}
-            sx={{
-              borderRadius: 2,
-              textTransform: 'none',
-              fontWeight: 600,
-              boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)'
-            }}
-          >
-            Lançar Venda
-          </Button>
-        </DialogActions>
-      </Dialog>
+        vendedores={vendedores}
+        regras={regras}
+        diasCorte={diasCorte}
+        diasRecebimento={diasRecebimento}
+      />
 
       {/* Dialog de Confirmação para Excluir Venda */}
       <Dialog
@@ -1749,6 +2157,1012 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Dialog para Editar Venda */}
+      <EditarVendaDialog
+        open={openEditDialog}
+        onClose={() => {
+          setOpenEditDialog(false);
+          setVendaEmEdicao(null);
+        }}
+        onSave={(vendaAtualizada) => {
+          onAtualizarVenda(vendaAtualizada);
+          setOpenEditDialog(false);
+          setVendaEmEdicao(null);
+          mostrarSnackbar('✅ Venda atualizada com sucesso!');
+        }}
+        venda={vendaEmEdicao}
+        vendedores={vendedores}
+        regras={regras}
+        diasCorte={diasCorte}
+        diasRecebimento={diasRecebimento}
+      />
+
+      {/* Snackbar de sucesso */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3500}
+        onClose={handleCloseSnackbar}
+        slots={{ transition: Slide }}
+        slotProps={{ transition: { direction: 'up' } as object }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={handleCloseSnackbar}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{
+            fontFamily: 'Outfit, sans-serif',
+            fontWeight: 700,
+            fontSize: '0.95rem',
+            borderRadius: 3,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+            minWidth: '280px',
+            '& .MuiAlert-icon': { fontSize: '1.3rem' }
+          }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
+  );
+};
+
+// ==========================================
+// Subcomponentes Modulares de Dialogs (Evitam Lag de Digitação no Componente Principal)
+// ==========================================
+
+interface NovaVendaDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onSave: (venda: LancamentoVenda) => void;
+  vendedores: Vendedor[];
+  regras: RegraMaster[];
+  diasCorte: number[];
+  diasRecebimento: [number, number] | Record<number, number>;
+}
+
+const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
+  open,
+  onClose,
+  onSave,
+  vendedores,
+  regras,
+  diasCorte,
+  diasRecebimento
+}) => {
+  const theme = useTheme();
+  const [cliente, setCliente] = useState('');
+  const [pac, setPac] = useState('');
+  const [vendedorId, setVendedorId] = useState('');
+  const [segmento, setSegmento] = useState<SegmentoType | ''>('');
+  const [tabela, setTabela] = useState('');
+  const [qtdParcelas, setQtdParcelas] = useState<number | ''>('');
+  const [percentualComissao, setPercentualComissao] = useState<number>(0);
+
+  const [valorVendaExibicao, setValorVendaExibicao] = useState('');
+  const [valorParcelaExibicao, setValorParcelaExibicao] = useState('');
+  const [dataVendaInput, setDataVendaInput] = useState<string>('');
+  const [dataVencimentoClienteInput, setDataVencimentoClienteInput] = useState<string>('');
+  const [dataAssembleiaInput, setDataAssembleiaInput] = useState<string>('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [tabelasDisponiveis, setTabelasDisponiveis] = useState<string[]>([]);
+  const [parcelasDisponiveis, setParcelasDisponiveis] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (segmento) {
+      const tabs = regras
+        .filter((r) => r.segmento === segmento)
+        .map((r) => r.tabela);
+      setTabelasDisponiveis(Array.from(new Set(tabs)));
+      setTabela('');
+      setQtdParcelas('');
+      setPercentualComissao(0);
+    } else {
+      setTabelasDisponiveis([]);
+      setTabela('');
+      setQtdParcelas('');
+      setPercentualComissao(0);
+    }
+  }, [segmento, regras]);
+
+  useEffect(() => {
+    if (segmento && tabela) {
+      const parsFiltrado = regras
+        .filter((r) => r.segmento === segmento && r.tabela === tabela)
+        .map((r) => r.qtdParcelas);
+      setParcelasDisponiveis(Array.from(new Set(parsFiltrado)));
+      setQtdParcelas('');
+      setPercentualComissao(0);
+    } else {
+      setParcelasDisponiveis([]);
+      setQtdParcelas('');
+      setPercentualComissao(0);
+    }
+  }, [tabela, segmento, regras]);
+
+  useEffect(() => {
+    if (segmento && tabela && qtdParcelas !== '') {
+      const regra = regras.find(
+        (r) =>
+          r.segmento === segmento &&
+          r.tabela === tabela &&
+          r.qtdParcelas === Number(qtdParcelas)
+      );
+      if (regra) {
+        setPercentualComissao(regra.percentualComissao);
+      } else {
+        setPercentualComissao(0);
+      }
+    } else {
+      setPercentualComissao(0);
+    }
+  }, [qtdParcelas, tabela, segmento, regras]);
+
+  const handleSalvarVenda = () => {
+    const tempErrors: Record<string, string> = {};
+    if (!cliente.trim()) tempErrors.cliente = 'Nome do cliente é obrigatório.';
+    if (!pac.trim()) tempErrors.pac = 'PAC (Contrato) é obrigatório.';
+    if (!vendedorId) tempErrors.vendedorId = 'Selecione o vendedor.';
+    if (!segmento) tempErrors.segmento = 'Selecione o segmento.';
+    if (!tabela) tempErrors.tabela = 'Selecione a tabela.';
+    if (qtdParcelas === '') tempErrors.qtdParcelas = 'Selecione a quantidade de parcelas.';
+    
+    const valorVendaV = extrairValorCru(valorVendaExibicao);
+    const valorParcelaV = extrairValorCru(valorParcelaExibicao);
+    
+    if (valorVendaV <= 0) {
+      tempErrors.valorVendaInput = 'O valor do crédito é obrigatório e deve ser maior que zero.';
+    }
+    if (valorParcelaV <= 0) {
+      tempErrors.valorParcelaInput = 'O valor da parcela é obrigatório e deve ser maior que zero.';
+    }
+    if (!dataVendaInput) {
+      tempErrors.dataVendaInput = 'A data da venda é obrigatória.';
+    }
+    if (!dataVencimentoClienteInput) {
+      tempErrors.dataVencimentoClienteInput = 'Vencimento do cliente é obrigatório.';
+    }
+    if (!dataAssembleiaInput) {
+      tempErrors.dataAssembleiaInput = 'A data da 1ª Assembleia é obrigatória.';
+    }
+
+    setErrors(tempErrors);
+
+    if (Object.keys(tempErrors).length > 0) return;
+
+    const proj: ProjecaoMensalType = {};
+    const parcelas = Number(qtdParcelas);
+    const percentualMensal = percentualComissao / parcelas;
+    const vendedorSelecionado = vendedores.find((v) => v.id === vendedorId);
+
+    const projVaziaBase = gerarProjecaoVazia();
+    Object.assign(proj, projVaziaBase);
+
+    const mesInicioChave = dataVendaInput.substring(0, 7);
+
+    for (let i = 0; i < parcelas; i++) {
+      let dataVenc: string;
+      if (i === 0) {
+        dataVenc = dataVendaInput;
+      } else {
+        const dateAssembleiaBase = new Date(dataAssembleiaInput + 'T00:00:00');
+        const dateVencClienteBase = new Date(dataVencimentoClienteInput + 'T00:00:00');
+        const diaVenc = dateVencClienteBase.getDate();
+        
+        const dtAlvo = new Date(dateAssembleiaBase.getFullYear(), dateAssembleiaBase.getMonth() + i, 1);
+        const ultimoDiaMes = new Date(dtAlvo.getFullYear(), dtAlvo.getMonth() + 1, 0).getDate();
+        const diaFinal = Math.min(diaVenc, ultimoDiaMes);
+        dtAlvo.setDate(diaFinal);
+        
+        const anoCalc = dtAlvo.getFullYear();
+        const mesCalc = String(dtAlvo.getMonth() + 1).padStart(2, '0');
+        const diaCalc = String(dtAlvo.getDate()).padStart(2, '0');
+        dataVenc = `${anoCalc}-${mesCalc}-${diaCalc}`;
+      }
+
+      const mesChave = dataVenc.substring(0, 7);
+      const status = i === 0 ? 'Paga' : getStatusInicial(dataVenc);
+      const cortes: [number, number] = [diasCorte[0], diasCorte[1]];
+      const recebimentos: [number, number] = Array.isArray(diasRecebimento)
+        ? [diasRecebimento[0] ?? 15, diasRecebimento[1] ?? 30]
+        : [diasRecebimento[diasCorte[0]] ?? 15, diasRecebimento[diasCorte[1]] ?? 30];
+      const dataPrevisaoRecebimento = calcularDataPrevisaoRecebimento(dataVenc, cortes, recebimentos);
+
+      proj[mesChave] = {
+        valorVenda: valorVendaV,
+        valorParcela: valorParcelaV,
+        comissaoGerada: Number((valorVendaV * (percentualMensal / 100)).toFixed(2)),
+        status,
+        dataVencimento: dataVenc,
+        dataPrevisaoRecebimento
+      };
+    }
+
+    const { totalVendas, totalComissoes, projecaoAtualizada } = calcularTotaisLinha(
+      proj,
+      percentualComissao,
+      parcelas
+    );
+
+    const novaVenda: LancamentoVenda = {
+      id: `v_${Date.now()}`,
+      cliente: cliente.trim(),
+      pac: pac.trim(),
+      vendedorId,
+      vendedorNome: vendedorSelecionado?.nome || '',
+      dataVenda: dataVendaInput,
+      dataVencimentoCliente: dataVencimentoClienteInput,
+      dataAssembleia: dataAssembleiaInput,
+      mesInicio: mesInicioChave,
+      segmento: segmento as SegmentoType,
+      tabela,
+      qtdParcelas: parcelas,
+      percentualComissao,
+      valorVenda: valorVendaV,
+      valorParcela: valorParcelaV,
+      projecaoMensal: projecaoAtualizada,
+      totalVendas,
+      totalComissoes,
+      statusCliente: 'Ativo'
+    };
+
+    onSave(novaVenda);
+    
+    setCliente('');
+    setPac('');
+    setVendedorId('');
+    setSegmento('');
+    setTabela('');
+    setQtdParcelas('');
+    setPercentualComissao(0);
+    setValorVendaExibicao('');
+    setValorParcelaExibicao('');
+    setDataVendaInput('');
+    setDataVencimentoClienteInput('');
+    setDataAssembleiaInput('');
+    setErrors({});
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      slotProps={{
+        paper: {
+          sx: {
+            borderRadius: 3,
+            background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
+            backgroundImage: 'none',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)'
+          }
+        }
+      }}
+    >
+      <DialogTitle
+        sx={{
+          fontFamily: 'Outfit, sans-serif',
+          fontWeight: 700,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a'
+        }}
+      >
+        Nova Venda
+        <IconButton onClick={onClose} size="small">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent>
+        <Grid container spacing={3} sx={{ mt: 0.5 }}>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              label="Cliente / Projeto"
+              placeholder="Ex: Condomínio Jardim Real"
+              value={cliente}
+              onChange={(e) => setCliente(e.target.value)}
+              error={!!errors.cliente}
+              helperText={errors.cliente}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <FormControl fullWidth error={!!errors.vendedorId}>
+              <InputLabel id="vend-venda-label">Vendedor Responsável</InputLabel>
+              <Select
+                labelId="vend-venda-label"
+                value={vendedorId}
+                label="Vendedor Responsável"
+                onChange={(e) => setVendedorId(e.target.value)}
+              >
+                {vendedores.map((v) => (
+                  <MenuItem key={v.id} value={v.id}>
+                    {v.nome}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.vendedorId && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                  {errors.vendedorId}
+                </Typography>
+              )}
+            </FormControl>
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              label="Valor do Crédito"
+              type="text"
+              placeholder="Ex: R$ 1.200.000,00"
+              value={valorVendaExibicao}
+              onChange={(e) => {
+                const formatado = formatarMascaraDinheiro(e.target.value);
+                setValorVendaExibicao(formatado);
+              }}
+              error={!!errors.valorVendaInput}
+              helperText={errors.valorVendaInput}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              label="Valor da Parcela"
+              type="text"
+              placeholder="Ex: R$ 10.000,00"
+              value={valorParcelaExibicao}
+              onChange={(e) => {
+                const formatado = formatarMascaraDinheiro(e.target.value);
+                setValorParcelaExibicao(formatado);
+              }}
+              error={!!errors.valorParcelaInput}
+              helperText={errors.valorParcelaInput}
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 3 }}>
+            <TextField
+              fullWidth
+              label="Data da Venda"
+              type="date"
+              value={dataVendaInput}
+              onChange={(e) => setDataVendaInput(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              error={!!errors.dataVendaInput}
+              helperText={errors.dataVendaInput}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 3 }}>
+            <TextField
+              fullWidth
+              label="Vencimento do Cliente"
+              type="date"
+              value={dataVencimentoClienteInput}
+              onChange={(e) => setDataVencimentoClienteInput(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              error={!!errors.dataVencimentoClienteInput}
+              helperText={errors.dataVencimentoClienteInput || 'Data da 2ª parcela'}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 3 }}>
+            <TextField
+              fullWidth
+              label="Data da 1ª Assembleia"
+              type="date"
+              value={dataAssembleiaInput}
+              onChange={(e) => setDataAssembleiaInput(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              error={!!errors.dataAssembleiaInput}
+              helperText={errors.dataAssembleiaInput}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 3 }}>
+            <FormControl fullWidth error={!!errors.segmento}>
+              <InputLabel id="seg-venda-label">Segmento</InputLabel>
+              <Select
+                labelId="seg-venda-label"
+                value={segmento}
+                label="Segmento"
+                onChange={(e) => setSegmento(e.target.value as SegmentoType)}
+              >
+                <MenuItem value="Imóveis">Imóveis</MenuItem>
+                <MenuItem value="Autos Leves">Autos Leves</MenuItem>
+                <MenuItem value="Pesados">Pesados</MenuItem>
+              </Select>
+              {errors.segmento && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                  {errors.segmento}
+                </Typography>
+              )}
+            </FormControl>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <TextField
+              fullWidth
+              label="PAC (Contrato)"
+              placeholder="Ex: PAC-987654"
+              value={pac}
+              onChange={(e) => setPac(e.target.value)}
+              error={!!errors.pac}
+              helperText={errors.pac}
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <FormControl fullWidth error={!!errors.tabela} disabled={!segmento}>
+              <InputLabel id="tab-venda-label">Tabela</InputLabel>
+              <Select
+                labelId="tab-venda-label"
+                value={tabela}
+                label="Tabela"
+                onChange={(e) => setTabela(e.target.value)}
+              >
+                {tabelasDisponiveis.map((tab) => (
+                  <MenuItem key={tab} value={tab}>
+                    {tab}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.tabela && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                  {errors.tabela}
+                </Typography>
+              )}
+            </FormControl>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <FormControl fullWidth error={!!errors.qtdParcelas} disabled={!tabela}>
+              <InputLabel id="parc-venda-label">Prazo (Parcelas)</InputLabel>
+              <Select
+                labelId="parc-venda-label"
+                value={qtdParcelas}
+                label="Prazo (Parcelas)"
+                onChange={(e) => setQtdParcelas(Number(e.target.value))}
+              >
+                {parcelasDisponiveis.map((parc) => (
+                  <MenuItem key={parc} value={parc}>
+                    {parc}x
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.qtdParcelas && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                  {errors.qtdParcelas}
+                </Typography>
+              )}
+            </FormControl>
+          </Grid>
+
+          {/* Informações da comissão buscada */}
+          {segmento && tabela && qtdParcelas !== '' && (
+            <Grid size={{ xs: 12 }}>
+              <Alert
+                severity={percentualComissao > 0 ? 'success' : 'warning'}
+                icon={<PercentIcon />}
+                sx={{ borderRadius: 3 }}
+              >
+                {percentualComissao > 0 ? (
+                  <span>
+                    Regra localizada! Comissão automática de <strong>{percentualComissao.toFixed(2).replace('.', ',')}%</strong> definida para esta venda.
+                  </span>
+                ) : (
+                  <span>Não foi localizada nenhuma comissão para essa combinação no BD Master.</span>
+                )}
+              </Alert>
+            </Grid>
+          )}
+        </Grid>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2, pt: 1 }}>
+        <Button
+          onClick={onClose}
+          sx={{
+            borderRadius: 2,
+            textTransform: 'none',
+            fontWeight: 600,
+            color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'
+          }}
+        >
+          Cancelar
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleSalvarVenda}
+          sx={{
+            borderRadius: 2,
+            textTransform: 'none',
+            fontWeight: 600,
+            boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)'
+          }}
+        >
+          Lançar Venda
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+interface EditarVendaDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onSave: (venda: LancamentoVenda) => void;
+  venda: LancamentoVenda | null;
+  vendedores: Vendedor[];
+  regras: RegraMaster[];
+  diasCorte: number[];
+  diasRecebimento: [number, number] | Record<number, number>;
+}
+
+const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
+  open,
+  onClose,
+  onSave,
+  venda,
+  vendedores,
+  regras,
+  diasCorte,
+  diasRecebimento
+}) => {
+  const theme = useTheme();
+  const [cliente, setCliente] = useState('');
+  const [pac, setPac] = useState('');
+  const [vendedorId, setVendedorId] = useState('');
+  const [segmento, setSegmento] = useState<SegmentoType | ''>('');
+  const [tabela, setTabela] = useState('');
+  const [qtdParcelas, setQtdParcelas] = useState<number | ''>('');
+  const [percentualComissao, setPercentualComissao] = useState<number>(0);
+
+  const [valorVendaExibicao, setValorVendaExibicao] = useState('');
+  const [valorParcelaExibicao, setValorParcelaExibicao] = useState('');
+  const [dataVendaInput, setDataVendaInput] = useState<string>('');
+  const [dataVencimentoClienteInput, setDataVencimentoClienteInput] = useState<string>('');
+  const [dataAssembleiaInput, setDataAssembleiaInput] = useState<string>('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [tabelasDisponiveis, setTabelasDisponiveis] = useState<string[]>([]);
+  const [parcelasDisponiveis, setParcelasDisponiveis] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (venda) {
+      setCliente(venda.cliente);
+      setPac(venda.pac || '');
+      setVendedorId(venda.vendedorId || '');
+      setSegmento(venda.segmento);
+      setTabela(venda.tabela);
+      setQtdParcelas(venda.qtdParcelas);
+      setPercentualComissao(venda.percentualComissao);
+      setValorVendaExibicao(formatarMoeda(venda.valorVenda));
+      setValorParcelaExibicao(formatarMoeda(venda.valorParcela));
+      setDataVendaInput(venda.dataVenda || '');
+      setDataVencimentoClienteInput(venda.dataVencimentoCliente || '');
+      setDataAssembleiaInput(venda.dataAssembleia || '');
+      setErrors({});
+
+      const tabs = regras
+        .filter((r) => r.segmento === venda.segmento)
+        .map((r) => r.tabela);
+      setTabelasDisponiveis(Array.from(new Set(tabs)));
+
+      const pars = regras
+        .filter((r) => r.segmento === venda.segmento && r.tabela === venda.tabela)
+        .map((r) => r.qtdParcelas);
+      setParcelasDisponiveis(Array.from(new Set(pars)));
+    }
+  }, [venda, regras]);
+
+  const handleSegmentoChange = (seg: SegmentoType) => {
+    setSegmento(seg);
+    const tabs = regras
+      .filter((r) => r.segmento === seg)
+      .map((r) => r.tabela);
+    setTabelasDisponiveis(Array.from(new Set(tabs)));
+    setTabela('');
+    setQtdParcelas('');
+    setPercentualComissao(0);
+    setParcelasDisponiveis([]);
+  };
+
+  const handleTabelaChange = (tab: string) => {
+    setTabela(tab);
+    const pars = regras
+      .filter((r) => r.segmento === segmento && r.tabela === tab)
+      .map((r) => r.qtdParcelas);
+    setParcelasDisponiveis(Array.from(new Set(pars)));
+    setQtdParcelas('');
+    setPercentualComissao(0);
+  };
+
+  const handleQtdParcelasChange = (pars: number) => {
+    setQtdParcelas(pars);
+    const regra = regras.find(
+      (r) =>
+        r.segmento === segmento &&
+        r.tabela === tabela &&
+        r.qtdParcelas === pars
+    );
+    if (regra) {
+      setPercentualComissao(regra.percentualComissao);
+    } else {
+      setPercentualComissao(0);
+    }
+  };
+
+  const handleSalvarEdicao = () => {
+    if (!venda) return;
+
+    const tempErrors: Record<string, string> = {};
+    if (!cliente.trim()) tempErrors.cliente = 'Nome do cliente é obrigatório.';
+    if (!pac.trim()) tempErrors.pac = 'PAC (Contrato) é obrigatório.';
+    if (!vendedorId) tempErrors.vendedorId = 'Selecione o vendedor.';
+    if (!segmento) tempErrors.segmento = 'Selecione o segmento.';
+    if (!tabela) tempErrors.tabela = 'Selecione a tabela.';
+    if (qtdParcelas === '') tempErrors.qtdParcelas = 'Selecione a quantidade de parcelas.';
+    
+    const valorVendaV = extrairValorCru(valorVendaExibicao);
+    const valorParcelaV = extrairValorCru(valorParcelaExibicao);
+    
+    if (valorVendaV <= 0) {
+      tempErrors.valorVendaInput = 'O valor do crédito é obrigatório e deve ser maior que zero.';
+    }
+    if (valorParcelaV <= 0) {
+      tempErrors.valorParcelaInput = 'O valor da parcela é obrigatório e deve ser maior que zero.';
+    }
+    if (!dataVendaInput) {
+      tempErrors.dataVendaInput = 'A data da venda é obrigatória.';
+    }
+    if (!dataVencimentoClienteInput) {
+      tempErrors.dataVencimentoClienteInput = 'Vencimento do cliente é obrigatório.';
+    }
+    if (!dataAssembleiaInput) {
+      tempErrors.dataAssembleiaInput = 'A data da 1ª Assembleia é obrigatória.';
+    }
+
+    setErrors(tempErrors);
+
+    if (Object.keys(tempErrors).length > 0) return;
+
+    const proj: ProjecaoMensalType = {};
+    const parcelas = Number(qtdParcelas);
+    const percentualMensal = percentualComissao / parcelas;
+    const vendedorSelecionado = vendedores.find((v) => v.id === vendedorId);
+
+    const projVaziaBase = gerarProjecaoVazia();
+    Object.assign(proj, projVaziaBase);
+
+    const mesInicioChave = dataVendaInput.substring(0, 7);
+
+    for (let i = 0; i < parcelas; i++) {
+      let dataVenc: string;
+      if (i === 0) {
+        dataVenc = dataVendaInput;
+      } else {
+        const dateAssembleiaBase = new Date(dataAssembleiaInput + 'T00:00:00');
+        const dateVencClienteBase = new Date(dataVencimentoClienteInput + 'T00:00:00');
+        const diaVenc = dateVencClienteBase.getDate();
+        
+        const dtAlvo = new Date(dateAssembleiaBase.getFullYear(), dateAssembleiaBase.getMonth() + i, 1);
+        const ultimoDiaMes = new Date(dtAlvo.getFullYear(), dtAlvo.getMonth() + 1, 0).getDate();
+        const diaFinal = Math.min(diaVenc, ultimoDiaMes);
+        dtAlvo.setDate(diaFinal);
+        
+        const anoCalc = dtAlvo.getFullYear();
+        const mesCalc = String(dtAlvo.getMonth() + 1).padStart(2, '0');
+        const diaCalc = String(dtAlvo.getDate()).padStart(2, '0');
+        dataVenc = `${anoCalc}-${mesCalc}-${diaCalc}`;
+      }
+
+      const mesChave = dataVenc.substring(0, 7);
+      const statusAnterior = venda.projecaoMensal[mesChave]?.status;
+      const status = i === 0 ? (statusAnterior || 'Paga') : (statusAnterior || getStatusInicial(dataVenc));
+      const cortes: [number, number] = [diasCorte[0], diasCorte[1]];
+      const recebimentos: [number, number] = Array.isArray(diasRecebimento)
+        ? [diasRecebimento[0] ?? 15, diasRecebimento[1] ?? 30]
+        : [diasRecebimento[diasCorte[0]] ?? 15, diasRecebimento[diasCorte[1]] ?? 30];
+      const dataPrevisaoRecebimento = calcularDataPrevisaoRecebimento(dataVenc, cortes, recebimentos);
+
+      proj[mesChave] = {
+        valorVenda: valorVendaV,
+        valorParcela: valorParcelaV,
+        comissaoGerada: Number((valorVendaV * (percentualMensal / 100)).toFixed(2)),
+        status,
+        dataVencimento: dataVenc,
+        dataPrevisaoRecebimento
+      };
+    }
+
+    const { totalVendas, totalComissoes, projecaoAtualizada } = calcularTotaisLinha(
+      proj,
+      percentualComissao,
+      parcelas
+    );
+
+    const vendaAtualizada: LancamentoVenda = {
+      ...venda,
+      cliente: cliente.trim(),
+      pac: pac.trim(),
+      vendedorId,
+      vendedorNome: vendedorSelecionado?.nome || '',
+      dataVenda: dataVendaInput,
+      dataVencimentoCliente: dataVencimentoClienteInput,
+      dataAssembleia: dataAssembleiaInput,
+      mesInicio: mesInicioChave,
+      segmento: segmento as SegmentoType,
+      tabela,
+      qtdParcelas: parcelas,
+      percentualComissao,
+      valorVenda: valorVendaV,
+      valorParcela: valorParcelaV,
+      projecaoMensal: projecaoAtualizada,
+      totalVendas,
+      totalComissoes
+    };
+
+    onSave(vendaAtualizada);
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      slotProps={{
+        paper: {
+          sx: {
+            borderRadius: 3,
+            background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
+            backgroundImage: 'none',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)'
+          }
+        }
+      }}
+    >
+      <DialogTitle
+        sx={{
+          fontFamily: 'Outfit, sans-serif',
+          fontWeight: 700,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a'
+        }}
+      >
+        Editar Lançamento
+        <IconButton onClick={onClose} size="small">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent>
+        <Grid container spacing={3} sx={{ mt: 0.5 }}>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              label="Cliente / Projeto"
+              placeholder="Ex: Condomínio Jardim Real"
+              value={cliente}
+              onChange={(e) => setCliente(e.target.value)}
+              error={!!errors.cliente}
+              helperText={errors.cliente}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <FormControl fullWidth error={!!errors.vendedorId}>
+              <InputLabel id="edit-vend-venda-label">Vendedor Responsável</InputLabel>
+              <Select
+                labelId="edit-vend-venda-label"
+                value={vendedorId}
+                label="Vendedor Responsável"
+                onChange={(e) => setVendedorId(e.target.value)}
+              >
+                {vendedores.map((v) => (
+                  <MenuItem key={v.id} value={v.id}>
+                    {v.nome}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.vendedorId && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                  {errors.vendedorId}
+                </Typography>
+              )}
+            </FormControl>
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              label="Valor do Crédito"
+              type="text"
+              placeholder="Ex: R$ 1.200.000,00"
+              value={valorVendaExibicao}
+              onChange={(e) => {
+                const formatado = formatarMascaraDinheiro(e.target.value);
+                setValorVendaExibicao(formatado);
+              }}
+              error={!!errors.valorVendaInput}
+              helperText={errors.valorVendaInput}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              label="Valor da Parcela"
+              type="text"
+              placeholder="Ex: R$ 10.000,00"
+              value={valorParcelaExibicao}
+              onChange={(e) => {
+                const formatado = formatarMascaraDinheiro(e.target.value);
+                setValorParcelaExibicao(formatado);
+              }}
+              error={!!errors.valorParcelaInput}
+              helperText={errors.valorParcelaInput}
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 3 }}>
+            <TextField
+              fullWidth
+              label="Data da Venda"
+              type="date"
+              value={dataVendaInput}
+              onChange={(e) => setDataVendaInput(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              error={!!errors.dataVendaInput}
+              helperText={errors.dataVendaInput}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 3 }}>
+            <TextField
+              fullWidth
+              label="Vencimento do Cliente"
+              type="date"
+              value={dataVencimentoClienteInput}
+              onChange={(e) => setDataVencimentoClienteInput(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              error={!!errors.dataVencimentoClienteInput}
+              helperText={errors.dataVencimentoClienteInput || 'Data da 2ª parcela'}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 3 }}>
+            <TextField
+              fullWidth
+              label="Data da 1ª Assembleia"
+              type="date"
+              value={dataAssembleiaInput}
+              onChange={(e) => setDataAssembleiaInput(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              error={!!errors.dataAssembleiaInput}
+              helperText={errors.dataAssembleiaInput}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 3 }}>
+            <FormControl fullWidth error={!!errors.segmento}>
+              <InputLabel id="edit-seg-venda-label">Segmento</InputLabel>
+              <Select
+                labelId="edit-seg-venda-label"
+                value={segmento}
+                label="Segmento"
+                onChange={(e) => handleSegmentoChange(e.target.value as SegmentoType)}
+              >
+                <MenuItem value="Imóveis">Imóveis</MenuItem>
+                <MenuItem value="Autos Leves">Autos Leves</MenuItem>
+                <MenuItem value="Pesados">Pesados</MenuItem>
+              </Select>
+              {errors.segmento && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                  {errors.segmento}
+                </Typography>
+              )}
+            </FormControl>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <FormControl fullWidth error={!!errors.tabela}>
+              <InputLabel id="edit-tab-venda-label">Tabela</InputLabel>
+              <Select
+                labelId="edit-tab-venda-label"
+                value={tabela}
+                label="Tabela"
+                onChange={(e) => handleTabelaChange(e.target.value as string)}
+                disabled={!segmento}
+              >
+                {tabelasDisponiveis.map((t) => (
+                  <MenuItem key={t} value={t}>
+                    {t}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.tabela && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                  {errors.tabela}
+                </Typography>
+              )}
+            </FormControl>
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <FormControl fullWidth error={!!errors.qtdParcelas}>
+              <InputLabel id="edit-parc-venda-label">Quantidade de Parcelas</InputLabel>
+              <Select
+                labelId="edit-parc-venda-label"
+                value={qtdParcelas}
+                label="Quantidade de Parcelas"
+                onChange={(e) => handleQtdParcelasChange(Number(e.target.value))}
+                disabled={!tabela}
+              >
+                {parcelasDisponiveis.map((p) => (
+                  <MenuItem key={p} value={p}>
+                    {p} parcelas
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.qtdParcelas && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                  {errors.qtdParcelas}
+                </Typography>
+              )}
+            </FormControl>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <TextField
+              fullWidth
+              label="PAC (Contrato)"
+              placeholder="Número do Contrato"
+              value={pac}
+              onChange={(e) => setPac(e.target.value)}
+              error={!!errors.pac}
+              helperText={errors.pac}
+            />
+          </Grid>
+          <Grid size={{ xs: 12 }}>
+            <Box
+              sx={{
+                py: 1.5,
+                px: 2,
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center',
+                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
+                border: `1px solid ${theme.palette.mode === 'dark' ? '#374151' : '#e5e7eb'}`,
+                color: 'text.secondary',
+                fontSize: '0.85rem'
+              }}
+            >
+              <PercentIcon sx={{ fontSize: 16, mr: 1, color: theme.palette.primary.main }} />
+              <span>
+                Comissão Master Calculada: <strong>{percentualComissao}%</strong> (
+                {(percentualComissao / (Number(qtdParcelas) || 1)).toFixed(2)}% ao mês)
+              </span>
+            </Box>
+          </Grid>
+        </Grid>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2, pt: 1 }}>
+        <Button
+          onClick={onClose}
+          sx={{
+            borderRadius: 2,
+            textTransform: 'none',
+            fontWeight: 600,
+            color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'
+          }}
+        >
+          Cancelar
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleSalvarEdicao}
+          sx={{
+            borderRadius: 2,
+            textTransform: 'none',
+            fontWeight: 600,
+            boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)'
+          }}
+        >
+          Salvar Alterações
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 };

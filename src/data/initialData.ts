@@ -42,7 +42,7 @@ export const getStatusInicial = (dataVencimentoStr: string): StatusParcela => {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
   const venc = new Date(`${dataVencimentoStr}T00:00:00`);
-  return venc > hoje ? 'A vencer' : 'Vendida';
+  return venc > hoje ? 'A vencer' : 'Vencida';
 };
 
 // Helper para gerar projeção mensal vazia com datas e status iniciais (Chaves YYYY-MM)

@@ -8,7 +8,7 @@ export interface RegraMaster {
   percentualComissao: number; // Ex: 5 significa 5% (ou 0.05, vamos usar de 0 a 100 para facilidade de inserção pelo usuário, ex: 5% = 5)
 }
 
-export type StatusParcela = 'A vencer' | 'Vendida' | 'Paga' | 'Recebida' | 'Cancelada';
+export type StatusParcela = 'A vencer' | 'Vencida' | 'Paga' | 'Recebida' | 'Cancelada';
 
 export type StatusCliente = 'Ativo' | 'Cancelado';
 
@@ -18,6 +18,7 @@ export interface MesProjecao {
   comissaoGerada: number;
   status: StatusParcela;
   dataVencimento: string; // Formato YYYY-MM-DD
+  dataPrevisaoRecebimento?: string; // Próxima data de corte após o vencimento (YYYY-MM-DD)
 }
 
 export type MesesAno =
@@ -50,7 +51,9 @@ export interface LancamentoVenda {
   vendedorId?: string;
   vendedorNome?: string;
   dataVenda?: string; // Data da venda (YYYY-MM-DD)
-  dataSegundaParcela?: string; // Formato YYYY-MM-DD para usar em fluxos
+  dataVencimentoCliente?: string; // Data de Vencimento do Cliente (YYYY-MM-DD)
+  dataSegundaParcela?: string; // Mantido para compatibilidade (legado)
+  dataAssembleia?: string; // Data da 1ª Assembleia = vencimento da 1ª parcela (YYYY-MM-DD)
   mesInicio?: string; // Mês inicial de faturamento da venda (YYYY-MM)
   segmento: SegmentoType;
   tabela: string;
@@ -95,13 +98,14 @@ export const NOMES_MESES_EXIBICAO: Record<MesesAno, string> = {
   dezembro: 'Dez/26'
 };
 
-export type UserRole = 'master' | 'editor' | 'visualizador';
+export type UserRole = 'master' | 'editor' | 'visualizador' | 'financeiro';
 
 export interface UserPermissions {
   visualizar: boolean;
   editarVendas: boolean;
   cadastrarVendedores: boolean;
   cadastrarRegras: boolean;
+  receberParcelas?: boolean;
   visualizarDashboardVendedores?: boolean;
 }
 

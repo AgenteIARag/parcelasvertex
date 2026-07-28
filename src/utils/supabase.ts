@@ -140,28 +140,50 @@ export const obterVendasSupabase = async (): Promise<LancamentoVenda[]> => {
   }
 
   // Mapeia os nomes das colunas de snake_case para camelCase
-  return (data || []).map((v: any) => ({
-    id: v.id,
-    cliente: v.cliente,
-    vendedorId: v.vendedor_id,
-    vendedorNome: v.vendedor_name || v.vendedor_nome, // suporta ambos
-    dataVenda: v.data_venda,
-    dataSegundaParcela: v.data_segunda_parcela,
-    mesInicio: v.mes_inicio,
-    segmento: v.segmento,
-    tabela: v.tabela,
-    qtdParcelas: v.qtd_parcelas,
-    percentualComissao: Number(v.percentual_comissao),
-    valorVenda: Number(v.valor_venda),
-    valorParcela: Number(v.valor_parcela),
-    projecaoMensal: v.projecao_mensal,
-    totalVendas: Number(v.total_vendas),
-    totalComissoes: Number(v.total_comissoes),
-    statusCliente: v.status_cliente
-  }));
+  return (data || []).map((v: any) => {
+    const proj = { ...(v.projecao_mensal || {}) };
+    const pac = proj.__pac || '';
+    const dataVencimentoCliente = proj.__dataVencimentoCliente || '';
+    const dataAssembleia = proj.__dataAssembleia || '';
+
+    // Remove as propriedades especiais de metadados da projeção
+    delete proj.__pac;
+    delete proj.__dataVencimentoCliente;
+    delete proj.__dataAssembleia;
+
+    return {
+      id: v.id,
+      cliente: v.cliente,
+      pac,
+      vendedorId: v.vendedor_id,
+      vendedorNome: v.vendedor_name || v.vendedor_nome, // suporta ambos
+      dataVenda: v.data_venda,
+      dataSegundaParcela: v.data_segunda_parcela,
+      dataVencimentoCliente,
+      dataAssembleia,
+      mesInicio: v.mes_inicio,
+      segmento: v.segmento,
+      tabela: v.tabela,
+      qtdParcelas: v.qtd_parcelas,
+      percentualComissao: Number(v.percentual_comissao),
+      valorVenda: Number(v.valor_venda),
+      valorParcela: Number(v.valor_parcela),
+      projecaoMensal: proj,
+      totalVendas: Number(v.total_vendas),
+      totalComissoes: Number(v.total_comissoes),
+      statusCliente: v.status_cliente
+    };
+  });
 };
 
 export const salvarVendaSupabase = async (venda: LancamentoVenda): Promise<void> => {
+  const projecaoComMetadata = {
+    ...(venda.projecaoMensal || {}),
+    __pac: venda.pac,
+    __dataVencimentoCliente: venda.dataVencimentoCliente,
+    __dataAssembleia: venda.dataAssembleia
+  };
+
   const { error } = await supabase
     .from('vendas')
     .upsert({
@@ -178,7 +200,7 @@ export const salvarVendaSupabase = async (venda: LancamentoVenda): Promise<void>
       percentual_comissao: venda.percentualComissao,
       valor_venda: venda.valorVenda,
       valor_parcela: venda.valorParcela,
-      projecao_mensal: venda.projecaoMensal,
+      projecao_mensal: projecaoComMetadata,
       total_vendas: venda.totalVendas,
       total_comissoes: venda.totalComissoes,
       status_cliente: venda.statusCliente
