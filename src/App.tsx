@@ -37,6 +37,7 @@ import { UsuariosCadastro } from './components/UsuariosCadastro';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ComissoesVendedores } from './components/ComissoesVendedores';
 import { RelatorioRecebimentos } from './components/RelatorioRecebimentos';
+import { RelatorioComissoes } from './components/RelatorioComissoes';
 import { DashboardVendedores } from './components/DashboardVendedores';
 import {
   obterVendedoresSupabase,
@@ -155,7 +156,7 @@ function App() {
     return saved ? JSON.parse(saved) : INITIAL_VENDEDORES;
   });
 
-  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'dashboard_vendedores' | 'vendas' | 'comissoes' | 'relatorio' | 'configuracoes'>('dashboard');
+  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'dashboard_vendedores' | 'vendas' | 'comissoes' | 'relatorio' | 'relatorio_comissoes' | 'configuracoes'>('dashboard');
   const [subAbaAtiva, setSubAbaAtiva] = useState<'regras' | 'vendedores' | 'acessos'>('regras');
 
   // Filtro de data global compartilhado entre Dashboard, Painel de Vendas e Comissões
@@ -579,6 +580,31 @@ function App() {
               Previsão de Recebimentos
             </Button>
 
+            <Button
+              variant={abaAtiva === 'relatorio_comissoes' ? 'contained' : 'text'}
+              startIcon={<AccountBalanceWalletIcon />}
+              onClick={() => setAbaAtiva('relatorio_comissoes')}
+              fullWidth
+              sx={{
+                justifyContent: 'flex-start',
+                py: 1.25,
+                px: 2,
+                borderRadius: 2,
+                fontWeight: 600,
+                fontFamily: 'Outfit, sans-serif',
+                fontSize: '0.9rem',
+                color: abaAtiva === 'relatorio_comissoes' ? '#ffffff' : 'text.secondary',
+                background: abaAtiva === 'relatorio_comissoes' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'transparent',
+                boxShadow: abaAtiva === 'relatorio_comissoes' ? '0 4px 12px rgba(245, 158, 11, 0.25)' : 'none',
+                '&:hover': {
+                  background: abaAtiva === 'relatorio_comissoes' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'rgba(245, 158, 11, 0.08)',
+                  color: abaAtiva === 'relatorio_comissoes' ? '#ffffff' : '#f59e0b'
+                }
+              }}
+            >
+              Relatório de Comissões
+            </Button>
+
             {(usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
               <Button
                 variant={abaAtiva === 'configuracoes' ? 'contained' : 'text'}
@@ -849,6 +875,17 @@ function App() {
             {abaAtiva === 'relatorio' && (
               <RelatorioRecebimentos
                 vendas={vendas}
+                dataInicio={dataInicio}
+                dataFim={dataFim}
+                diasCorte={diasCorte}
+                diasRecebimento={diasRecebimento}
+              />
+            )}
+
+            {abaAtiva === 'relatorio_comissoes' && (
+              <RelatorioComissoes
+                vendas={vendas}
+                vendedores={vendedores}
                 dataInicio={dataInicio}
                 dataFim={dataFim}
                 diasCorte={diasCorte}
