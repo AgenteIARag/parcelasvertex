@@ -60,6 +60,16 @@ const formatarMascaraDinheiro = (valor: string): string => {
   }).format(valorNumerico);
 };
 
+const formatarMoedaInput = (valor: number): string => {
+  if (valor === undefined || valor === null || isNaN(valor)) return '';
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(valor);
+};
+
 const extrairValorCru = (valorFormatado: string): number => {
   if (!valorFormatado) return 0;
   const apenasNumeros = valorFormatado.replace(/\D/g, '');
@@ -2733,8 +2743,8 @@ const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       setTabela(venda.tabela);
       setQtdParcelas(venda.qtdParcelas);
       setPercentualComissao(venda.percentualComissao);
-      setValorVendaExibicao(formatarMoeda(venda.valorVenda));
-      setValorParcelaExibicao(formatarMoeda(venda.valorParcela));
+      setValorVendaExibicao(formatarMoedaInput(venda.valorVenda));
+      setValorParcelaExibicao(formatarMoedaInput(venda.valorParcela));
       setDataVendaInput(venda.dataVenda || '');
       setDataVencimentoClienteInput(venda.dataVencimentoCliente || '');
       setDataAssembleiaInput(venda.dataAssembleia || '');

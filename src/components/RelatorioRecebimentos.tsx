@@ -120,13 +120,98 @@ interface ParcelaLinha {
   qtdParcelas: number;
 }
 
+interface TotaisStatus {
+  aVencer: number;
+  vencida: number;
+  paga: number;
+  recebida: number;
+  cancelada: number;
+  aReceber: number;   // = aVencer + vencida (ainda não liquidado)
+}
+
 interface GrupoPeriodo {
   mesPeriodo: string;         // YYYY-MM (chave de agrupamento por mês)
   totalComissoes: number;
   totalParcelas: number;
   qtdParcelas: number;
   itens: ParcelaLinha[];
+  totaisStatus: TotaisStatus;
 }
+
+// ──────────────────────────────────────────────────────────
+// Helper: calcula totais de comissão por status
+// ──────────────────────────────────────────────────────────
+
+const calcularTotaisStatus = (itens: ParcelaLinha[]): TotaisStatus => {
+  const t: TotaisStatus = { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, aReceber: 0 };
+  itens.forEach((i) => {
+    const v = i.comissao;
+    if (i.status === 'A vencer')  t.aVencer   += v;
+    else if (i.status === 'Vencida')   t.vencida   += v;
+    else if (i.status === 'Paga')      t.paga      += v;
+    else if (i.status === 'Recebida')  t.recebida  += v;
+    else if (i.status === 'Cancelada') t.cancelada += v;
+  });
+  t.aReceber = t.aVencer + t.vencida;
+  return t;
+};
+
+// ──────────────────────────────────────────────────────────
+// Sub-componente: Mini badges de status com valor
+// ──────────────────────────────────────────────────────────
+
+const StatusValorRow = ({ totais }: { totais: TotaisStatus }) => {
+  const items = [
+    { label: 'Cancelada', value: totais.cancelada, color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+    { label: 'A vencer',  value: totais.aVencer,   color: '#6366f1', bg: 'rgba(99,102,241,0.12)' },
+    { label: 'Vencida',   value: totais.vencida,   color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+    { label: 'Paga',      value: totais.paga,       color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
+    { label: 'Recebida',  value: totais.recebida,   color: '#0ea5e9', bg: 'rgba(14,165,233,0.12)' },
+  ].filter((item) => item.value > 0);
+
+  if (items.length === 0) return null;
+  return (
+    <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap', alignItems: 'center' }}>
+      {items.map((item) => (
+        <Tooltip key={item.label} title={item.label}>
+          <Box sx={{
+            display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+            px: 1, py: 0.3, borderRadius: 1.5,
+            bgcolor: item.bg, color: item.color,
+          }}>
+            <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+              {item.label}
+            </Typography>
+            <Typography sx={{ fontSize: '0.72rem', fontWeight: 800, lineHeight: 1.2, fontFamily: 'Outfit, sans-serif' }}>
+              {formatarMoeda(item.value)}
+            </Typography>
+          </Box>
+        </Tooltip>
+      ))}
+      {totais.aReceber > 0 && (
+        <>
+          <Box sx={{ width: '1px', height: 28, bgcolor: 'divider', mx: 0.5 }} />
+          <Tooltip title="Ainda não recebido (A vencer + Vencida)">
+            <Box sx={{
+              display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+              px: 1.2, py: 0.3, borderRadius: 1.5,
+              border: '1.5px solid #f59e0b',
+              bgcolor: 'rgba(245,158,11,0.08)',
+              color: '#f59e0b',
+            }}>
+              <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                ★ A Receber
+              </Typography>
+              <Typography sx={{ fontSize: '0.78rem', fontWeight: 900, lineHeight: 1.2, fontFamily: 'Outfit, sans-serif' }}>
+                {formatarMoeda(totais.aReceber)}
+              </Typography>
+            </Box>
+          </Tooltip>
+        </>
+      )}
+    </Box>
+  );
+};
 
 // ──────────────────────────────────────────────────────────
 // Sub-componente: Linha de KPI do período
@@ -164,6 +249,7 @@ const SubGrupoData = ({
   totalComissoes: number;
   totalCredito: number;
 }) => {
+  const totaisStatus = calcularTotaisStatus(itens);
   const theme = useTheme();
   const [open, setOpen] = useState(false);
   const isDark = theme.palette.mode === 'dark';
@@ -230,7 +316,7 @@ const SubGrupoData = ({
         <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 28 }} />
 
         {/* Métricas do sub-grupo */}
-        <Box sx={{ display: 'flex', gap: 3, flexGrow: 1 }}>
+        <Box sx={{ display: 'flex', gap: 3, flexGrow: 1, flexWrap: 'wrap', alignItems: 'center' }}>
           <Box>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block' }}>
               Comissões
@@ -254,6 +340,13 @@ const SubGrupoData = ({
             <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary', fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem' }}>
               {itens.length}
             </Typography>
+          </Box>
+          {/* Breakdown por status com valor a receber */}
+          <Box sx={{ ml: 1 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.62rem', display: 'block', mb: 0.3 }}>
+              Por Status
+            </Typography>
+            <StatusValorRow totais={totaisStatus} />
           </Box>
         </Box>
       </Box>
@@ -429,7 +522,7 @@ const GrupoRecebimento = ({
         <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 
         {/* Métricas resumidas */}
-        <Box sx={{ display: 'flex', gap: 4, flexGrow: 1, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', gap: 4, flexGrow: 1, flexWrap: 'wrap', alignItems: 'center' }}>
           <Box>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block' }}>
               Comissões a Receber
@@ -453,6 +546,13 @@ const GrupoRecebimento = ({
             <Typography variant="body1" sx={{ fontWeight: 800, color: 'text.primary', fontFamily: 'Outfit, sans-serif' }}>
               {grupo.qtdParcelas}
             </Typography>
+          </Box>
+          {/* Breakdown por status */}
+          <Box>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block', mb: 0.4 }}>
+              Por Status
+            </Typography>
+            <StatusValorRow totais={grupo.totaisStatus} />
           </Box>
         </Box>
 
@@ -598,7 +698,14 @@ export const RelatorioRecebimentos = ({
     parcelas.forEach((p) => {
       const key = p.dataPrevisaoRecebimento.substring(0, 7); // YYYY-MM
       if (!mapa.has(key)) {
-        mapa.set(key, { mesPeriodo: key, totalComissoes: 0, totalParcelas: 0, qtdParcelas: 0, itens: [] });
+        mapa.set(key, {
+          mesPeriodo: key,
+          totalComissoes: 0,
+          totalParcelas: 0,
+          qtdParcelas: 0,
+          itens: [],
+          totaisStatus: { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, aReceber: 0 },
+        });
       }
       const g = mapa.get(key)!;
       g.totalComissoes += p.comissao;
@@ -607,7 +714,13 @@ export const RelatorioRecebimentos = ({
       g.itens.push(p);
     });
 
-    return Array.from(mapa.values()).sort((a, b) => a.mesPeriodo.localeCompare(b.mesPeriodo));
+    // Recalcula totais por status após montar os grupos
+    const resultado = Array.from(mapa.values());
+    resultado.forEach((g) => {
+      g.totaisStatus = calcularTotaisStatus(g.itens);
+    });
+
+    return resultado.sort((a, b) => a.mesPeriodo.localeCompare(b.mesPeriodo));
   }, [parcelas]);
 
   // 3. Totais gerais
@@ -822,9 +935,23 @@ export const RelatorioRecebimentos = ({
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  {['Mês/Ano', 'Parcelas', 'Datas de Recebimento', 'Valor do Crédito', 'Total Comissões'].map((h) => (
-                    <TableCell key={h} sx={{ fontWeight: 700, fontSize: '0.72rem', color: 'text.secondary',
-                      textTransform: 'uppercase', letterSpacing: '0.4px', whiteSpace: 'nowrap', bgcolor: isDark ? '#0b0f19' : '#f8fafc' }}>
+                  {[
+                    'Mês/Ano', 'Parcelas', 'Datas de Recebimento', 'Valor do Crédito',
+                    'Total Comissões', 'Cancelada', 'A Vencer', 'Vencida', 'Paga', 'Recebida', 'A Receber'
+                  ].map((h) => (
+                    <TableCell key={h} sx={{
+                      fontWeight: 700, fontSize: '0.72rem', color:
+                        h === 'A Receber' ? '#f59e0b' :
+                        h === 'Cancelada' ? '#ef4444' :
+                        h === 'A Vencer' ? '#6366f1' :
+                        h === 'Vencida' ? '#f59e0b' :
+                        h === 'Paga' ? '#10b981' :
+                        h === 'Recebida' ? '#0ea5e9' :
+                        'text.secondary',
+                      textTransform: 'uppercase', letterSpacing: '0.4px', whiteSpace: 'nowrap',
+                      bgcolor: isDark ? '#0b0f19' : '#f8fafc',
+                      borderBottom: h === 'A Receber' ? `2px solid #f59e0b` : undefined,
+                    }}>
                       {h}
                     </TableCell>
                   ))}
@@ -833,6 +960,7 @@ export const RelatorioRecebimentos = ({
               <TableBody>
                 {grupos.map((g) => {
                   const datasUnicas = [...new Set(g.itens.map((i) => i.dataPrevisaoRecebimento))].sort();
+                  const ts = g.totaisStatus;
                   return (
                     <TableRow key={g.mesPeriodo} hover sx={{ '&:last-child td': { border: 0 } }}>
                       <TableCell sx={{ fontWeight: 700, fontSize: '0.82rem', fontFamily: 'Outfit, sans-serif' }}>
@@ -842,15 +970,74 @@ export const RelatorioRecebimentos = ({
                       <TableCell sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>{datasUnicas.map(formatarData).join(' · ')}</TableCell>
                       <TableCell sx={{ fontSize: '0.82rem', fontWeight: 600 }}>{formatarMoeda(g.totalParcelas)}</TableCell>
                       <TableCell sx={{ fontSize: '0.85rem', fontWeight: 800, color: '#10b981' }}>{formatarMoeda(g.totalComissoes)}</TableCell>
+                      <TableCell sx={{ fontSize: '0.78rem', fontWeight: 600, color: ts.cancelada > 0 ? '#ef4444' : 'text.disabled' }}>
+                        {ts.cancelada > 0 ? formatarMoeda(ts.cancelada) : '—'}
+                      </TableCell>
+                      <TableCell sx={{ fontSize: '0.78rem', fontWeight: 600, color: ts.aVencer > 0 ? '#6366f1' : 'text.disabled' }}>
+                        {ts.aVencer > 0 ? formatarMoeda(ts.aVencer) : '—'}
+                      </TableCell>
+                      <TableCell sx={{ fontSize: '0.78rem', fontWeight: 600, color: ts.vencida > 0 ? '#f59e0b' : 'text.disabled' }}>
+                        {ts.vencida > 0 ? formatarMoeda(ts.vencida) : '—'}
+                      </TableCell>
+                      <TableCell sx={{ fontSize: '0.78rem', fontWeight: 600, color: ts.paga > 0 ? '#10b981' : 'text.disabled' }}>
+                        {ts.paga > 0 ? formatarMoeda(ts.paga) : '—'}
+                      </TableCell>
+                      <TableCell sx={{ fontSize: '0.78rem', fontWeight: 600, color: ts.recebida > 0 ? '#0ea5e9' : 'text.disabled' }}>
+                        {ts.recebida > 0 ? formatarMoeda(ts.recebida) : '—'}
+                      </TableCell>
+                      <TableCell sx={{
+                        fontSize: '0.82rem', fontWeight: 900,
+                        color: ts.aReceber > 0 ? '#f59e0b' : 'text.disabled',
+                        bgcolor: ts.aReceber > 0 ? 'rgba(245,158,11,0.06)' : 'transparent',
+                      }}>
+                        {ts.aReceber > 0 ? formatarMoeda(ts.aReceber) : '—'}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
                 {/* Totalizador */}
-                <TableRow sx={{ '& td': { borderTop: `2px solid ${isDark ? '#374151' : '#e5e7eb'}` } }}>
-                  <TableCell colSpan={3} sx={{ fontWeight: 800, fontSize: '0.82rem', fontFamily: 'Outfit, sans-serif' }}>TOTAL GERAL</TableCell>
-                  <TableCell sx={{ fontWeight: 800, fontSize: '0.85rem' }}>{formatarMoeda(totalCredito)}</TableCell>
-                  <TableCell sx={{ fontWeight: 900, fontSize: '0.9rem', color: '#10b981' }}>{formatarMoeda(totalComissoes)}</TableCell>
-                </TableRow>
+                {(() => {
+                  const totGeral = grupos.reduce(
+                    (acc, g) => ({
+                      cancelada: acc.cancelada + g.totaisStatus.cancelada,
+                      aVencer:   acc.aVencer   + g.totaisStatus.aVencer,
+                      vencida:   acc.vencida   + g.totaisStatus.vencida,
+                      paga:      acc.paga      + g.totaisStatus.paga,
+                      recebida:  acc.recebida  + g.totaisStatus.recebida,
+                      aReceber:  acc.aReceber  + g.totaisStatus.aReceber,
+                    }),
+                    { cancelada: 0, aVencer: 0, vencida: 0, paga: 0, recebida: 0, aReceber: 0 }
+                  );
+                  return (
+                    <TableRow sx={{ '& td': { borderTop: `2px solid ${isDark ? '#374151' : '#e5e7eb'}` } }}>
+                      <TableCell colSpan={3} sx={{ fontWeight: 800, fontSize: '0.82rem', fontFamily: 'Outfit, sans-serif' }}>TOTAL GERAL</TableCell>
+                      <TableCell sx={{ fontWeight: 800, fontSize: '0.85rem' }}>{formatarMoeda(totalCredito)}</TableCell>
+                      <TableCell sx={{ fontWeight: 900, fontSize: '0.9rem', color: '#10b981' }}>{formatarMoeda(totalComissoes)}</TableCell>
+                      <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.cancelada > 0 ? '#ef4444' : 'text.disabled' }}>
+                        {totGeral.cancelada > 0 ? formatarMoeda(totGeral.cancelada) : '—'}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.aVencer > 0 ? '#6366f1' : 'text.disabled' }}>
+                        {totGeral.aVencer > 0 ? formatarMoeda(totGeral.aVencer) : '—'}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.vencida > 0 ? '#f59e0b' : 'text.disabled' }}>
+                        {totGeral.vencida > 0 ? formatarMoeda(totGeral.vencida) : '—'}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.paga > 0 ? '#10b981' : 'text.disabled' }}>
+                        {totGeral.paga > 0 ? formatarMoeda(totGeral.paga) : '—'}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.recebida > 0 ? '#0ea5e9' : 'text.disabled' }}>
+                        {totGeral.recebida > 0 ? formatarMoeda(totGeral.recebida) : '—'}
+                      </TableCell>
+                      <TableCell sx={{
+                        fontWeight: 900, fontSize: '0.9rem',
+                        color: totGeral.aReceber > 0 ? '#f59e0b' : 'text.disabled',
+                        bgcolor: totGeral.aReceber > 0 ? 'rgba(245,158,11,0.08)' : 'transparent',
+                      }}>
+                        {totGeral.aReceber > 0 ? formatarMoeda(totGeral.aReceber) : '—'}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })()}
               </TableBody>
             </Table>
           </Box>
