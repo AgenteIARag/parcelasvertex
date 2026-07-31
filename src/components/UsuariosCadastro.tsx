@@ -53,7 +53,8 @@ export const UsuariosCadastro: React.FC = () => {
     editarVendas: false,
     cadastrarVendedores: false,
     cadastrarRegras: false,
-    visualizarDashboardVendedores: false
+    visualizarDashboardVendedores: false,
+    editarParcelas: false
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -104,7 +105,8 @@ export const UsuariosCadastro: React.FC = () => {
         cadastrarVendedores: false,
         cadastrarRegras: false,
         receberParcelas: false,
-        visualizarDashboardVendedores: false
+        visualizarDashboardVendedores: false,
+        editarParcelas: false
       });
     }
     setErrors({});
@@ -125,7 +127,8 @@ export const UsuariosCadastro: React.FC = () => {
         cadastrarVendedores: true,
         cadastrarRegras: true,
         receberParcelas: true,
-        visualizarDashboardVendedores: true
+        visualizarDashboardVendedores: true,
+        editarParcelas: true
       });
     } else if (selectedRole === 'editor') {
       setPermissoes({
@@ -134,7 +137,8 @@ export const UsuariosCadastro: React.FC = () => {
         cadastrarVendedores: true,
         cadastrarRegras: false,
         receberParcelas: true,
-        visualizarDashboardVendedores: true
+        visualizarDashboardVendedores: true,
+        editarParcelas: true
       });
     } else if (selectedRole === 'financeiro') {
       setPermissoes({
@@ -143,7 +147,8 @@ export const UsuariosCadastro: React.FC = () => {
         cadastrarVendedores: false,
         cadastrarRegras: false,
         receberParcelas: true,
-        visualizarDashboardVendedores: false
+        visualizarDashboardVendedores: false,
+        editarParcelas: false
       });
     } else {
       setPermissoes({
@@ -152,7 +157,8 @@ export const UsuariosCadastro: React.FC = () => {
         cadastrarVendedores: false,
         cadastrarRegras: false,
         receberParcelas: false,
-        visualizarDashboardVendedores: false
+        visualizarDashboardVendedores: false,
+        editarParcelas: false
       });
     }
   };
@@ -476,6 +482,16 @@ export const UsuariosCadastro: React.FC = () => {
                     />
                   }
                   label="Permitir Alterar o Banco de Regras (BD Master)"
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={!!permissoes.editarParcelas}
+                      onChange={(e) => handleCheckboxChange('editarParcelas', e.target.checked)}
+                      disabled={role === 'master' || role === 'editor'}
+                    />
+                  }
+                  label="Permitir editar parcelas individualmente (datas, valores, status)"
                 />
               </Box>
             </Grid>

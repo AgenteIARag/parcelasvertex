@@ -6,6 +6,7 @@ export interface RegraMaster {
   tabela: string;
   qtdParcelas: number;
   percentualComissao: number; // Ex: 5 significa 5% (ou 0.05, vamos usar de 0 a 100 para facilidade de inserção pelo usuário, ex: 5% = 5)
+  percentualComissaoContemplacao?: number; // % de comissão pago na contemplação (ex: 2.5 = 2.5%)
 }
 
 export type StatusParcela = 'A vencer' | 'Vencida' | 'Paga' | 'Recebida' | 'Cancelada';
@@ -19,6 +20,7 @@ export interface MesProjecao {
   status: StatusParcela;
   dataVencimento: string; // Formato YYYY-MM-DD
   dataPrevisaoRecebimento?: string; // Próxima data de corte após o vencimento (YYYY-MM-DD)
+  dataRecebimento?: string; // Data real de recebimento da parcela, editável pelo usuário (YYYY-MM-DD). Inicializa igual a dataVencimento
 }
 
 export type MesesAno =
@@ -66,6 +68,9 @@ export interface LancamentoVenda {
   totalComissoes: number; // Calculado (soma das comissões geradas dos meses ativos e não cancelados)
   statusCliente: StatusCliente;
   pac?: string; // Código do Contrato/PAC
+  contemplado?: boolean; // Se o cliente foi contemplado
+  dataContemplacao?: string; // Data da contemplação (YYYY-MM-DD)
+  comissaoContemplacao?: number; // Valor da comissão gerada na contemplação
 }
 
 export const LISTA_MESES: MesesAno[] = [
@@ -107,6 +112,7 @@ export interface UserPermissions {
   cadastrarRegras: boolean;
   receberParcelas?: boolean;
   visualizarDashboardVendedores?: boolean;
+  editarParcelas?: boolean; // Permite edição parcela a parcela (todos os campos: datas, valores, status)
 }
 
 export interface Usuario {

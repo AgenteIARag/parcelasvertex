@@ -56,7 +56,8 @@ export const gerarProjecaoVazia = (): ProjecaoMensalType => {
       valorParcela: 0,
       comissaoGerada: 0,
       status,
-      dataVencimento: dataVenc
+      dataVencimento: dataVenc,
+      dataRecebimento: dataVenc // Inicializa igual ao vencimento; editável pelo usuário
     };
   });
   return proj;
@@ -84,7 +85,9 @@ export const calcularTotaisLinha = (
     
     projecaoAtualizada[mesChave] = {
       ...celula,
-      comissaoGerada: Number(comissao.toFixed(2))
+      comissaoGerada: Number(comissao.toFixed(2)),
+      // Preserva dataRecebimento se já existir, senão inicializa igual a dataVencimento
+      dataRecebimento: celula.dataRecebimento || celula.dataVencimento
     };
     
     if (celula.status !== 'Cancelada' && valor > 0) {

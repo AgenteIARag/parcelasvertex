@@ -65,6 +65,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
   const [tabela, setTabela] = useState('');
   const [qtdParcelas, setQtdParcelas] = useState<number | ''>('');
   const [percentualComissao, setPercentualComissao] = useState<number | ''>('');
+  const [percentualComissaoContemplacao, setPercentualComissaoContemplacao] = useState<number | ''>('');
 
   // Erros de validação
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -76,6 +77,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
       setTabela(regra.tabela);
       setQtdParcelas(regra.qtdParcelas);
       setPercentualComissao(regra.percentualComissao);
+      setPercentualComissaoContemplacao(regra.percentualComissaoContemplacao ?? '');
     } else {
       setEditId(null);
       // Se estiver visualizando um segmento específico nas abas (exceto "Todos"), pré-seleciona ele no formulário
@@ -83,6 +85,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
       setTabela('');
       setQtdParcelas('');
       setPercentualComissao('');
+      setPercentualComissaoContemplacao('');
     }
     setErrors({});
     setOpen(true);
@@ -112,7 +115,8 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
       segmento,
       tabela: tabela.trim(),
       qtdParcelas: Number(qtdParcelas),
-      percentualComissao: Number(percentualComissao)
+      percentualComissao: Number(percentualComissao),
+      ...(percentualComissaoContemplacao !== '' && { percentualComissaoContemplacao: Number(percentualComissaoContemplacao) })
     };
 
     if (editId) {
@@ -262,6 +266,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
               <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }}>Tabela</TableCell>
               <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="right">Qtd. Parcelas</TableCell>
               <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="right">% Comissão</TableCell>
+              <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="right">% Contempl.</TableCell>
               {permissoes?.cadastrarRegras && (
                 <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="center">Ações</TableCell>
               )}
@@ -270,7 +275,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
           <TableBody>
             {regrasFiltradas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={permissoes?.cadastrarRegras ? 5 : 4} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={permissoes?.cadastrarRegras ? 6 : 5} align="center" sx={{ py: 6 }}>
                   <Typography variant="body1" sx={{ color: theme.palette.mode === 'dark' ? '#64748b' : '#94a3b8' }}>
                     {abaSegmento === 'Todos' 
                       ? 'Nenhuma regra cadastrada.' 
@@ -319,6 +324,17 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                       }}
                     >
                       {Number(regra.percentualComissao || 0).toFixed(2).replace('.', ',')}%
+                    </TableCell>
+                    <TableCell
+                      align="right"
+                      sx={{
+                        fontWeight: 600,
+                        color: regra.percentualComissaoContemplacao ? '#f59e0b' : (theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1')
+                      }}
+                    >
+                      {regra.percentualComissaoContemplacao
+                        ? `${Number(regra.percentualComissaoContemplacao).toFixed(2).replace('.', ',')}%`
+                        : '—'}
                     </TableCell>
                     {permissoes?.cadastrarRegras && (
                       <TableCell align="center">
@@ -448,6 +464,30 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                 }}
                 error={!!errors.percentualComissao}
                 helperText={errors.percentualComissao}
+                slotProps={{
+                  input: {
+                    endAdornment: <InputAdornment position="end">%</InputAdornment>
+                  },
+                  htmlInput: {
+                    step: '0.1',
+                    min: '0',
+                    max: '100'
+                  }
+                }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                label="% Comissão na Contemplação (opcional)"
+                type="number"
+                placeholder="Ex: 2.5"
+                value={percentualComissaoContemplacao}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
+                  setPercentualComissaoContemplacao(val);
+                }}
+                helperText="Percentual da comissão pago no mês da contemplação do cliente"
                 slotProps={{
                   input: {
                     endAdornment: <InputAdornment position="end">%</InputAdornment>

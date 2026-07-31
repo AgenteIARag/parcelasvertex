@@ -27,7 +27,10 @@ import {
   Tab,
   Chip,
   Snackbar,
-  Slide
+  Slide,
+  FormControlLabel,
+  Switch,
+  InputAdornment
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -43,7 +46,8 @@ import {
   type StatusParcela,
   type Vendedor,
   type ProjecaoMensalType,
-  type UserPermissions
+  type UserPermissions,
+  type MesProjecao
 } from '../types';
 import { gerarProjecaoVazia, calcularTotaisLinha, getStatusInicial } from '../data/initialData';
 import { formatarMoeda, formatarChaveMesExibicao } from '../utils/formatters';
@@ -162,6 +166,9 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   // Estado para controle de edição inline das células de venda
   const [editingCell, setEditingCell] = useState<{ vendaId: string; mes: string } | null>(null);
 
+  // Estado para controle do dialog de edição de parcela individual
+  const [editandoParcela, setEditandoParcela] = useState<{ vendaId: string; mesChave: string } | null>(null);
+
   // Estado para controle de abas internas (Matriz horizontal vs Timeline vertical vs Resumo)
   const [abaInterna, setAbaInterna] = useState<'matriz' | 'timeline' | 'resumo'>('matriz');
   const [tipoFiltro, setTipoFiltro] = useState<'todos' | 'vendas' | 'recorrencia'>('todos');
@@ -253,6 +260,12 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     const venda = vendas.find((v) => v.id === vendaId);
     if (!venda) return;
 
+    // Se status muda para 'Cancelada', cancela em cascata todas as parcelas posteriores
+    if (novoStatus === 'Cancelada') {
+      handleCancelarAPartirDoMes(vendaId, mes);
+      return;
+    }
+
     const projecaoAtualizada = {
       ...venda.projecaoMensal,
       [mes]: {
@@ -321,7 +334,29 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     });
   };
 
-
+  // Altera múltiplos campos de uma parcela individual (editarParcelas)
+  const handleAlterarParcelaCompleta = (
+    vendaId: string,
+    mes: string,
+    campos: { dataVencimento?: string; dataRecebimento?: string; valorParcela?: number; comissaoGerada?: number; status?: StatusParcela }
+  ) => {
+    const venda = vendas.find((v) => v.id === vendaId);
+    if (!venda) return;
+    const celulaAtual = venda.projecaoMensal[mes] || {
+      valorVenda: 0, comissaoGerada: 0, status: 'A vencer' as StatusParcela, dataVencimento: `${mes}-15`
+    };
+    if (campos.status === 'Cancelada' && celulaAtual.status !== 'Cancelada') {
+      handleCancelarAPartirDoMes(vendaId, mes);
+      return;
+    }
+    const celulaNova = { ...celulaAtual, ...campos };
+    const projecaoAtualizada = { ...venda.projecaoMensal, [mes]: celulaNova };
+    const { totalVendas, totalComissoes, projecaoAtualizada: projFina } = calcularTotaisLinha(
+      projecaoAtualizada, venda.percentualComissao, venda.qtdParcelas
+    );
+    const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.valorVenda > 0);
+    onAtualizarVenda({ ...venda, projecaoMensal: projFina, totalVendas, totalComissoes, statusCliente: temParcelasAtivas ? 'Ativo' : 'Cancelado' });
+  };
 
   // Retorna o índice cronológico da parcela (1-based)
   const obterIndiceParcela = (venda: LancamentoVenda, mesChave: string): number => {
@@ -365,9 +400,9 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     });
   }, [vendas, filtroPac]);
 
-  // Gera dinamicamente a lista de chaves "YYYY-MM" cobrindo TODOS os meses que possuem parcelas reais
+  // Gera dinamicamente a lista de chaves "YYYY-MM" cobrindo TODOS os meses de recebimento de parcelas reais
+  // A coluna é determinada pelo mês de dataRecebimento da parcela (não mais pelo mês-chave da projeção)
   const mesesFiltrados = useMemo(() => {
-    // Coleta todos os meses que possuem dados de parcelas nas vendas
     const mesesComDados = new Set<string>();
     vendasFiltradasPorPac.forEach((venda) => {
       Object.keys(venda.projecaoMensal).forEach((mesChave) => {
@@ -375,17 +410,17 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         if (celula && celula.valorVenda > 0) {
           if (tipoFiltro === 'vendas' && mesChave !== venda.mesInicio) return;
           if (tipoFiltro === 'recorrencia' && mesChave === venda.mesInicio) return;
-          mesesComDados.add(mesChave);
+          // Usa dataRecebimento como chave de coluna (fallback para mesChave)
+          const mesReceb = (celula.dataRecebimento || celula.dataVencimento || `${mesChave}-15`).substring(0, 7);
+          mesesComDados.add(mesReceb);
         }
       });
 
       // Inclui o mês da venda para exibir o marcador de registro mesmo sem parcela nesse mês
       if (venda.dataVenda) {
         const mesVenda = venda.dataVenda.substring(0, 7);
-        const mesVendaChave = mesVenda;
-        // Só inclui se estiver dentro do intervalo do filtro (ou sem filtro de datas)
-        if (!dataInicio || !dataFim || (mesVendaChave >= dataInicio.substring(0, 7) && mesVendaChave <= dataFim.substring(0, 7))) {
-          mesesComDados.add(mesVendaChave);
+        if (!dataInicio || !dataFim || (mesVenda >= dataInicio.substring(0, 7) && mesVenda <= dataFim.substring(0, 7))) {
+          mesesComDados.add(mesVenda);
         }
       }
 
@@ -419,6 +454,21 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     const resultado = Array.from(mesesComDados).sort();
     return resultado.length > 0 ? resultado : FALLBACK_MESES;
   }, [vendasFiltradasPorPac, dataInicio, dataFim, tipoFiltro]);
+
+  // Helper: encontra a parcela de uma venda cujo mês de dataRecebimento é igual ao mês-coluna
+  const encontrarParcelaPorMesRecebimento = (
+    venda: LancamentoVenda,
+    mesColuna: string
+  ): { mesChave: string; celula: typeof venda.projecaoMensal[string] } | null => {
+    const chaves = Object.keys(venda.projecaoMensal);
+    for (const mesChave of chaves) {
+      const celula = venda.projecaoMensal[mesChave];
+      if (!celula || celula.valorVenda <= 0) continue;
+      const mesReceb = (celula.dataRecebimento || celula.dataVencimento || `${mesChave}-15`).substring(0, 7);
+      if (mesReceb === mesColuna) return { mesChave, celula };
+    }
+    return null;
+  };
 
 
   // Totais de vendas e comissões acumulados no período filtrado para cada linha
@@ -506,6 +556,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       comissaoMaster: number;
       status: StatusParcela;
       dataVencimento: string;
+      dataRecebimento?: string;
       dataPrevisaoRecebimento: string;
       parcelaIndex: number;
       qtdParcelas: number;
@@ -558,6 +609,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           comissaoMaster: celula.comissaoGerada || 0,
           status: obterStatusEfetivo(celula.status, celula.dataVencimento),
           dataVencimento: celula.dataVencimento || `${mesChave}-15`,
+          dataRecebimento: celula.dataRecebimento || celula.dataVencimento || `${mesChave}-15`,
           dataPrevisaoRecebimento: (celula.dataPrevisaoRecebimento && !celula.dataPrevisaoRecebimento.includes('undefined'))
             ? celula.dataPrevisaoRecebimento
             : calcularDataPrevisaoRecebimento(celula.dataVencimento || `${mesChave}-15`, diasCorte, diasRecebimento),
@@ -567,8 +619,12 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       });
     });
 
-    // Ordena de forma cronológica (mesChave)
-    return linhas.sort((a, b) => a.mesChave.localeCompare(b.mesChave));
+    // Ordena de forma cronológica pela dataRecebimento (não mais pelo mesChave)
+    return linhas.sort((a, b) => {
+      const dA = (a as { dataRecebimento?: string }).dataRecebimento || a.dataVencimento || a.mesChave;
+      const dB = (b as { dataRecebimento?: string }).dataRecebimento || b.dataVencimento || b.mesChave;
+      return dA.localeCompare(dB);
+    });
   }, [vendasFiltradasPorPac, dataInicio, dataFim, tipoFiltro, filtroStatus, diasCorte, diasRecebimento]);
 
   return (
@@ -898,6 +954,26 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                         >
                           {venda.statusCliente}
                         </Box>
+                        {venda.contemplado && (
+                          <Box
+                            component="span"
+                            sx={{
+                              fontSize: '0.6rem',
+                              fontWeight: 700,
+                              px: 0.6,
+                              py: 0.2,
+                              borderRadius: 0.5,
+                              backgroundColor: 'rgba(245, 158, 11, 0.18)',
+                              color: '#f59e0b',
+                              textTransform: 'uppercase',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 0.3
+                            }}
+                          >
+                            🏆 Contemplado{venda.dataContemplacao ? ` ${venda.dataContemplacao.split('-').reverse().join('/')}` : ''}
+                          </Box>
+                        )}
                         {venda.pac && (
                           <Chip
                             label={venda.pac}
@@ -1001,29 +1077,32 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
                   {/* Colunas mensais (Venda editável e Comissão calculada) */}
                   {mesesFiltrados.map((mes) => {
-                    let dadosMes = venda.projecaoMensal[mes] || {
+                    // Lookup pelo mês de dataRecebimento da parcela
+                    const parcelaMes = encontrarParcelaPorMesRecebimento(venda, mes);
+                    const mesChaveReal = parcelaMes?.mesChave || mes;
+                    let dadosMes = parcelaMes?.celula || venda.projecaoMensal[mes] || {
                       valorVenda: 0,
                       comissaoGerada: 0,
                       status: 'A vencer' as StatusParcela,
                       dataVencimento: `${mes}-15`
                     };
                     
-                    if (tipoFiltro === 'vendas' && mes !== venda.mesInicio) {
+                    if (tipoFiltro === 'vendas' && mesChaveReal !== venda.mesInicio) {
                       dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
                     }
-                    if (tipoFiltro === 'recorrencia' && mes === venda.mesInicio) {
+                    if (tipoFiltro === 'recorrencia' && mesChaveReal === venda.mesInicio) {
                       dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
                     }
                     // Filtro por status da parcela
                     if (filtroStatus !== 'Todos' && dadosMes.valorVenda > 0) {
-                      const statusEfCel = obterStatusEfetivo(dadosMes.status, dadosMes.dataVencimento || `${mes}-15`);
+                      const statusEfCel = obterStatusEfetivo(dadosMes.status, dadosMes.dataVencimento || `${mesChaveReal}-15`);
                       if (statusEfCel !== filtroStatus) {
                         dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
                       }
                     }
                     // Verificação automática de vencimento para exibição
                     if (dadosMes.valorVenda > 0 && dadosMes.status === 'A vencer') {
-                      const statusEfCel = obterStatusEfetivo(dadosMes.status, dadosMes.dataVencimento || `${mes}-15`);
+                      const statusEfCel = obterStatusEfetivo(dadosMes.status, dadosMes.dataVencimento || `${mesChaveReal}-15`);
                       if (statusEfCel !== dadosMes.status) {
                         dadosMes = { ...dadosMes, status: statusEfCel };
                       }
@@ -1038,15 +1117,17 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           sx={{
                             borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
                             p: 0.5,
+                            position: 'relative',
                             bgcolor: dadosMes.status === 'Cancelada' 
                               ? 'rgba(239, 68, 68, 0.02)' 
                               : (dadosMes.valorVenda === 0 
                                 ? (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.015)' : 'rgba(0, 0, 0, 0.01)')
                                 : 'inherit'),
-                            opacity: dadosMes.valorVenda === 0 ? 0.35 : 1
+                            opacity: dadosMes.valorVenda === 0 ? 0.35 : 1,
+                            '&:hover .edit-parcela-btn': permissoes.editarParcelas ? { opacity: 1 } : {}
                           }}
                         >
-                          {editingCell?.vendaId === venda.id && editingCell?.mes === mes ? (
+                          {editingCell?.vendaId === venda.id && editingCell?.mes === mesChaveReal ? (
                             <TextField
                               variant="standard"
                               type="number"
@@ -1054,7 +1135,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                               value={dadosMes.valorVenda === 0 ? '' : dadosMes.valorVenda}
                               onChange={(e) => {
                                 const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                handleAlterarValorMensal(venda.id, mes, val);
+                                handleAlterarValorMensal(venda.id, mesChaveReal, val);
                               }}
                               onBlur={() => setEditingCell(null)}
                               onKeyDown={(e) => {
@@ -1094,7 +1175,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                             />
                           ) : (
                             <Box
-                              onClick={() => permissoes.editarVendas && setEditingCell({ vendaId: venda.id, mes })}
+                              onClick={() => permissoes.editarVendas && setEditingCell({ vendaId: venda.id, mes: mesChaveReal })}
                               sx={{
                                 cursor: permissoes.editarVendas ? 'pointer' : 'default',
                                 fontSize: '0.85rem',
@@ -1144,10 +1225,25 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                       }}
                                     >
                                       {(() => {
-                                        const idx = obterIndiceParcela(venda, mes);
+                                        const idx = obterIndiceParcela(venda, mesChaveReal);
                                         const dtFormato = dadosMes.dataVencimento.split('-').reverse().join('/');
                                         return idx === 1 ? `Venc: ${dtFormato}` : `${idx}ª Assemb: ${dtFormato}`;
                                       })()}
+                                    </Typography>
+                                  )}
+                                  {/* Data de Recebimento (quando diferente do vencimento) */}
+                                  {dadosMes.dataRecebimento && dadosMes.dataRecebimento !== dadosMes.dataVencimento && dadosMes.status !== 'Cancelada' && (
+                                    <Typography
+                                      variant="caption"
+                                      sx={{
+                                        fontSize: '0.58rem',
+                                        color: '#10b981',
+                                        fontWeight: 700,
+                                        mt: 0.1,
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      🗓 Receb: {dadosMes.dataRecebimento.split('-').reverse().join('/')}
                                     </Typography>
                                   )}
                                   {dadosMes.dataPrevisaoRecebimento && dadosMes.status !== 'Cancelada' && (
@@ -1336,7 +1432,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                   {(permissoes.editarVendas || permissoes.receberParcelas) ? (
                                     <Select
                                       value={dadosMes.status}
-                                      onChange={(e) => handleAlterarStatusParcela(venda.id, mes, e.target.value as StatusParcela)}
+                                      onChange={(e) => handleAlterarStatusParcela(venda.id, mesChaveReal, e.target.value as StatusParcela)}
                                       variant="standard"
                                       disableUnderline
                                       sx={{
@@ -1383,7 +1479,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                   {permissoes.editarVendas && dadosMes.status !== 'Cancelada' && (
                                     <IconButton
                                       size="small"
-                                      onClick={() => handleCancelarAPartirDoMes(venda.id, mes)}
+                                      onClick={() => handleCancelarAPartirDoMes(venda.id, mesChaveReal)}
                                       sx={{
                                         p: 0.1,
                                         color: theme.palette.error.main,
@@ -1394,6 +1490,29 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                       title="Cancelar esta e as demais parcelas"
                                     >
                                       <BlockIcon sx={{ fontSize: 10 }} />
+                                    </IconButton>
+                                      )}
+                                  {/* Botão de edição individual de parcela */}
+                                  {permissoes.editarParcelas && dadosMes.valorVenda > 0 && (
+                                    <IconButton
+                                      className="edit-parcela-btn"
+                                      size="small"
+                                      onClick={() => setEditandoParcela({ vendaId: venda.id, mesChave: mesChaveReal })}
+                                      sx={{
+                                        p: 0.1,
+                                        opacity: 0,
+                                        transition: 'opacity 0.2s',
+                                        color: theme.palette.primary.main,
+                                        '&:hover': {
+                                          background: 'rgba(99, 102, 241, 0.15)'
+                                        }
+                                      }}
+                                      title="Editar parcela individualmente"
+                                    >
+                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                      </svg>
                                     </IconButton>
                                   )}
                               </Box>
@@ -2188,6 +2307,27 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         diasRecebimento={diasRecebimento}
       />
 
+      {/* Dialog de Edição Individual de Parcela */}
+      {editandoParcela && (() => {
+        const venda = vendas.find(v => v.id === editandoParcela.vendaId);
+        const celula = venda?.projecaoMensal[editandoParcela.mesChave];
+        if (!venda || !celula) return null;
+        return (
+          <EditarParcelaDialog
+            open={!!editandoParcela}
+            onClose={() => setEditandoParcela(null)}
+            onSave={(campos) => {
+              handleAlterarParcelaCompleta(editandoParcela.vendaId, editandoParcela.mesChave, campos);
+              setEditandoParcela(null);
+              mostrarSnackbar('✅ Parcela atualizada com sucesso!');
+            }}
+            mesChave={editandoParcela.mesChave}
+            celula={celula}
+            nomeCliente={venda.cliente}
+          />
+        );
+      })()}
+
       {/* Snackbar de sucesso */}
       <Snackbar
         open={snackbar.open}
@@ -2221,6 +2361,121 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 // ==========================================
 // Subcomponentes Modulares de Dialogs (Evitam Lag de Digitação no Componente Principal)
 // ==========================================
+
+// EditarParcelaDialog — Dialog para edição individual de uma parcela (requer permissão editarParcelas)
+interface EditarParcelaDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onSave: (campos: { dataVencimento?: string; dataRecebimento?: string; valorParcela?: number; comissaoGerada?: number; status?: StatusParcela }) => void;
+  mesChave: string;
+  celula: MesProjecao;
+  nomeCliente: string;
+}
+
+const EditarParcelaDialog: React.FC<EditarParcelaDialogProps> = ({ open, onClose, onSave, mesChave, celula, nomeCliente }) => {
+  const theme = useTheme();
+  const [dataVencimento, setDataVencimento] = useState(celula.dataVencimento || `${mesChave}-15`);
+  const [dataRecebimento, setDataRecebimento] = useState(celula.dataRecebimento || celula.dataVencimento || `${mesChave}-15`);
+  const [valorParcela, setValorParcela] = useState(String(celula.valorParcela || 0));
+  const [comissaoGerada, setComissaoGerada] = useState(String(celula.comissaoGerada || 0));
+  const [status, setStatus] = useState<StatusParcela>(celula.status);
+
+  // Reinicia os campos ao abrir o dialog
+  React.useEffect(() => {
+    if (open) {
+      setDataVencimento(celula.dataVencimento || `${mesChave}-15`);
+      setDataRecebimento(celula.dataRecebimento || celula.dataVencimento || `${mesChave}-15`);
+      setValorParcela(String(celula.valorParcela || 0));
+      setComissaoGerada(String(celula.comissaoGerada || 0));
+      setStatus(celula.status);
+    }
+  }, [open, celula, mesChave]);
+
+  const handleSalvar = () => {
+    onSave({
+      dataVencimento,
+      dataRecebimento,
+      valorParcela: parseFloat(valorParcela) || 0,
+      comissaoGerada: parseFloat(comissaoGerada) || 0,
+      status
+    });
+  };
+
+  const mesFormatado = mesChave ? new Date(`${mesChave}-15T00:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) : mesChave;
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="xs"
+      slotProps={{ paper: { sx: { borderRadius: 4, bgcolor: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff', border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`, p: 1 } } }}
+    >
+      <DialogTitle sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a' }}>
+        <Box>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, fontFamily: 'Outfit, sans-serif' }}>Editar Parcela</Typography>
+          <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 500 }}>{nomeCliente} — {mesFormatado}</Typography>
+        </Box>
+        <IconButton onClick={onClose} size="small"><CloseIcon /></IconButton>
+      </DialogTitle>
+      <DialogContent>
+        <Grid container spacing={2} sx={{ mt: 0.5 }}>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField fullWidth label="Data de Vencimento" type="date" value={dataVencimento} onChange={(e) => setDataVencimento(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              label="Data de Recebimento"
+              type="date"
+              value={dataRecebimento}
+              onChange={(e) => setDataRecebimento(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              helperText="Pode ser diferente do vencimento"
+              sx={{ '& .MuiOutlinedInput-root': { borderColor: '#10b981' } }}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              label="Valor da Parcela (R$)"
+              type="number"
+              value={valorParcela}
+              onChange={(e) => setValorParcela(e.target.value)}
+              slotProps={{ input: { startAdornment: <InputAdornment position="start">R$</InputAdornment> } }}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              label="Comissão Gerada (R$)"
+              type="number"
+              value={comissaoGerada}
+              onChange={(e) => setComissaoGerada(e.target.value)}
+              slotProps={{ input: { startAdornment: <InputAdornment position="start">R$</InputAdornment> } }}
+            />
+          </Grid>
+          <Grid size={{ xs: 12 }}>
+            <FormControl fullWidth>
+              <InputLabel>Status</InputLabel>
+              <Select value={status} label="Status" onChange={(e) => setStatus(e.target.value as StatusParcela)}>
+                <MenuItem value="A vencer">A vencer</MenuItem>
+                <MenuItem value="Vencida">Vencida</MenuItem>
+                <MenuItem value="Paga">Paga</MenuItem>
+                <MenuItem value="Recebida">Recebida</MenuItem>
+                <MenuItem value="Cancelada">Cancelada</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+        </Grid>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2, pt: 1 }}>
+        <Button onClick={onClose} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b' }}>Cancelar</Button>
+        <Button variant="contained" onClick={handleSalvar} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)' }}>Salvar Parcela</Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
 
 interface NovaVendaDialogProps {
   open: boolean;
@@ -2733,6 +2988,8 @@ const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [tabelasDisponiveis, setTabelasDisponiveis] = useState<string[]>([]);
   const [parcelasDisponiveis, setParcelasDisponiveis] = useState<number[]>([]);
+  const [contemplado, setContemplado] = useState(false);
+  const [dataContemplacao, setDataContemplacao] = useState('');
 
   useEffect(() => {
     if (venda) {
@@ -2748,6 +3005,8 @@ const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       setDataVendaInput(venda.dataVenda || '');
       setDataVencimentoClienteInput(venda.dataVencimentoCliente || '');
       setDataAssembleiaInput(venda.dataAssembleia || '');
+      setContemplado(venda.contemplado || false);
+      setDataContemplacao(venda.dataContemplacao || '');
       setErrors({});
 
       const tabs = regras
@@ -2878,8 +3137,20 @@ const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
         comissaoGerada: Number((valorVendaV * (percentualMensal / 100)).toFixed(2)),
         status,
         dataVencimento: dataVenc,
-        dataPrevisaoRecebimento
+        dataPrevisaoRecebimento,
+        dataRecebimento: venda.projecaoMensal[mesChave]?.dataRecebimento || dataVenc
       };
+    }
+
+    // Lançamento de comissão de contemplação no mês da contemplação
+    if (contemplado && dataContemplacao) {
+      const mesContemplacao = dataContemplacao.substring(0, 7);
+      const regraVigente = regras.find(r => r.segmento === segmento && r.tabela === tabela && r.qtdParcelas === Number(qtdParcelas));
+      const pctContempl = regraVigente?.percentualComissaoContemplacao || 0;
+      const comissaoContempl = pctContempl > 0 ? Number((valorVendaV * (pctContempl / 100)).toFixed(2)) : 0;
+      if (proj[mesContemplacao]) {
+        proj[mesContemplacao] = { ...proj[mesContemplacao], comissaoGerada: (proj[mesContemplacao].comissaoGerada || 0) + comissaoContempl };
+      }
     }
 
     const { totalVendas, totalComissoes, projecaoAtualizada } = calcularTotaisLinha(
@@ -2906,7 +3177,14 @@ const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       valorParcela: valorParcelaV,
       projecaoMensal: projecaoAtualizada,
       totalVendas,
-      totalComissoes
+      totalComissoes,
+      contemplado,
+      dataContemplacao: contemplado ? dataContemplacao : undefined,
+      comissaoContemplacao: contemplado && dataContemplacao ? (() => {
+        const regraV = regras.find(r => r.segmento === segmento && r.tabela === tabela && r.qtdParcelas === parcelas);
+        const pct = regraV?.percentualComissaoContemplacao || 0;
+        return pct > 0 ? Number((valorVendaV * (pct / 100)).toFixed(2)) : 0;
+      })() : undefined
     };
 
     onSave(vendaAtualizada);
@@ -3125,6 +3403,39 @@ const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
               helperText={errors.pac}
             />
           </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={contemplado}
+                  onChange={(e) => {
+                    setContemplado(e.target.checked);
+                    if (!e.target.checked) setDataContemplacao('');
+                  }}
+                  color="warning"
+                />
+              }
+              label={
+                <Typography variant="body2" sx={{ fontWeight: 600, color: contemplado ? '#f59e0b' : 'inherit' }}>
+                  🏆 Cliente Contemplado
+                </Typography>
+              }
+            />
+          </Grid>
+          {contemplado && (
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                label="Data da Contemplação"
+                type="date"
+                value={dataContemplacao}
+                onChange={(e) => setDataContemplacao(e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }}
+                helperText="Lança a comissão de contemplação no mês escolhido"
+                sx={{ '& .MuiOutlinedInput-root': { borderColor: '#f59e0b' } }}
+              />
+            </Grid>
+          )}
           <Grid size={{ xs: 12 }}>
             <Box
               sx={{
