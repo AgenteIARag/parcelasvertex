@@ -11,7 +11,8 @@ import {
   Button,
   IconButton,
   Tooltip,
-  TextField
+  TextField,
+  Divider
 } from '@mui/material';
 import StorageIcon from '@mui/icons-material/Storage';
 import LightModeIcon from '@mui/icons-material/LightMode';
@@ -25,7 +26,7 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import GroupIcon from '@mui/icons-material/Group';
 
-import { type RegraMaster, type LancamentoVenda, type Vendedor, type Usuario } from './types';
+import { type RegraMaster, type LancamentoVenda, type Vendedor, type Usuario, type StatusComissao } from './types';
 import { INITIAL_REGRAS, INITIAL_VENDAS, INITIAL_VENDEDORES, calcularTotaisLinha } from './data/initialData';
 import { KPISection } from './components/KPISection';
 import { SimuladorVendas } from './components/SimuladorVendas';
@@ -163,16 +164,12 @@ function App() {
   const [dataInicio, setDataInicio] = useState<string>('2026-01-01');
   const [dataFim, setDataFim] = useState<string>('2026-12-31');
 
-  // Dias de corte para cálculo de previsão de recebimento de comissões
-  const [diasCorte, setDiasCorte] = useState<[number, number]>(() => {
-    const saved = localStorage.getItem('apex_dias_corte');
-    return saved ? JSON.parse(saved) : [10, 25];
-  });
-
-  // Dias de recebimento correspondentes às datas de corte
-  const [diasRecebimento, setDiasRecebimento] = useState<[number, number]>(() => {
-    const saved = localStorage.getItem('apex_dias_recebimento');
-    return saved ? JSON.parse(saved) : [15, 30];
+  // Ciclos de faturamento (mês a mês)
+  const [ciclos, setCiclos] = useState<Record<string, [number, number]>>(() => {
+    const saved = localStorage.getItem('apex_ciclos_faturamento');
+    return saved ? JSON.parse(saved) : {
+      'padrao': [10, 25]
+    };
   });
 
   // Estados temporários para os inputs de data antes do clique no botão Filtrar
@@ -249,19 +246,10 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem('apex_dark_mode', String(darkMode));
-  }, [darkMode]);
+    localStorage.setItem('apex_ciclos_faturamento', JSON.stringify(ciclos));
+  }, [ciclos]);
 
-  useEffect(() => {
-    localStorage.setItem('apex_dias_corte', JSON.stringify(diasCorte));
-  }, [diasCorte]);
 
-  useEffect(() => {
-    localStorage.setItem('apex_dias_recebimento', JSON.stringify(diasRecebimento));
-  }, [diasRecebimento]);
-
-  useEffect(() => {
-    localStorage.setItem('apex_dias_corte', JSON.stringify(diasCorte));
-  }, [diasCorte]);
 
   // Ações de Regras
   const handleAdicionarRegra = (novaRegra: Omit<RegraMaster, 'id'>) => {
@@ -342,9 +330,28 @@ function App() {
     salvarVendaSupabase(vendaAtualizada).catch((err) => console.error('Erro Supabase Vendas (Edição):', err));
   };
 
-  const handleExcluirVenda = (id: string) => {
-    setVendas((prev) => prev.filter((v) => v.id !== id));
-    excluirVendaSupabase(id).catch((err) => console.error('Erro Supabase Vendas (Exclusão):', err));
+  const handleExcluirVenda = (vendaId: string) => {
+    setVendas((prev) => prev.filter((v) => v.id !== vendaId));
+    excluirVendaSupabase(vendaId).catch((err) => console.error('Erro Supabase Excluir Vendas:', err));
+  };
+
+  // Alterar status de comissão de uma parcela específica (independente do status da venda)
+  const handleAlterarStatusComissao = (vendaId: string, mesChave: string, novoStatus: StatusComissao) => {
+    setVendas((prev) => {
+      const atualizadas = prev.map((v) => {
+        if (v.id !== vendaId) return v;
+        const celulaAtual = v.projecaoMensal[mesChave];
+        if (!celulaAtual) return v;
+        const projecaoAtualizada = { ...celulaAtual, statusComissao: novoStatus };
+        const vendaAtualizada = {
+          ...v,
+          projecaoMensal: { ...v.projecaoMensal, [mesChave]: projecaoAtualizada },
+        };
+        salvarVendaSupabase(vendaAtualizada).catch((err) => console.error('Erro Supabase StatusComissao:', err));
+        return vendaAtualizada;
+      });
+      return atualizadas;
+    });
   };
 
   // Ações de Vendedores
@@ -862,8 +869,7 @@ function App() {
                   permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
                   dataInicio={dataInicio}
                   dataFim={dataFim}
-                  diasCorte={diasCorte}
-                  diasRecebimento={diasRecebimento}
+                  ciclos={ciclos}
                 />
               </Box>
             )}
@@ -877,8 +883,7 @@ function App() {
                 vendas={vendas}
                 dataInicio={dataInicio}
                 dataFim={dataFim}
-                diasCorte={diasCorte}
-                diasRecebimento={diasRecebimento}
+                ciclos={ciclos}
               />
             )}
 
@@ -888,8 +893,9 @@ function App() {
                 vendedores={vendedores}
                 dataInicio={dataInicio}
                 dataFim={dataFim}
-                diasCorte={diasCorte}
-                diasRecebimento={diasRecebimento}
+                ciclos={ciclos}
+                onAlterarStatusComissao={handleAlterarStatusComissao}
+                podeEditarComissao={usuarioLogado?.role === 'master' || usuarioLogado?.role === 'financeiro'}
               />
             )}
 
@@ -983,95 +989,145 @@ function App() {
                       variant="subtitle1"
                       sx={{ fontWeight: 700, fontFamily: 'Outfit, sans-serif', mb: 0.5 }}
                     >
-                      💰 Financeiro — Dias de Corte e Recebimento de Comissões
+                      💰 Financeiro — Ciclos de Faturamento
                     </Typography>
                     <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2.5 }}>
-                      Configure as datas de corte e suas respectivas datas de recebimento de comissões. Ao passar a data de corte, o valor será previsto para a data de recebimento correspondente mais próxima.
+                      Configure os ciclos de fechamento. O Padrão será usado caso um mês específico não tenha sido alterado manualmente.
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, border: `1px dashed ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`, borderRadius: 2 }}>
-                        <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', color: theme.palette.primary.main }}>
-                          Lote 1 (Início do Mês)
+                    
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {/* Configuração Padrão */}
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, border: `2px solid ${theme.palette.primary.main}`, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.05)' : 'rgba(99,102,241,0.02)' }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
+                          Cortes Padrão (Usado em meses não configurados)
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 2 }}>
                           <TextField
-                            label="1º Dia de Corte"
+                            label="1º Ciclo (Início do mês)"
                             type="number"
                             size="small"
-                            value={diasCorte[0]}
+                            value={(ciclos['padrao'] || [10,25])[0]}
                             onChange={(e) => {
                               const v = Math.max(1, Math.min(28, Number(e.target.value)));
-                              setDiasCorte([v, diasCorte[1]]);
+                              setCiclos(prev => ({ ...prev, 'padrao': [v, (prev['padrao'] || [10,25])[1]] }));
                             }}
                             slotProps={{ htmlInput: { min: 1, max: 28 } }}
-                            helperText="Dia Limite (1–28)"
-                            sx={{ width: 140 }}
+                            sx={{ width: 180 }}
                           />
                           <TextField
-                            label="1º Dia de Recebimento"
+                            label="2º Ciclo (Fim do mês)"
                             type="number"
                             size="small"
-                            value={diasRecebimento[0]}
+                            value={(ciclos['padrao'] || [10,25])[1]}
                             onChange={(e) => {
                               const v = Math.max(1, Math.min(28, Number(e.target.value)));
-                              setDiasRecebimento([v, diasRecebimento[1]]);
+                              setCiclos(prev => ({ ...prev, 'padrao': [(prev['padrao'] || [10,25])[0], v] }));
                             }}
                             slotProps={{ htmlInput: { min: 1, max: 28 } }}
-                            helperText="Dia de Pagto (1–28)"
-                            sx={{ width: 140 }}
+                            sx={{ width: 180 }}
                           />
                         </Box>
                       </Box>
 
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, border: `1px dashed ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`, borderRadius: 2 }}>
-                        <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', color: theme.palette.secondary.main }}>
-                          Lote 2 (Fim do Mês)
-                        </Typography>
-                        <Box sx={{ display: 'flex', gap: 2 }}>
-                          <TextField
-                            label="2º Dia de Corte"
-                            type="number"
-                            size="small"
-                            value={diasCorte[1]}
-                            onChange={(e) => {
-                              const v = Math.max(1, Math.min(28, Number(e.target.value)));
-                              setDiasCorte([diasCorte[0], v]);
-                            }}
-                            slotProps={{ htmlInput: { min: 1, max: 28 } }}
-                            helperText="Dia Limite (1–28)"
-                            sx={{ width: 140 }}
-                          />
-                          <TextField
-                            label="2º Dia de Recebimento"
-                            type="number"
-                            size="small"
-                            value={diasRecebimento[1]}
-                            onChange={(e) => {
-                              const v = Math.max(1, Math.min(28, Number(e.target.value)));
-                              setDiasRecebimento([diasRecebimento[0], v]);
-                            }}
-                            slotProps={{ htmlInput: { min: 1, max: 28 } }}
-                            helperText="Dia de Pagto (1–28)"
-                            sx={{ width: 140 }}
-                          />
-                        </Box>
-                      </Box>
-                    </Box>
+                      <Divider sx={{ my: 1 }} />
 
-                    <Box
-                      sx={{
-                        mt: 2,
-                        p: 1.5,
-                        borderRadius: 2,
-                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.08)',
-                        border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.2)'}`,
-                        fontSize: '0.82rem',
-                        color: theme.palette.primary.main,
-                        fontWeight: 600,
-                        textAlign: 'center'
-                      }}
-                    >
-                      Corte até dia <strong>{diasCorte[0]}</strong> paga no dia <strong>{diasRecebimento[0]}</strong> | Corte até dia <strong>{diasCorte[1]}</strong> paga no dia <strong>{diasRecebimento[1]}</strong>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                        Exceções Específicas por Mês
+                      </Typography>
+                      
+                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 2 }}>
+                        {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mesStr, index) => {
+                          const ano = new Date().getFullYear();
+                          const mesKey = `${ano}-${mesStr}`;
+                          const mesesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+                          
+                          // Pega o valor específico do mês, ou o padrão apenas para exibir no placeholder
+                          const valorEspecifico = ciclos[mesKey];
+                          const valorPadrao = ciclos['padrao'] || [10, 25];
+                          
+                          return (
+                            <Box key={mesKey} sx={{ p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
+                              <Typography variant="caption" sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                <span>{mesesNomes[index]} {ano}</span>
+                                {valorEspecifico && <span style={{ color: theme.palette.warning.main }}>Personalizado</span>}
+                              </Typography>
+                              <Box sx={{ display: 'flex', gap: 1 }}>
+                                <TextField
+                                  label="1º Ciclo"
+                                  type="number"
+                                  size="small"
+                                  placeholder={String(valorPadrao[0])}
+                                  value={valorEspecifico ? valorEspecifico[0] : ''}
+                                  onChange={(e) => {
+                                    const valStr = e.target.value;
+                                    if (!valStr) {
+                                      // Se apagar, volta pro padrão e remove a chave (opcional, ou apenas reseta se apagar ambos)
+                                      setCiclos(prev => {
+                                        const novo = { ...prev };
+                                        const cur = novo[mesKey];
+                                        if (cur) {
+                                          novo[mesKey] = [Number(valStr), cur[1]];
+                                        }
+                                        return novo;
+                                      });
+                                    } else {
+                                      const v = Math.max(1, Math.min(28, Number(valStr)));
+                                      setCiclos(prev => {
+                                        const cur = prev[mesKey] || [...valorPadrao];
+                                        return { ...prev, [mesKey]: [v, cur[1]] };
+                                      });
+                                    }
+                                  }}
+                                  slotProps={{ htmlInput: { min: 1, max: 28 } }}
+                                />
+                                <TextField
+                                  label="2º Ciclo"
+                                  type="number"
+                                  size="small"
+                                  placeholder={String(valorPadrao[1])}
+                                  value={valorEspecifico ? valorEspecifico[1] : ''}
+                                  onChange={(e) => {
+                                    const valStr = e.target.value;
+                                    if (!valStr) {
+                                      setCiclos(prev => {
+                                        const novo = { ...prev };
+                                        const cur = novo[mesKey];
+                                        if (cur) {
+                                          novo[mesKey] = [cur[0], Number(valStr)];
+                                        }
+                                        return novo;
+                                      });
+                                    } else {
+                                      const v = Math.max(1, Math.min(28, Number(valStr)));
+                                      setCiclos(prev => {
+                                        const cur = prev[mesKey] || [...valorPadrao];
+                                        return { ...prev, [mesKey]: [cur[0], v] };
+                                      });
+                                    }
+                                  }}
+                                  slotProps={{ htmlInput: { min: 1, max: 28 } }}
+                                />
+                              </Box>
+                              {valorEspecifico && (
+                                <Button 
+                                  size="small" 
+                                  color="error" 
+                                  sx={{ mt: 1, textTransform: 'none', fontSize: '0.7rem' }}
+                                  onClick={() => {
+                                    setCiclos(prev => {
+                                      const novo = { ...prev };
+                                      delete novo[mesKey];
+                                      return novo;
+                                    });
+                                  }}
+                                >
+                                  Remover Exceção
+                                </Button>
+                              )}
+                            </Box>
+                          );
+                        })}
+                      </Box>
                     </Box>
                   </Box>
 

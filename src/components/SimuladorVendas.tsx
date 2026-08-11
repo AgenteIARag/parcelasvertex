@@ -82,44 +82,19 @@ const extrairValorCru = (valorFormatado: string): number => {
 
 const calcularDataPrevisaoRecebimento = (
   dataVenc: string,
-  cortes: [number, number],
-  recebimentos: [number, number]
+  _ciclos?: Record<string, [number, number]>
 ): string => {
   if (!dataVenc || dataVenc.includes('undefined')) return '';
   const dt = new Date(`${dataVenc}T00:00:00`);
   if (isNaN(dt.getTime())) return '';
-  const dia = dt.getDate();
-  
-  const c1 = Math.min(...cortes);
-  const c2 = Math.max(...cortes);
-  
-  const idx1 = cortes.indexOf(c1);
-  const idx2 = cortes.indexOf(c2);
-  const r1 = (recebimentos && recebimentos[idx1 !== -1 && idx1 < recebimentos.length ? idx1 : 0]) ?? 15;
-  const r2 = (recebimentos && recebimentos[idx2 !== -1 && idx2 < recebimentos.length ? idx2 : 1]) ?? 30;
-  
-  let ano = dt.getFullYear();
-  let mes = dt.getMonth(); // 0-indexed
-  let diaPagto: number;
-
-  if (dia <= c1) {
-    diaPagto = r1;
-  } else if (dia <= c2) {
-    diaPagto = r2;
-  } else {
-    mes += 1;
-    if (mes > 11) { mes = 0; ano += 1; }
-    diaPagto = r1;
-  }
-
-  if (!diaPagto || isNaN(diaPagto)) {
-    diaPagto = 15;
-  }
-
-  const mesStr = String(mes + 1).padStart(2, '0');
-  const diaStr = String(diaPagto).padStart(2, '0');
-  return `${ano}-${mesStr}-${diaStr}`;
+  // Previsão = último dia do mês de vencimento da parcela
+  const ultimoDia = new Date(dt.getFullYear(), dt.getMonth() + 1, 0);
+  const ano = ultimoDia.getFullYear();
+  const mes = String(ultimoDia.getMonth() + 1).padStart(2, '0');
+  const dia = String(ultimoDia.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
 };
+
 
 const obterStatusEfetivo = (status: StatusParcela, dataVencimento: string): StatusParcela => {
   if (status === 'A vencer' && dataVencimento) {
@@ -141,8 +116,7 @@ interface SimuladorVendasProps {
   permissoes: UserPermissions;
   dataInicio: string;
   dataFim: string;
-  diasCorte: [number, number];
-  diasRecebimento: [number, number];
+  ciclos: Record<string, [number, number]>;
 }
 
 export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
@@ -155,8 +129,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   permissoes,
   dataInicio,
   dataFim,
-  diasCorte,
-  diasRecebimento
+  ciclos
 }) => {
   const theme = useTheme();
 
@@ -610,9 +583,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           status: obterStatusEfetivo(celula.status, celula.dataVencimento),
           dataVencimento: celula.dataVencimento || `${mesChave}-15`,
           dataRecebimento: celula.dataRecebimento || celula.dataVencimento || `${mesChave}-15`,
-          dataPrevisaoRecebimento: (celula.dataPrevisaoRecebimento && !celula.dataPrevisaoRecebimento.includes('undefined'))
-            ? celula.dataPrevisaoRecebimento
-            : calcularDataPrevisaoRecebimento(celula.dataVencimento || `${mesChave}-15`, diasCorte, diasRecebimento),
+          dataPrevisaoRecebimento: calcularDataPrevisaoRecebimento(celula.dataVencimento || `${mesChave}-15`, ciclos),
           parcelaIndex: parcelaIndexReal,
           qtdParcelas: venda.qtdParcelas
         });
@@ -625,7 +596,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       const dB = (b as { dataRecebimento?: string }).dataRecebimento || b.dataVencimento || b.mesChave;
       return dA.localeCompare(dB);
     });
-  }, [vendasFiltradasPorPac, dataInicio, dataFim, tipoFiltro, filtroStatus, diasCorte, diasRecebimento]);
+  }, [vendasFiltradasPorPac, dataInicio, dataFim, tipoFiltro, filtroStatus, ciclos]);
 
   return (
     <Box>
@@ -1259,10 +1230,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                       }}
                                     >
                                       {(() => {
-                                        let dtPrev = dadosMes.dataPrevisaoRecebimento;
-                                        if (!dtPrev || dtPrev.includes('undefined')) {
-                                          dtPrev = calcularDataPrevisaoRecebimento(dadosMes.dataVencimento || `${mes}-15`, diasCorte, diasRecebimento);
-                                        }
+                                        const dtPrev = calcularDataPrevisaoRecebimento(dadosMes.dataVencimento || `${mes}-15`, ciclos);
                                         if (!dtPrev || dtPrev.includes('undefined')) return null;
                                         return `💰 ${dtPrev.split('-').reverse().join('/')}`;
                                       })()}
@@ -2142,10 +2110,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                     <TableCell align="center">
                       <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.75rem', color: theme.palette.mode === 'dark' ? '#818cf8' : '#6366f1', whiteSpace: 'nowrap' }}>
                         {(() => {
-                          let dtPrev = linha.dataPrevisaoRecebimento;
-                          if (!dtPrev || dtPrev.includes('undefined')) {
-                            dtPrev = calcularDataPrevisaoRecebimento(linha.dataVencimento, diasCorte, diasRecebimento);
-                          }
+                          const dtPrev = calcularDataPrevisaoRecebimento(linha.dataVencimento, ciclos);
                           if (!dtPrev || dtPrev.includes('undefined')) return null;
                           return `💰 ${dtPrev.split('-').reverse().join('/')}`;
                         })()}
@@ -2227,8 +2192,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         }}
         vendedores={vendedores}
         regras={regras}
-        diasCorte={diasCorte}
-        diasRecebimento={diasRecebimento}
+        ciclos={ciclos}
       />
 
       {/* Dialog de Confirmação para Excluir Venda */}
@@ -2303,8 +2267,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         venda={vendaEmEdicao}
         vendedores={vendedores}
         regras={regras}
-        diasCorte={diasCorte}
-        diasRecebimento={diasRecebimento}
+        ciclos={ciclos}
       />
 
       {/* Dialog de Edição Individual de Parcela */}
@@ -2483,8 +2446,7 @@ interface NovaVendaDialogProps {
   onSave: (venda: LancamentoVenda) => void;
   vendedores: Vendedor[];
   regras: RegraMaster[];
-  diasCorte: number[];
-  diasRecebimento: [number, number] | Record<number, number>;
+  ciclos: Record<string, [number, number]>;
 }
 
 const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
@@ -2493,8 +2455,7 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
   onSave,
   vendedores,
   regras,
-  diasCorte,
-  diasRecebimento
+  ciclos
 }) => {
   const theme = useTheme();
   const [cliente, setCliente] = useState('');
@@ -2628,11 +2589,7 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
 
       const mesChave = dataVenc.substring(0, 7);
       const status = i === 0 ? 'Paga' : getStatusInicial(dataVenc);
-      const cortes: [number, number] = [diasCorte[0], diasCorte[1]];
-      const recebimentos: [number, number] = Array.isArray(diasRecebimento)
-        ? [diasRecebimento[0] ?? 15, diasRecebimento[1] ?? 30]
-        : [diasRecebimento[diasCorte[0]] ?? 15, diasRecebimento[diasCorte[1]] ?? 30];
-      const dataPrevisaoRecebimento = calcularDataPrevisaoRecebimento(dataVenc, cortes, recebimentos);
+      const dataPrevisaoRecebimento = calcularDataPrevisaoRecebimento(dataVenc, ciclos);
 
       proj[mesChave] = {
         valorVenda: valorVendaV,
@@ -2957,8 +2914,7 @@ interface EditarVendaDialogProps {
   venda: LancamentoVenda | null;
   vendedores: Vendedor[];
   regras: RegraMaster[];
-  diasCorte: number[];
-  diasRecebimento: [number, number] | Record<number, number>;
+  ciclos: Record<string, [number, number]>;
 }
 
 const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
@@ -2968,8 +2924,7 @@ const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
   venda,
   vendedores,
   regras,
-  diasCorte,
-  diasRecebimento
+  ciclos
 }) => {
   const theme = useTheme();
   const [cliente, setCliente] = useState('');
@@ -2990,6 +2945,8 @@ const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
   const [parcelasDisponiveis, setParcelasDisponiveis] = useState<number[]>([]);
   const [contemplado, setContemplado] = useState(false);
   const [dataContemplacao, setDataContemplacao] = useState('');
+  const [numeroRelatorio, setNumeroRelatorio] = useState('');
+  const [dataRelatorio, setDataRelatorio] = useState('');
 
   useEffect(() => {
     if (venda) {
@@ -3007,6 +2964,8 @@ const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       setDataAssembleiaInput(venda.dataAssembleia || '');
       setContemplado(venda.contemplado || false);
       setDataContemplacao(venda.dataContemplacao || '');
+      setNumeroRelatorio(venda.numeroRelatorio || '');
+      setDataRelatorio(venda.dataRelatorio || '');
       setErrors({});
 
       const tabs = regras
@@ -3125,11 +3084,7 @@ const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       const mesChave = dataVenc.substring(0, 7);
       const statusAnterior = venda.projecaoMensal[mesChave]?.status;
       const status = i === 0 ? (statusAnterior || 'Paga') : (statusAnterior || getStatusInicial(dataVenc));
-      const cortes: [number, number] = [diasCorte[0], diasCorte[1]];
-      const recebimentos: [number, number] = Array.isArray(diasRecebimento)
-        ? [diasRecebimento[0] ?? 15, diasRecebimento[1] ?? 30]
-        : [diasRecebimento[diasCorte[0]] ?? 15, diasRecebimento[diasCorte[1]] ?? 30];
-      const dataPrevisaoRecebimento = calcularDataPrevisaoRecebimento(dataVenc, cortes, recebimentos);
+      const dataPrevisaoRecebimento = calcularDataPrevisaoRecebimento(dataVenc, ciclos);
 
       proj[mesChave] = {
         valorVenda: valorVendaV,
@@ -3184,7 +3139,9 @@ const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
         const regraV = regras.find(r => r.segmento === segmento && r.tabela === tabela && r.qtdParcelas === parcelas);
         const pct = regraV?.percentualComissaoContemplacao || 0;
         return pct > 0 ? Number((valorVendaV * (pct / 100)).toFixed(2)) : 0;
-      })() : undefined
+      })() : undefined,
+      numeroRelatorio: numeroRelatorio.trim() || undefined,
+      dataRelatorio: dataRelatorio || undefined,
     };
 
     onSave(vendaAtualizada);
@@ -3436,6 +3393,41 @@ const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
               />
             </Grid>
           )}
+          {/* ── Campos ADM ── */}
+          <Grid size={{ xs: 12 }}>
+            <Box sx={{
+              py: 1, px: 2, borderRadius: 1.5, mb: 0.5,
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.05)',
+              border: `1px dashed ${theme.palette.mode === 'dark' ? '#4f46e5' : '#a5b4fc'}`,
+            }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: theme.palette.primary.main, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                📋 Dados do Relatório ADM
+              </Typography>
+            </Box>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              label="Nº do Relatório ADM"
+              placeholder="Ex: REL-2026-001"
+              value={numeroRelatorio}
+              onChange={(e) => setNumeroRelatorio(e.target.value)}
+              helperText="Número do relatório gerado pela ADM"
+              slotProps={{ input: { sx: { fontFamily: 'monospace', letterSpacing: '0.5px' } } }}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              label="Data do Relatório ADM"
+              type="date"
+              value={dataRelatorio}
+              onChange={(e) => setDataRelatorio(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              helperText="Data de emissão do relatório"
+            />
+          </Grid>
+          {/* ── Comissão Master ── */}
           <Grid size={{ xs: 12 }}>
             <Box
               sx={{

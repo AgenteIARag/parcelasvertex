@@ -11,6 +11,9 @@ export interface RegraMaster {
 
 export type StatusParcela = 'A vencer' | 'Vencida' | 'Paga' | 'Recebida' | 'Cancelada';
 
+/** Status independente do pagamento da comissão ao parceiro/vendedor */
+export type StatusComissao = 'A pagar' | 'Paga' | 'Contestada';
+
 export type StatusCliente = 'Ativo' | 'Cancelado';
 
 export interface MesProjecao {
@@ -18,6 +21,7 @@ export interface MesProjecao {
   valorParcela: number; // Valor da parcela
   comissaoGerada: number;
   status: StatusParcela;
+  statusComissao?: StatusComissao; // Status do pagamento da comissão ao parceiro (independente do status da parcela)
   dataVencimento: string; // Formato YYYY-MM-DD
   dataPrevisaoRecebimento?: string; // Próxima data de corte após o vencimento (YYYY-MM-DD)
   dataRecebimento?: string; // Data real de recebimento da parcela, editável pelo usuário (YYYY-MM-DD). Inicializa igual a dataVencimento
@@ -71,6 +75,8 @@ export interface LancamentoVenda {
   contemplado?: boolean; // Se o cliente foi contemplado
   dataContemplacao?: string; // Data da contemplação (YYYY-MM-DD)
   comissaoContemplacao?: number; // Valor da comissão gerada na contemplação
+  numeroRelatorio?: string; // Número do relatório gerado pela ADM
+  dataRelatorio?: string; // Data do relatório ADM (YYYY-MM-DD)
 }
 
 export const LISTA_MESES: MesesAno[] = [
