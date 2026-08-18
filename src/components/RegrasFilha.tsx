@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -108,14 +108,14 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
   const [gradeFilhaTemp, setGradeFilhaTemp] = useState<number[]>([]);
 
   // Empresa mãe da filha selecionada
-  const empresaFilhaObj = empresas.find(e => e.id === empresaFilhaSelecionada);
+  const empresaFilhaObj = useMemo(() => empresas.find(e => e.id === empresaFilhaSelecionada), [empresas, empresaFilhaSelecionada]);
   const empresaMaeId = empresaFilhaObj?.empresaMaeId;
-  const empresaMaeObj = empresas.find(e => e.id === empresaMaeId);
+  const empresaMaeObj = useMemo(() => empresas.find(e => e.id === empresaMaeId), [empresas, empresaMaeId]);
 
-  // Regras da empresa mãe (filtradas)
-  const regrasDaMae = regrasMaster.filter(r =>
-    !r.empresaId || r.empresaId === empresaMaeId
-  );
+  // Regras da empresa mãe (estabilizadas com useMemo)
+  const regrasDaMae = useMemo(() => {
+    return regrasMaster.filter(r => !r.empresaId || r.empresaId === empresaMaeId);
+  }, [regrasMaster, empresaMaeId]);
 
   const carregarRegrasFilha = useCallback(async () => {
     if (!empresaFilhaSelecionada) return;
@@ -160,8 +160,10 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
   }, [empresaFilhaSelecionada, regrasDaMae]);
 
   useEffect(() => {
-    if (empresaFilhaSelecionada) carregarRegrasFilha();
-  }, [empresaFilhaSelecionada, carregarRegrasFilha]);
+    if (empresaFilhaSelecionada) {
+      carregarRegrasFilha();
+    }
+  }, [empresaFilhaSelecionada, empresaMaeId]);
 
   const handleChangePercentual = (regraMasterId: string, valor: string) => {
     const num = valor === '' ? '' : Math.max(0, parseFloat(valor));
