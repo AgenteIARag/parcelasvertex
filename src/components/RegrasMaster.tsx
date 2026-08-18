@@ -25,7 +25,8 @@ import {
   useTheme,
   Chip,
   Tabs,
-  Tab
+  Tab,
+  Tooltip,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -36,7 +37,8 @@ import HomeIcon from '@mui/icons-material/Home';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import ViewListIcon from '@mui/icons-material/ViewList';
-import { type RegraMaster, type SegmentoType, type UserPermissions } from '../types';
+import BusinessIcon from '@mui/icons-material/Business';
+import { type RegraMaster, type SegmentoType, type UserPermissions, type Empresa } from '../types';
 
 interface RegrasMasterProps {
   regras: RegraMaster[];
@@ -44,6 +46,9 @@ interface RegrasMasterProps {
   onEditarRegra: (regra: RegraMaster) => void;
   onExcluirRegra: (id: string) => void;
   permissoes: UserPermissions;
+  empresas?: Empresa[];          // Lista de empresas disponíveis
+  empresaAtualId?: string;       // Empresa do usuário logado
+  isSuperMaster?: boolean;       // Super master pode editar regras de qualquer empresa
 }
 
 export const RegrasMaster: React.FC<RegrasMasterProps> = ({
@@ -51,7 +56,10 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
   onAdicionarRegra,
   onEditarRegra,
   onExcluirRegra,
-  permissoes
+  permissoes,
+  empresas = [],
+  empresaAtualId,
+  isSuperMaster = false,
 }) => {
   const theme = useTheme();
 
@@ -66,6 +74,10 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
   const [qtdParcelas, setQtdParcelas] = useState<number | ''>('');
   const [percentualComissao, setPercentualComissao] = useState<number | ''>('');
   const [percentualComissaoContemplacao, setPercentualComissaoContemplacao] = useState<number | ''>('');
+  const [empresaIdForm, setEmpresaIdForm] = useState<string>(empresaAtualId || '');
+
+  // Filtro de empresa para o super_master
+  const [empresaFiltro, setEmpresaFiltro] = useState<string>('');
 
   // Erros de validação
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -78,6 +90,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
       setQtdParcelas(regra.qtdParcelas);
       setPercentualComissao(regra.percentualComissao);
       setPercentualComissaoContemplacao(regra.percentualComissaoContemplacao ?? '');
+      setEmpresaIdForm(regra.empresaId || empresaAtualId || '');
     } else {
       setEditId(null);
       // Se estiver visualizando um segmento específico nas abas (exceto "Todos"), pré-seleciona ele no formulário
@@ -86,6 +99,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
       setQtdParcelas('');
       setPercentualComissao('');
       setPercentualComissaoContemplacao('');
+      setEmpresaIdForm(empresaAtualId || '');
     }
     setErrors({});
     setOpen(true);
@@ -116,6 +130,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
       tabela: tabela.trim(),
       qtdParcelas: Number(qtdParcelas),
       percentualComissao: Number(percentualComissao),
+      empresaId: empresaIdForm || undefined,
       ...(percentualComissaoContemplacao !== '' && { percentualComissaoContemplacao: Number(percentualComissaoContemplacao) })
     };
 
@@ -140,17 +155,30 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
     }
   };
 
-  // Contadores de regras por segmento para exibir nas abas
-  const countTodos = regras.length;
-  const countImoveis = regras.filter(r => r.segmento === 'Imóveis').length;
-  const countAutos = regras.filter(r => r.segmento === 'Autos Leves').length;
-  const countPesados = regras.filter(r => r.segmento === 'Pesados').length;
+  // Filtra regras por empresa (super_master pode ver todas ou filtrar; outros veem apenas as suas)
+  const regrasVisiveis = regras.filter(r => {
+    if (isSuperMaster) {
+      if (empresaFiltro) return r.empresaId === empresaFiltro;
+      return true;
+    }
+    // Master de empresa: vê apenas regras da sua empresa ou globais (sem empresa)
+    return !r.empresaId || r.empresaId === empresaAtualId;
+  });
 
-  const regrasFiltradas = regras.filter(r => abaSegmento === 'Todos' || r.segmento === abaSegmento);
+  // Contadores de regras por segmento para exibir nas abas
+  const countTodos = regrasVisiveis.length;
+  const countImoveis = regrasVisiveis.filter(r => r.segmento === 'Imóveis').length;
+  const countAutos = regrasVisiveis.filter(r => r.segmento === 'Autos Leves').length;
+  const countPesados = regrasVisiveis.filter(r => r.segmento === 'Pesados').length;
+
+  const regrasFiltradas = regrasVisiveis.filter(r => abaSegmento === 'Todos' || r.segmento === abaSegmento);
+
+  // Empresa mãe das empresas disponíveis (para o filtro do super_master)
+  const empresasMae = empresas.filter(e => !e.empresaMaeId && e.ativo);
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography
             variant="h5"
@@ -162,23 +190,46 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
             Gerencie as tabelas de comissionamento por segmento e número de parcelas
           </Typography>
         </Box>
-        {permissoes?.cadastrarRegras && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpen()}
-            sx={{
-              borderRadius: 2.5,
-              textTransform: 'none',
-              fontWeight: 600,
-              fontFamily: 'Outfit, sans-serif',
-              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)',
-              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`
-            }}
-          >
-            Nova Regra
-          </Button>
-        )}
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Filtro de empresa para super_master */}
+          {isSuperMaster && empresasMae.length > 0 && (
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel>Filtrar por Empresa</InputLabel>
+              <Select
+                value={empresaFiltro}
+                label="Filtrar por Empresa"
+                onChange={e => setEmpresaFiltro(e.target.value)}
+              >
+                <MenuItem value=""><em>Todas</em></MenuItem>
+                {empresas.map(e => (
+                  <MenuItem key={e.id} value={e.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <BusinessIcon sx={{ fontSize: 14 }} />
+                      {e.nome}
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+          {permissoes?.cadastrarRegras && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => handleOpen()}
+              sx={{
+                borderRadius: 2.5,
+                textTransform: 'none',
+                fontWeight: 600,
+                fontFamily: 'Outfit, sans-serif',
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)',
+                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`
+              }}
+            >
+              Nova Regra
+            </Button>
+          )}
+        </Box>
       </Box>
 
       {/* Seletor de Abas por Segmento */}
@@ -267,6 +318,9 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
               <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="right">Qtd. Parcelas</TableCell>
               <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="right">% Comissão</TableCell>
               <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="right">% Contempl.</TableCell>
+              {isSuperMaster && (
+                <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="center">Empresa</TableCell>
+              )}
               {permissoes?.cadastrarRegras && (
                 <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="center">Ações</TableCell>
               )}
@@ -275,7 +329,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
           <TableBody>
             {regrasFiltradas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={permissoes?.cadastrarRegras ? 6 : 5} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={(permissoes?.cadastrarRegras ? 1 : 0) + (isSuperMaster ? 1 : 0) + 5} align="center" sx={{ py: 6 }}>
                   <Typography variant="body1" sx={{ color: theme.palette.mode === 'dark' ? '#64748b' : '#94a3b8' }}>
                     {abaSegmento === 'Todos' 
                       ? 'Nenhuma regra cadastrada.' 
@@ -336,6 +390,23 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                         ? `${Number(regra.percentualComissaoContemplacao).toFixed(2).replace('.', ',')}%`
                         : '—'}
                     </TableCell>
+                    {/* Empresa (visível apenas para super_master) */}
+                    {isSuperMaster && (
+                      <TableCell align="center">
+                        {regra.empresaId ? (
+                          <Tooltip title={`ID: ${regra.empresaId}`}>
+                            <Chip
+                              icon={<BusinessIcon sx={{ fontSize: 13 }} />}
+                              label={empresas.find(e => e.id === regra.empresaId)?.nome || regra.empresaId}
+                              size="small"
+                              sx={{ fontSize: '0.7rem', borderRadius: 1.5, fontWeight: 600 }}
+                            />
+                          </Tooltip>
+                        ) : (
+                          <Typography variant="caption" sx={{ color: 'text.disabled' }}>Global</Typography>
+                        )}
+                      </TableCell>
+                    )}
                     {permissoes?.cadastrarRegras && (
                       <TableCell align="center">
                         <IconButton
@@ -405,6 +476,30 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
         </DialogTitle>
         <DialogContent>
           <Grid container spacing={2.5} sx={{ mt: 0.5 }}>
+            {/* Empresa da Regra — visível apenas para super_master */}
+            {isSuperMaster && empresas.length > 0 && (
+              <Grid size={{ xs: 12 }}>
+                <FormControl fullWidth>
+                  <InputLabel id="empresa-regra-label">Empresa Proprietária da Regra</InputLabel>
+                  <Select
+                    labelId="empresa-regra-label"
+                    value={empresaIdForm}
+                    label="Empresa Proprietária da Regra"
+                    onChange={e => setEmpresaIdForm(e.target.value)}
+                  >
+                    <MenuItem value=""><em>Global (sem empresa específica)</em></MenuItem>
+                    {empresas.filter(e => !e.empresaMaeId).map(e => (
+                      <MenuItem key={e.id} value={e.id}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <BusinessIcon sx={{ fontSize: 14 }} />
+                          {e.nome}
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
             <Grid size={{ xs: 12 }}>
               <FormControl fullWidth>
                 <InputLabel id="segmento-label">Segmento</InputLabel>

@@ -26,12 +26,23 @@ interface AnalyticsChartsProps {
 export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataInicio, dataFim }) => {
   const theme = useTheme();
 
+  // Tratamento robusto para datas de entrada
+  const dInicioValid = (dataInicio && dataInicio.length >= 10 && !dataInicio.includes('d')) ? dataInicio : '2026-01-01';
+  const dFimValid = (dataFim && dataFim.length >= 10 && !dataFim.includes('d')) ? dataFim : '2026-12-31';
+
+  const mesInicioChave = dInicioValid.substring(0, 7);
+  const mesFimChave = dFimValid.substring(0, 7);
+
   // Gera dinamicamente a lista de chaves "YYYY-MM" no intervalo de data selecionado
   const obterMesesEvolucao = (): string[] => {
-    const meses: string[] = [];
-    const dataI = new Date(dataInicio + 'T00:00:00');
-    const dataF = new Date(dataFim + 'T00:00:00');
+    const dataI = new Date(dInicioValid + 'T00:00:00');
+    const dataF = new Date(dFimValid + 'T00:00:00');
 
+    if (isNaN(dataI.getTime()) || isNaN(dataF.getTime()) || dataI > dataF) {
+      return ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12'];
+    }
+
+    const meses: string[] = [];
     let dataAtual = new Date(dataI.getFullYear(), dataI.getMonth(), 15);
     const dataLimite = new Date(dataF.getFullYear(), dataF.getMonth(), 15);
 
@@ -41,12 +52,10 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
       meses.push(`${ano}-${mes}`);
       dataAtual.setMonth(dataAtual.getMonth() + 1);
     }
-    return meses;
+    return meses.length > 0 ? meses : ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12'];
   };
 
   const chavesMesesGrafico = obterMesesEvolucao();
-  const mesInicioChave = dataInicio.substring(0, 7);
-  const mesFimChave = dataFim.substring(0, 7);
 
   // 1. Preparar dados para o gráfico de evolução mensal
   const dadosMensais = chavesMesesGrafico.map((mesChave) => {
@@ -54,10 +63,18 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
     let totalComissaoMes = 0;
 
     vendas.forEach((v) => {
-      const celula = v.projecaoMensal[mesChave];
-      if (celula && celula.status !== 'Cancelada') {
-        totalVendaMes += celula.valorVenda || 0;
-        totalComissaoMes += celula.comissaoGerada || 0;
+      // Receita de comissão da parcela correspondente a mesChave
+      if (v.projecaoMensal) {
+        const celula = v.projecaoMensal[mesChave];
+        if (celula && celula.status !== 'Cancelada') {
+          totalComissaoMes += Number(celula.comissaoGerada || 0);
+        }
+      }
+
+      // Volume de vendas (VGV) no mês da contratação/venda
+      const mesVenda = v.dataVenda ? v.dataVenda.substring(0, 7) : (v.mesInicio || '');
+      if (mesVenda === mesChave && v.statusCliente !== 'Cancelado') {
+        totalVendaMes += Number(v.valorVenda || 0);
       }
     });
 
@@ -76,14 +93,13 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
   };
 
   vendas.forEach((v) => {
-    Object.keys(v.projecaoMensal).forEach((mes) => {
-      if (mes >= mesInicioChave && mes <= mesFimChave) {
-        const celula = v.projecaoMensal[mes];
-        if (celula && celula.status !== 'Cancelada' && celula.valorVenda > 0) {
-          segmentosMap[v.segmento] += celula.valorVenda;
-        }
+    if (v.statusCliente !== 'Cancelado') {
+      const mesVenda = v.dataVenda ? v.dataVenda.substring(0, 7) : (v.mesInicio || '');
+      if (!mesInicioChave || !mesFimChave || (mesVenda >= mesInicioChave && mesVenda <= mesFimChave)) {
+        const seg = v.segmento || 'Imóveis';
+        segmentosMap[seg] = (segmentosMap[seg] || 0) + Number(v.valorVenda || 0);
       }
-    });
+    }
   });
 
   const dadosSegmento = Object.keys(segmentosMap).map((key) => ({

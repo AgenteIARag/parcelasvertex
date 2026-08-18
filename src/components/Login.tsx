@@ -16,7 +16,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import AssessmentIcon from '@mui/icons-material/Assessment';
-import { supabase } from '../utils/supabase';
+import { supabase, obterUsuariosLocais } from '../utils/supabase';
 import type { Usuario } from '../types';
 
 interface LoginProps {
@@ -53,17 +53,27 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         throw fetchError;
       }
 
-      // Se não achou usuário ou a senha estiver incorreta
+      // Se não achou usuário no Supabase ou a senha estiver incorreta, tenta o banco local
       if (!data || data.senha !== senha) {
-        // Se for o primeiro acesso e tentar logar com o master padrão mas o banco deu erro ou não inicializou,
-        // criamos uma verificação optimistic local para o master padrão (master@apex.com / master123)
-        // apenas para garantir o acesso caso as tabelas remotas não tenham sido criadas!
+        // Tenta ver se existe nos usuários salvos localmente
+        const locais = obterUsuariosLocais();
+        const usuarioLocal = locais.find(
+          u => u.email.toLowerCase() === email.trim().toLowerCase() && u.senha === senha
+        );
+
+        if (usuarioLocal) {
+          onLoginSuccess(usuarioLocal);
+          setLoading(false);
+          return;
+        }
+
+        // Se for o primeiro acesso do master padrão
         if (email.trim().toLowerCase() === 'master@apex.com' && senha === 'master123') {
           const masterFallback: Usuario = {
             id: 'u_master',
-            nome: 'Administrador Master (Local)',
+            nome: 'Super Administrador Master',
             email: 'master@apex.com',
-            role: 'master',
+            role: 'super_master',
             permissoes: {
               visualizar: true,
               editarVendas: true,
@@ -71,20 +81,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               cadastrarRegras: true
             }
           };
-          // Salva optimistic na nuvem se possível em background
-          try {
-            await supabase.from('usuarios').upsert({
-              id: masterFallback.id,
-              nome: masterFallback.nome,
-              email: masterFallback.email,
-              senha: 'master123',
-              role: 'master',
-              permissoes: masterFallback.permissoes
-            });
-          } catch (e) {
-            console.warn('Erro ao salvar master padrão no Supabase remoto:', e);
-          }
-          
           onLoginSuccess(masterFallback);
           setLoading(false);
           return;
@@ -95,30 +91,46 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         return;
       }
 
-      // Login efetuado com sucesso!
+      // Login efetuado com sucesso via Supabase!
+      const isSuperMaster = data.email.toLowerCase() === 'master@apex.com' || data.role === 'super_master';
       const permissoesSeguras = data.permissoes ?? {
         visualizar: true,
-        editarVendas: data.role === 'master' || data.role === 'editor',
-        cadastrarVendedores: data.role === 'master' || data.role === 'editor',
-        cadastrarRegras: data.role === 'master' || data.role === 'editor'
+        editarVendas: isSuperMaster || data.role === 'master' || data.role === 'editor',
+        cadastrarVendedores: isSuperMaster || data.role === 'master' || data.role === 'editor',
+        cadastrarRegras: isSuperMaster || data.role === 'master' || data.role === 'editor'
       };
       onLoginSuccess({
         id: data.id,
         nome: data.nome,
         email: data.email,
-        role: data.role,
-        permissoes: permissoesSeguras
+        role: isSuperMaster ? 'super_master' : data.role,
+        permissoes: permissoesSeguras,
+        empresaId: isSuperMaster ? undefined : (data.empresa_id || undefined)
       });
     } catch (err: any) {
-      console.error('Erro de autenticação no Supabase:', err);
+      console.error('Erro de autenticação no Supabase, verificando usuários locais:', err);
       
-      // Fallback local se o banco estiver fora do ar ou sem tabelas
+      // Fallback local
+      const locais = obterUsuariosLocais();
+      const usuarioLocal = locais.find(
+        u => u.email.toLowerCase() === email.trim().toLowerCase() && u.senha === senha
+      );
+
+      if (usuarioLocal) {
+        if (usuarioLocal.email.toLowerCase() === 'master@apex.com') {
+          usuarioLocal.role = 'super_master';
+        }
+        onLoginSuccess(usuarioLocal);
+        setLoading(false);
+        return;
+      }
+
       if (email.trim().toLowerCase() === 'master@apex.com' && senha === 'master123') {
         onLoginSuccess({
           id: 'u_master',
-          nome: 'Administrador Master (Local)',
+          nome: 'Super Administrador Master',
           email: 'master@apex.com',
-          role: 'master',
+          role: 'super_master',
           permissoes: {
             visualizar: true,
             editarVendas: true,
@@ -127,7 +139,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           }
         });
       } else {
-        setError('Erro ao conectar ao servidor. Verifique sua conexão.');
+        setError('E-mail ou senha incorretos.');
       }
     } finally {
       setLoading(false);

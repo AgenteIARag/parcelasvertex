@@ -1,6 +1,7 @@
 // ========================================
 // Utilitários de Formatação — Centralizado
 // ========================================
+import type { StatusParcela } from '../types';
 
 const NOMES_MESES_ABR: Record<string, string> = {
   '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr',
@@ -67,3 +68,21 @@ export const obterNomeMesAtual = (): string => {
   const mes = String(hoje.getMonth() + 1).padStart(2, '0');
   return NOMES_MESES_ABR[mes] || 'Mês';
 };
+
+/**
+ * Calcula o status efetivo de uma parcela em tempo real com base na data de vencimento.
+ * Se o status salvo for 'A vencer' mas o vencimento já passou, retorna 'Vencida'.
+ * Garante consistência entre todos os componentes sem depender do valor gravado no banco.
+ * @param status  Status armazenado no banco/projeção
+ * @param dataVencimento  Data de vencimento no formato YYYY-MM-DD
+ */
+export const obterStatusEfetivo = (status: StatusParcela, dataVencimento: string): StatusParcela => {
+  if (status === 'A vencer' && dataVencimento) {
+    const hoje = obterDataHoje();
+    hoje.setHours(0, 0, 0, 0);
+    const venc = new Date(`${dataVencimento}T00:00:00`);
+    if (venc <= hoje) return 'Vencida';
+  }
+  return status;
+};
+

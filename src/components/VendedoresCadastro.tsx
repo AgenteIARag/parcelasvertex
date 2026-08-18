@@ -18,17 +18,24 @@ import {
   TextField,
   Grid,
   useTheme,
-  InputAdornment
+  InputAdornment,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Chip
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import PersonIcon from '@mui/icons-material/Person';
-import { type Vendedor, type UserPermissions } from '../types';
+import { type Vendedor, type UserPermissions, type Empresa, type Usuario } from '../types';
 
 interface VendedoresCadastroProps {
   vendedores: Vendedor[];
+  empresas?: Empresa[];
+  usuarioLogado?: Usuario | null;
   onAdicionarVendedor: (vendedor: Vendedor) => void;
   onEditarVendedor: (vendedor: Vendedor) => void;
   onExcluirVendedor: (id: string) => void;
@@ -37,6 +44,8 @@ interface VendedoresCadastroProps {
 
 export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
   vendedores,
+  empresas = [],
+  usuarioLogado,
   onAdicionarVendedor,
   onEditarVendedor,
   onExcluirVendedor,
@@ -48,7 +57,10 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [percentualComissao, setPercentualComissao] = useState<number | ''>('');
+  const [empresaIdForm, setEmpresaIdForm] = useState<string>('emp_vertex');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const isSuperMaster = usuarioLogado?.role === 'super_master' || usuarioLogado?.email?.toLowerCase() === 'master@apex.com';
 
   const handleOpenDialog = (vendedor?: Vendedor) => {
     if (vendedor) {
@@ -56,11 +68,13 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
       setNome(vendedor.nome);
       setEmail(vendedor.email);
       setPercentualComissao(vendedor.percentualComissao ?? '');
+      setEmpresaIdForm(vendedor.empresaId || (usuarioLogado?.empresaId || 'emp_vertex'));
     } else {
       setEditId(null);
       setNome('');
       setEmail('');
       setPercentualComissao('');
+      setEmpresaIdForm(isSuperMaster ? 'emp_vertex' : (usuarioLogado?.empresaId || 'emp_vertex'));
     }
     setErrors({});
     setOpenDialog(true);
@@ -86,12 +100,15 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
 
     if (Object.keys(tempErrors).length > 0) return;
 
+    const empresaIdFinal = isSuperMaster ? (empresaIdForm || 'emp_vertex') : (usuarioLogado?.empresaId || 'emp_vertex');
+
     const dadosVendedor: Vendedor = {
       id: editId || `vend_${Date.now()}`,
       nome: nome.trim(),
       email: email.trim(),
       ativo: true,
-      percentualComissao: percentualComissao === '' ? 0 : Number(percentualComissao)
+      percentualComissao: percentualComissao === '' ? 0 : Number(percentualComissao),
+      empresaId: empresaIdFinal
     };
 
     if (editId) {
@@ -160,6 +177,9 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
               <TableCell sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
                 E-mail
               </TableCell>
+              <TableCell sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
+                Empresa
+              </TableCell>
               <TableCell align="right" sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
                 Comissão Padrão (%)
               </TableCell>
@@ -197,6 +217,14 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
                   </TableCell>
                   <TableCell sx={{ color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
                     {vendedor.email}
+                  </TableCell>
+                  <TableCell sx={{ py: 1.5 }}>
+                    <Chip
+                      label={empresas.find(e => e.id === vendedor.empresaId)?.nome || 'Vertex'}
+                      size="small"
+                      variant="outlined"
+                      sx={{ fontSize: '0.7rem', borderRadius: 1.5 }}
+                    />
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 650, color: theme.palette.success.main, py: 1.5 }}>
                     {Number(vendedor.percentualComissao || 0).toFixed(2).replace('.', ',')}%
@@ -292,6 +320,29 @@ export const VendedoresCadastro: React.FC<VendedoresCadastroProps> = ({
                 helperText={errors.email}
               />
             </Grid>
+            {empresas.length > 0 && (
+              <Grid size={{ xs: 12 }}>
+                <FormControl fullWidth>
+                  <InputLabel id="vendedor-empresa-label">Empresa do Vendedor</InputLabel>
+                  <Select
+                    labelId="vendedor-empresa-label"
+                    value={empresaIdForm}
+                    label="Empresa do Vendedor"
+                    disabled={!isSuperMaster}
+                    onChange={(e) => setEmpresaIdForm(e.target.value)}
+                  >
+                    {empresas.map(emp => (
+                      <MenuItem key={emp.id} value={emp.id}>{emp.nome}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                {!isSuperMaster && (
+                  <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5, display: 'block', pl: 1 }}>
+                    🔒 Como Administrador Master da empresa, os vendedores cadastrados por você ficarão vinculados à sua própria empresa.
+                  </Typography>
+                )}
+              </Grid>
+            )}
             <Grid size={{ xs: 12 }}>
               <TextField
                 fullWidth

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -32,11 +32,20 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
-import SecurityIcon from '@mui/icons-material/Security';
-import { type Usuario, type UserRole, type UserPermissions } from '../types';
-import { obterUsuariosSupabase, salvarUsuarioSupabase, excluirUsuarioSupabase } from '../utils/supabase';
+import {
+  Switch,
+  InputAdornment
+} from '@mui/material';
+import { type Usuario, type UserRole, type UserPermissions, type Empresa, type Vendedor } from '../types';
+import { obterUsuariosSupabase, salvarUsuarioSupabase, excluirUsuarioSupabase, obterEmpresasSupabase, salvarVendedorSupabase } from '../utils/supabase';
 
-export const UsuariosCadastro: React.FC = () => {
+interface UsuariosCadastroProps {
+  usuarioLogado?: Usuario | null;
+  vendedores?: Vendedor[];
+  onSalvarVendedor?: (vendedor: Vendedor) => void;
+}
+
+export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogado, vendedores = [], onSalvarVendedor }) => {
   const theme = useTheme();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
@@ -59,14 +68,28 @@ export const UsuariosCadastro: React.FC = () => {
   
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [dbError, setDbError] = useState<string | null>(null);
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [empresaId, setEmpresaId] = useState<string>('');
+  const [vendedorIdForm, setVendedorIdForm] = useState<string>('');
+  const [cadastrarVendedor, setCadastrarVendedor] = useState<boolean>(true);
+  const [percentualComissao, setPercentualComissao] = useState<number | ''>('');
+
+  const isSuperMaster = usuarioLogado?.role === 'super_master' || usuarioLogado?.email.toLowerCase() === 'master@apex.com';
+
+  const usuariosExibidos = useMemo(() => {
+    if (isSuperMaster) return usuarios;
+    const empId = usuarioLogado?.empresaId || 'emp_vertex';
+    return usuarios.filter(u => (u.empresaId || 'emp_vertex') === empId);
+  }, [usuarios, isSuperMaster, usuarioLogado]);
 
   // Carrega os usuários na inicialização
   const carregarUsuarios = async () => {
     setLoading(true);
     setDbError(null);
     try {
-      const data = await obterUsuariosSupabase();
+      const [data, emps] = await Promise.all([obterUsuariosSupabase(), obterEmpresasSupabase()]);
       setUsuarios(data);
+      setEmpresas(emps);
     } catch (err) {
       console.error('Erro ao obter usuários:', err);
       setDbError('Não foi possível carregar os usuários do Supabase. Certifique-se de ter criado a tabela "usuarios".');
@@ -86,6 +109,11 @@ export const UsuariosCadastro: React.FC = () => {
       setEmail(user.email);
       setSenha(''); // Mantém em branco a menos que queira redefinir a senha
       setRole(user.role);
+      setEmpresaId(user.empresaId || '');
+      setVendedorIdForm(user.vendedorId || '');
+      const vend = vendedores.find(v => (user.vendedorId && v.id === user.vendedorId) || v.email.toLowerCase() === user.email.toLowerCase());
+      setCadastrarVendedor(!!vend || user.role === 'vendedor' || user.role === 'editor');
+      setPercentualComissao(vend?.percentualComissao ?? '');
       setPermissoes(user.permissoes || {
         visualizar: true,
         editarVendas: false,
@@ -99,6 +127,10 @@ export const UsuariosCadastro: React.FC = () => {
       setEmail('');
       setSenha('');
       setRole('visualizador');
+      setEmpresaId(isSuperMaster ? '' : (usuarioLogado?.empresaId || 'emp_vertex'));
+      setVendedorIdForm('');
+      setCadastrarVendedor(true);
+      setPercentualComissao('');
       setPermissoes({
         visualizar: true,
         editarVendas: false,
@@ -191,6 +223,33 @@ export const UsuariosCadastro: React.FC = () => {
 
     // Se for edição e a senha estiver em branco, mantém a senha atual do objeto carregado
     const senhaFinal = senha.trim() || (editId ? usuarios.find(u => u.id === editId)?.senha || '' : '');
+    const empresaIdFinal = isSuperMaster ? (empresaId || undefined) : (usuarioLogado?.empresaId || 'emp_vertex');
+
+    let vendedorIdFinal = vendedorIdForm;
+
+    if (cadastrarVendedor || role === 'vendedor') {
+      const vendExistente = vendedores.find(v => (vendedorIdForm && v.id === vendedorIdForm) || v.email.toLowerCase() === email.trim().toLowerCase());
+      const vendId = vendExistente?.id || `vend_${Date.now()}`;
+      vendedorIdFinal = vendId;
+
+      const vendedorSalvar: Vendedor = {
+        id: vendId,
+        nome: nome.trim(),
+        email: email.trim().toLowerCase(),
+        ativo: true,
+        percentualComissao: percentualComissao === '' ? 0 : Number(percentualComissao),
+        empresaId: empresaIdFinal
+      };
+
+      try {
+        await salvarVendedorSupabase(vendedorSalvar);
+        if (onSalvarVendedor) {
+          onSalvarVendedor(vendedorSalvar);
+        }
+      } catch (e) {
+        console.warn('Aviso ao salvar vendedor unificado:', e);
+      }
+    }
 
     const usuarioSalvar: Usuario = {
       id: editId || `u_${Date.now()}`,
@@ -198,7 +257,9 @@ export const UsuariosCadastro: React.FC = () => {
       email: email.trim().toLowerCase(),
       senha: senhaFinal,
       role,
-      permissoes
+      permissoes,
+      empresaId: empresaIdFinal,
+      vendedorId: (cadastrarVendedor || role === 'vendedor') ? vendedorIdFinal : undefined
     };
 
     setLoading(true);
@@ -279,65 +340,93 @@ export const UsuariosCadastro: React.FC = () => {
         <Table>
           <TableHead sx={{ bgcolor: theme.palette.mode === 'dark' ? '#1f2937' : '#f9fafb' }}>
             <TableRow>
-              <TableCell sx={{ fontWeight: 700 }}>Nome Completo</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>E-mail corporativo</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Perfil / Função</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Permissões Ativas</TableCell>
-              <TableCell align="center" sx={{ fontWeight: 700 }}>Ações</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
+                Nome Completo
+              </TableCell>
+              <TableCell sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
+                E-mail
+              </TableCell>
+              <TableCell sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
+                Empresa
+              </TableCell>
+              <TableCell sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
+                Perfil / Função
+              </TableCell>
+              <TableCell align="right" sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
+                Comissão Vendedor (%)
+              </TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5, width: 120 }}>
+                Ações
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {usuarios.length === 0 ? (
+            {usuariosExibidos.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 6, color: '#64748b' }}>
-                  Nenhum usuário secundário cadastrado no Supabase.
+                <TableCell colSpan={6} align="center" sx={{ py: 6, color: '#64748b' }}>
+                  Nenhum usuário cadastrado.
                 </TableCell>
               </TableRow>
             ) : (
-              usuarios.map((user) => (
-                <TableRow key={user.id} sx={{ '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.01)' : 'rgba(0,0,0,0.01)' } }}>
-                  <TableCell sx={{ fontWeight: 600 }}>{user.nome}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                    <Chip
-                      icon={<SecurityIcon style={{ fontSize: 13 }} />}
-                      label={user.role.toUpperCase()}
-                      size="small"
-                      color={user.role === 'master' ? 'secondary' : user.role === 'editor' ? 'primary' : 'default'}
-                      sx={{ fontWeight: 700, borderRadius: 1.5, fontSize: '0.68rem' }}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                      {user.permissoes?.editarVendas && <Chip label="Vendas" size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 20 }} />}
-                      {user.permissoes?.cadastrarVendedores && <Chip label="Vendedores" size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 20 }} />}
-                      {user.permissoes?.cadastrarRegras && <Chip label="Regras" size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 20 }} />}
-                      {(!user.permissoes?.editarVendas && !user.permissoes?.cadastrarVendedores && !user.permissoes?.cadastrarRegras) && (
-                        <Chip label="Apenas Visualizar" size="small" variant="outlined" sx={{ fontSize: '0.62rem', height: 20, color: '#94a3b8' }} />
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell align="center">
-                    <IconButton
-                      size="small"
-                      color="primary"
-                      onClick={() => handleOpenDialog(user)}
-                      sx={{ mr: 1, '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.15)' } }}
-                    >
-                      <EditIcon sx={{ fontSize: 18 }} />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      color="error"
-                      onClick={() => handleExcluir(user.id)}
-                      disabled={user.id === 'u_master'}
-                      sx={{ '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.15)' } }}
-                    >
-                      <DeleteIcon sx={{ fontSize: 18 }} />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))
+              usuariosExibidos.map((user) => {
+                const vend = vendedores.find(v => (user.vendedorId && v.id === user.vendedorId) || v.email.toLowerCase() === user.email.toLowerCase());
+                return (
+                  <TableRow key={user.id} sx={{ '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.01)' : 'rgba(0,0,0,0.01)' } }}>
+                    <TableCell sx={{ fontWeight: 600 }}>{user.nome}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={empresas.find(e => e.id === user.empresaId)?.nome || (user.empresaId ? user.empresaId : 'Global')}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontSize: '0.7rem', borderRadius: 1.5 }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={
+                          user.role === 'master' ? 'Master' :
+                          user.role === 'super_master' ? 'Super Master' :
+                          user.role === 'editor' ? 'Editor' :
+                          user.role === 'vendedor' ? 'Vendedor' :
+                          user.role === 'financeiro' ? 'Financeiro' : 'Visualizador'
+                        }
+                        color={
+                          user.role === 'super_master' ? 'error' :
+                          user.role === 'master' ? 'primary' :
+                          user.role === 'editor' ? 'info' :
+                          user.role === 'vendedor' ? 'warning' :
+                          user.role === 'financeiro' ? 'success' : 'default'
+                        }
+                        size="small"
+                        sx={{ fontWeight: 600, fontSize: '0.75rem' }}
+                      />
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 650, color: theme.palette.success.main }}>
+                      {vend ? `${Number(vend.percentualComissao || 0).toFixed(2).replace('.', ',')}%` : '-'}
+                    </TableCell>
+                    <TableCell align="center">
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => handleOpenDialog(user)}
+                        sx={{ mr: 1, '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.15)' } }}
+                      >
+                        <EditIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleExcluir(user.id)}
+                        disabled={user.id === 'u_master'}
+                        sx={{ '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.15)' } }}
+                      >
+                        <DeleteIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -403,6 +492,28 @@ export const UsuariosCadastro: React.FC = () => {
             </Grid>
             <Grid size={{ xs: 12 }}>
               <FormControl fullWidth>
+                <InputLabel id="empresa-select-label">Empresa</InputLabel>
+                <Select
+                  labelId="empresa-select-label"
+                  value={empresaId}
+                  label="Empresa"
+                  disabled={!isSuperMaster}
+                  onChange={(e) => setEmpresaId(e.target.value)}
+                >
+                  {isSuperMaster && <MenuItem value=""><em>Nenhuma (acesso global — somente Super Master)</em></MenuItem>}
+                  {empresas.map(emp => (
+                    <MenuItem key={emp.id} value={emp.id}>{emp.nome}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              {!isSuperMaster && (
+                <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5, display: 'block', pl: 1 }}>
+                  🔒 Como Administrador Master da empresa, os usuários cadastrados por você ficarão vinculados à sua própria empresa.
+                </Typography>
+              )}
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <FormControl fullWidth>
                 <InputLabel id="role-select-label">Perfil / Função</InputLabel>
                 <Select
                   labelId="role-select-label"
@@ -413,10 +524,69 @@ export const UsuariosCadastro: React.FC = () => {
                   <MenuItem value="visualizador">Visualizador (Apenas consulta)</MenuItem>
                   <MenuItem value="editor">Editor (Lançar vendas e vendedores)</MenuItem>
                   <MenuItem value="financeiro">Financeiro (Apenas receber parcelas)</MenuItem>
-                  <MenuItem value="master">Master (Controle administrative completo)</MenuItem>
+                  <MenuItem value="vendedor">Vendedor (Acesso restrito às próprias vendas)</MenuItem>
+                  <MenuItem value="master">Master (Controle administrativo completo)</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
+
+            {role === 'vendedor' && vendedores.length > 0 && (
+              <Grid size={{ xs: 12 }}>
+                <FormControl fullWidth>
+                  <InputLabel id="vendedor-select-label">Vendedor Vinculado (Opcional se já cadastrado)</InputLabel>
+                  <Select
+                    labelId="vendedor-select-label"
+                    value={vendedorIdForm}
+                    label="Vendedor Vinculado (Opcional se já cadastrado)"
+                    onChange={(e) => setVendedorIdForm(e.target.value)}
+                  >
+                    <MenuItem value=""><em>Criar novo cadastro automático de Vendedor</em></MenuItem>
+                    {vendedores.map(v => (
+                      <MenuItem key={v.id} value={v.id}>{v.nome} ({v.email})</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
+
+            <Grid size={{ xs: 12 }}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={cadastrarVendedor}
+                    onChange={(e) => setCadastrarVendedor(e.target.checked)}
+                    color="secondary"
+                  />
+                }
+                label="Habilitar como Vendedor da consultoria (Cadastrar na lista de Vendedores e Comissões)"
+              />
+            </Grid>
+
+            {cadastrarVendedor && (
+              <Grid size={{ xs: 12 }}>
+                <TextField
+                  fullWidth
+                  label="Comissão Padrão do Vendedor (%)"
+                  type="number"
+                  placeholder="Ex: 1.5"
+                  value={percentualComissao}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
+                    setPercentualComissao(val);
+                  }}
+                  slotProps={{
+                    input: {
+                      endAdornment: <InputAdornment position="end">%</InputAdornment>
+                    },
+                    htmlInput: {
+                      step: '0.1',
+                      min: '0',
+                      max: '100'
+                    }
+                  }}
+                />
+              </Grid>
+            )}
             
             {/* Bloco de permissões finas */}
             <Grid size={{ xs: 12 }}>

@@ -1,7 +1,15 @@
 export type SegmentoType = 'Imóveis' | 'Autos Leves' | 'Pesados';
 
+export interface Empresa {
+  id: string;
+  nome: string;
+  ativo: boolean;
+  empresaMaeId?: string; // Se preenchido, esta é uma empresa filha
+}
+
 export interface RegraMaster {
   id: string;
+  empresaId?: string; // ID da empresa proprietária da regra (empresa mãe)
   segmento: SegmentoType;
   tabela: string;
   qtdParcelas: number;
@@ -9,7 +17,20 @@ export interface RegraMaster {
   percentualComissaoContemplacao?: number; // % de comissão pago na contemplação (ex: 2.5 = 2.5%)
 }
 
-export type StatusParcela = 'A vencer' | 'Vencida' | 'Paga' | 'Recebida' | 'Cancelada';
+/**
+ * Regra customizada de uma empresa filha.
+ * Referencia uma RegraMaster da empresa mãe, e define percentuais menores
+ * para a filha. A diferença (mãe - filha) gera parcelas espelho para a mãe.
+ */
+export interface RegraFilha {
+  id: string;
+  empresaFilhaId: string;
+  regraMasterId: string;      // Referência à regra da mãe
+  percentualComissao: number; // % da filha (deve ser ≤ % da mãe)
+  percentualComissaoContemplacao?: number; // % contempl. da filha
+}
+
+export type StatusParcela = 'A vencer' | 'Vencida' | 'Paga' | 'Cancelada';
 
 /** Status independente do pagamento da comissão ao parceiro/vendedor */
 export type StatusComissao = 'A pagar' | 'Paga' | 'Contestada';
@@ -25,6 +46,7 @@ export interface MesProjecao {
   dataVencimento: string; // Formato YYYY-MM-DD
   dataPrevisaoRecebimento?: string; // Próxima data de corte após o vencimento (YYYY-MM-DD)
   dataRecebimento?: string; // Data real de recebimento da parcela, editável pelo usuário (YYYY-MM-DD). Inicializa igual a dataVencimento
+  recebida?: boolean; // Indica se a comissão foi recebida
 }
 
 export type MesesAno =
@@ -49,6 +71,7 @@ export interface Vendedor {
   email: string;
   ativo: boolean;
   percentualComissao?: number; // Comissão padrão do vendedor (%)
+  empresaId?: string; // ID da empresa à qual o vendedor pertence
 }
 
 export interface LancamentoVenda {
@@ -77,6 +100,12 @@ export interface LancamentoVenda {
   comissaoContemplacao?: number; // Valor da comissão gerada na contemplação
   numeroRelatorio?: string; // Número do relatório gerado pela ADM
   dataRelatorio?: string; // Data do relatório ADM (YYYY-MM-DD)
+  empresaId?: string; // ID da empresa proprietária do registro
+
+  // Campos de hierarquia empresa mãe/filha
+  vendaOrigemId?: string;   // Se preenchido, esta é uma venda espelho da empresa mãe
+  isVendaEspelho?: boolean; // Flag explícita: true = venda espelho (diferencial da mãe)
+  empresaFilhaOrigemId?: string; // ID da empresa filha que originou esta venda espelho
 }
 
 export const LISTA_MESES: MesesAno[] = [
@@ -109,7 +138,7 @@ export const NOMES_MESES_EXIBICAO: Record<MesesAno, string> = {
   dezembro: 'Dez/26'
 };
 
-export type UserRole = 'master' | 'editor' | 'visualizador' | 'financeiro';
+export type UserRole = 'super_master' | 'master' | 'editor' | 'visualizador' | 'financeiro' | 'vendedor';
 
 export interface UserPermissions {
   visualizar: boolean;
@@ -128,5 +157,7 @@ export interface Usuario {
   senha?: string;
   role: UserRole;
   permissoes: UserPermissions;
+  empresaId?: string; // ID da empresa à qual o usuário pertence
+  vendedorId?: string; // ID do vendedor vinculado (quando role === 'vendedor')
   created_at?: string;
 }

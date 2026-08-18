@@ -1,9 +1,9 @@
 import { type RegraMaster, type LancamentoVenda, type ProjecaoMensalType, type StatusParcela, type MesesAno, type Vendedor, LISTA_MESES } from '../types';
 
 export const INITIAL_VENDEDORES: Vendedor[] = [
-  { id: 'vend_1', nome: 'Carlos Silva', email: 'carlos.silva@consultoria.com', ativo: true },
-  { id: 'vend_2', nome: 'Roberta Lima', email: 'roberta.lima@consultoria.com', ativo: true },
-  { id: 'vend_3', nome: 'Eduardo Souza', email: 'eduardo.souza@consultoria.com', ativo: true }
+  { id: 'vend_1', nome: 'Carlos Silva', email: 'carlos.silva@consultoria.com', ativo: true, empresaId: 'emp_vertex' },
+  { id: 'vend_2', nome: 'Roberta Lima', email: 'roberta.lima@consultoria.com', ativo: true, empresaId: 'emp_vertex' },
+  { id: 'vend_3', nome: 'Eduardo Souza', email: 'eduardo.souza@consultoria.com', ativo: true, empresaId: 'emp_vertex' }
 ];
 
 export const INITIAL_REGRAS: RegraMaster[] = [
@@ -175,7 +175,8 @@ const gerarVendaMock = (
     projecaoMensal: projecaoAtualizada,
     totalVendas,
     totalComissoes,
-    statusCliente: 'Ativo'
+    statusCliente: 'Ativo',
+    empresaId: 'emp_vertex'
   };
 };
 

@@ -37,7 +37,7 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
           if (celula.status !== 'Cancelada' && celula.valorVenda > 0) {
             receitaTotalComissoes += celula.comissaoGerada || 0;
             clientesAtivosSet.add(v.cliente);
-            if (celula.status === 'Recebida') {
+            if (celula.recebida || (celula.status as string) === 'Recebida') {
               comissoesRecebidasNoPeriodo += celula.comissaoGerada || 0;
             }
           } else if (celula.status === 'Cancelada') {

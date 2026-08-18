@@ -19,6 +19,11 @@ import {
   TextField,
   InputAdornment,
 } from '@mui/material';
+import Checkbox from '@mui/material/Checkbox';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import TableSortLabel from '@mui/material/TableSortLabel';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
@@ -29,7 +34,11 @@ import SearchIcon from '@mui/icons-material/Search';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import CancelIcon from '@mui/icons-material/Cancel';
-import type { LancamentoVenda, StatusParcela } from '../types';
+import EditIcon from '@mui/icons-material/Edit';
+import Snackbar from '@mui/material/Snackbar';
+import type { LancamentoVenda, Vendedor, RegraMaster, UserPermissions, StatusParcela } from '../types';
+import { EditarVendaDialog } from './SimuladorVendas';
+import { obterStatusEfetivo } from '../utils/formatters';
 
 // ──────────────────────────────────────────────────────────
 // Helpers
@@ -71,15 +80,7 @@ const calcularDataPrevisaoRecebimento = (
   return `${ano}-${mes}-${dia}`;
 };
 
-const obterStatusEfetivo = (status: StatusParcela, dataVencimento: string): StatusParcela => {
-  if (status === 'A vencer' && dataVencimento) {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const venc = new Date(`${dataVencimento}T00:00:00`);
-    if (venc <= hoje) return 'Vencida';
-  }
-  return status;
-};
+
 
 // ──────────────────────────────────────────────────────────
 // Tipos internos
@@ -87,6 +88,7 @@ const obterStatusEfetivo = (status: StatusParcela, dataVencimento: string): Stat
 
 interface ParcelaLinha {
   id: string;
+  vendaId: string;
   cliente: string;
   pac: string;
   vendedorNome: string;
@@ -99,7 +101,8 @@ interface ParcelaLinha {
   comissao: number;
   valorParcela: number;
   valorVenda: number;
-  status: StatusParcela;
+  statusParcela: StatusParcela;
+  situacaoRecebimento: 'A receber' | 'Recebida';
   parcelaIndex: number;
   qtdParcelas: number;
   numeroRelatorio?: string;   // Nº do relatório ADM da venda
@@ -132,13 +135,14 @@ const calcularTotaisStatus = (itens: ParcelaLinha[]): TotaisStatus => {
   const t: TotaisStatus = { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, aReceber: 0 };
   itens.forEach((i) => {
     const v = i.comissao;
-    if (i.status === 'A vencer')  t.aVencer   += v;
-    else if (i.status === 'Vencida')   t.vencida   += v;
-    else if (i.status === 'Paga')      t.paga      += v;
-    else if (i.status === 'Recebida')  t.recebida  += v;
-    else if (i.status === 'Cancelada') t.cancelada += v;
+    if (i.statusParcela === 'Cancelada') t.cancelada += v;
+    else if (i.statusParcela === 'Paga') t.paga += v;
+    else if (i.statusParcela === 'Vencida') t.vencida += v;
+    else if (i.statusParcela === 'A vencer') t.aVencer += v;
+
+    if (i.situacaoRecebimento === 'Recebida') t.recebida += v;
+    else t.aReceber += v;
   });
-  t.aReceber = t.aVencer + t.vencida;
   return t;
 };
 
@@ -149,10 +153,11 @@ const calcularTotaisStatus = (itens: ParcelaLinha[]): TotaisStatus => {
 const StatusValorRow = ({ totais }: { totais: TotaisStatus }) => {
   const items = [
     { label: 'Cancelada', value: totais.cancelada, color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
-    { label: 'A vencer',  value: totais.aVencer,   color: '#6366f1', bg: 'rgba(99,102,241,0.12)' },
-    { label: 'Vencida',   value: totais.vencida,   color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-    { label: 'Paga',      value: totais.paga,       color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
-    { label: 'Recebida',  value: totais.recebida,   color: '#0ea5e9', bg: 'rgba(14,165,233,0.12)' },
+    { label: 'A vencer',  value: totais.aVencer,   color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
+    { label: 'Vencida',   value: totais.vencida,   color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+    { label: 'Paga',      value: totais.paga,      color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
+    { label: 'A receber', value: totais.aReceber,  color: '#f97316', bg: 'rgba(249,115,22,0.12)' },
+    { label: 'Recebida',  value: totais.recebida,  color: '#0ea5e9', bg: 'rgba(14,165,233,0.12)' },
   ].filter((item) => item.value > 0);
 
   if (items.length === 0) return null;
@@ -174,51 +179,224 @@ const StatusValorRow = ({ totais }: { totais: TotaisStatus }) => {
           </Box>
         </Tooltip>
       ))}
-      {totais.aReceber > 0 && (
-        <>
-          <Box sx={{ width: '1px', height: 28, bgcolor: 'divider', mx: 0.5 }} />
-          <Tooltip title="Ainda não recebido (A vencer + Vencida)">
-            <Box sx={{
-              display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
-              px: 1.2, py: 0.3, borderRadius: 1.5,
-              border: '1.5px solid #f59e0b',
-              bgcolor: 'rgba(245,158,11,0.08)',
-              color: '#f59e0b',
-            }}>
-              <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                ★ A Receber
-              </Typography>
-              <Typography sx={{ fontSize: '0.78rem', fontWeight: 900, lineHeight: 1.2, fontFamily: 'Outfit, sans-serif' }}>
-                {formatarMoeda(totais.aReceber)}
-              </Typography>
-            </Box>
-          </Tooltip>
-        </>
-      )}
     </Box>
   );
 };
 
 // ──────────────────────────────────────────────────────────
-// Sub-componente: Linha de KPI do período
+// Sub-componente: Badging de Status e Recebimento
 // ──────────────────────────────────────────────────────────
 
-const StatusBadge = ({ status }: { status: StatusParcela }) => {
+const StatusParcelaBadge = ({ status }: { status: StatusParcela }) => {
   const map: Record<StatusParcela, { color: string; bg: string; icon: React.ReactNode }> = {
-    'A vencer':  { color: '#6366f1', bg: 'rgba(99,102,241,0.12)',  icon: <HourglassEmptyIcon sx={{ fontSize: 12 }} /> },
-    'Vencida':   { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  icon: <HourglassEmptyIcon sx={{ fontSize: 12 }} /> },
-    'Paga':      { color: '#10b981', bg: 'rgba(16,185,129,0.12)',  icon: <CheckCircleIcon sx={{ fontSize: 12 }} /> },
-    'Recebida':  { color: '#0ea5e9', bg: 'rgba(14,165,233,0.12)',  icon: <CheckCircleIcon sx={{ fontSize: 12 }} /> },
-    'Cancelada': { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   icon: <CancelIcon sx={{ fontSize: 12 }} /> },
+    'A vencer':  { color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',   icon: <HourglassEmptyIcon sx={{ fontSize: 12 }} /> },
+    'Vencida':   { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',    icon: <CancelIcon sx={{ fontSize: 12 }} /> },
+    'Paga':      { color: '#10b981', bg: 'rgba(16,185,129,0.12)',   icon: <CheckCircleIcon sx={{ fontSize: 12 }} /> },
+    'Cancelada': { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',    icon: <CancelIcon sx={{ fontSize: 12 }} /> },
   };
   const s = map[status] || map['A vencer'];
   return (
-    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, px: 1, py: 0.25,
-      borderRadius: 99, bgcolor: s.bg, color: s.color, fontWeight: 700, fontSize: '0.7rem' }}>
+    <Box sx={{
+      display: 'inline-flex', alignItems: 'center', gap: 0.4, px: 1, py: 0.25,
+      borderRadius: 99, bgcolor: s.bg, color: s.color, fontWeight: 700, fontSize: '0.7rem'
+    }}>
       {s.icon} {status}
     </Box>
   );
 };
+
+const SituacaoRecebimentoBadge = ({ situacao }: { situacao: 'A receber' | 'Recebida' }) => {
+  const isRecebida = situacao === 'Recebida';
+  const color = isRecebida ? '#0ea5e9' : '#f97316';
+  const bg = isRecebida ? 'rgba(14,165,233,0.12)' : 'rgba(249,115,22,0.12)';
+  const icon = isRecebida ? <CheckCircleIcon sx={{ fontSize: 12 }} /> : <HourglassEmptyIcon sx={{ fontSize: 12 }} />;
+
+  return (
+    <Tooltip title="Situação do recebimento (Informação não editável)">
+      <Box sx={{
+        display: 'inline-flex', alignItems: 'center', gap: 0.4, px: 1, py: 0.25,
+        borderRadius: 99, bgcolor: bg, color: color, fontWeight: 700, fontSize: '0.7rem',
+        userSelect: 'none', cursor: 'default'
+      }}>
+        {icon} {situacao}
+      </Box>
+    </Tooltip>
+  );
+};
+
+// ──────────────────────────────────────────────────────────
+// PDF Export Helper
+// ──────────────────────────────────────────────────────────
+
+const exportarRecebimentosParaPDF = (mesAnoFormatado: string, itens: ParcelaLinha[], totais: { totalComissoes: number, totalCredito: number }) => {
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  // Título e Header
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(99, 102, 241); // Indigo
+  doc.text('APEX - Relatório de Previsão de Recebimentos', 14, 15);
+
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Período de Referência: ${mesAnoFormatado}`, 14, 21);
+
+  // Resumo Financeiro
+  doc.setFont('helvetica', 'bold');
+  doc.setFillColor(248, 250, 252);
+  doc.rect(14, 25, 269, 15, 'F');
+  doc.setFontSize(10);
+  doc.setTextColor(30, 41, 59);
+  doc.text(`Total de Parcelas: ${itens.length}`, 20, 34);
+  doc.text(`Valor Total do Crédito: ${formatarMoeda(totais.totalCredito)}`, 100, 34);
+  doc.text(`Comissões a Receber: ${formatarMoeda(totais.totalComissoes)}`, 190, 34);
+
+  // Tabela
+  const headers = [
+    'Cliente / PAC',
+    'Vendedor',
+    'Data Venda',
+    'Vencimento',
+    'Nº Rel ADM',
+    'Data Rel',
+    'Valor da Cota',
+    'Parcela',
+    'Tabela',
+    'Status Parcela',
+    'Recebimento',
+    'Parcela Nº',
+    'Comissão'
+  ];
+
+  const rows = itens.map(item => [
+    item.cliente + (item.pac ? `\nPAC: ${item.pac}` : ''),
+    item.vendedorNome || '—',
+    item.dataVenda ? formatarData(item.dataVenda) : '—',
+    formatarData(item.dataVencimento),
+    item.numeroRelatorio || '—',
+    item.dataRelatorio ? formatarData(item.dataRelatorio) : '—',
+    formatarMoeda(item.valorVenda),
+    formatarMoeda(item.valorParcela),
+    item.tabela,
+    item.statusParcela,
+    item.situacaoRecebimento,
+    `${item.parcelaIndex}/${item.qtdParcelas}`,
+    formatarMoeda(item.comissao)
+  ]);
+
+  autoTable(doc, {
+    startY: 45,
+    head: [headers],
+    body: rows,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [99, 102, 241],
+      textColor: [255, 255, 255],
+      fontSize: 8,
+      fontStyle: 'bold',
+      halign: 'center',
+      valign: 'middle'
+    },
+    bodyStyles: {
+      fontSize: 7.5,
+      textColor: [51, 65, 85],
+      valign: 'top'
+    },
+    columnStyles: {
+      0: { cellWidth: 32 }, // Cliente / PAC
+      1: { cellWidth: 18 }, // Vendedor
+      2: { cellWidth: 15 }, // Data Venda
+      3: { cellWidth: 15 }, // Vencimento
+      4: { cellWidth: 16 }, // Nº Rel ADM
+      5: { cellWidth: 15 }, // Data Rel
+      6: { cellWidth: 18, halign: 'right' }, // Valor da Cota
+      7: { cellWidth: 18, halign: 'right' }, // Parcela
+      8: { cellWidth: 25 }, // Tabela
+      9: { cellWidth: 18, halign: 'center' }, // Status Parcela
+      10: { cellWidth: 18, halign: 'center' }, // Recebimento
+      11: { cellWidth: 12, halign: 'center' }, // Parcela Nº
+      12: { cellWidth: 18, halign: 'right' } // Comissão
+    },
+    margin: { left: 14, right: 14 }
+  });
+
+  // Adicionar numeração de página no final
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    const numPaginaStr = `Página ${i} de ${totalPages}`;
+    doc.text(numPaginaStr, 283 - doc.getTextWidth(numPaginaStr), 200);
+    doc.text('Gerado por APEX - Previsão de Recebimentos', 14, 200);
+  }
+
+  // Salvar PDF
+  doc.save(`apex_recebimentos_${mesAnoFormatado.replace('/', '_')}.pdf`);
+};
+
+// ──────────────────────────────────────────────────────────
+// Helper de Ordenação Genérica
+// ──────────────────────────────────────────────────────────
+
+type Order = 'asc' | 'desc';
+
+function obterValorOrdenacao(item: ParcelaLinha, campo: string) {
+  switch (campo) {
+    case 'cliente':
+      return item.cliente || '';
+    case 'vendedorNome':
+      return item.vendedorNome || '';
+    case 'dataVenda':
+      return item.dataVenda || '';
+    case 'dataVencimento':
+      return item.dataVencimento || '';
+    case 'numeroRelatorio':
+      return item.numeroRelatorio || '';
+    case 'dataRelatorio':
+      return item.dataRelatorio || '';
+    case 'valorVenda':
+      return item.valorVenda || 0;
+    case 'valorParcela':
+      return item.valorParcela || 0;
+    case 'tabela':
+      return item.tabela || '';
+    case 'statusParcela':
+      return item.statusParcela || '';
+    case 'situacaoRecebimento':
+      return item.situacaoRecebimento || '';
+    case 'parcelaIndex':
+      return item.parcelaIndex || 0;
+    case 'comissao':
+      return item.comissao || 0;
+    default:
+      return '';
+  }
+}
+
+function ordenarItens(itens: ParcelaLinha[], orderBy: string, order: Order): ParcelaLinha[] {
+  return [...itens].sort((a, b) => {
+    const valA = obterValorOrdenacao(a, orderBy);
+    const valB = obterValorOrdenacao(b, orderBy);
+
+    if (typeof valA === 'number' && typeof valB === 'number') {
+      return order === 'asc' ? valA - valB : valB - valA;
+    }
+
+    const strA = String(valA).toLowerCase();
+    const strB = String(valB).toLowerCase();
+
+    if (strA < strB) return order === 'asc' ? -1 : 1;
+    if (strA > strB) return order === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
 
 // ──────────────────────────────────────────────────────────
 // Sub-componente: Sub-grupo por data de corte
@@ -229,11 +407,23 @@ const SubGrupoData = ({
   itens,
   totalComissoes,
   totalCredito,
+  bgCard,
+  selecionadas,
+  onToggleSelecionar,
+  onToggleSelecionarData,
+  onEditarVenda,
+  permissoes,
 }: {
   dataRecebimento: string;
   itens: ParcelaLinha[];
   totalComissoes: number;
   totalCredito: number;
+  bgCard?: string;
+  selecionadas: string[];
+  onToggleSelecionar: (id: string) => void;
+  onToggleSelecionarData: (ids: string[], marcar: boolean) => void;
+  onEditarVenda?: (vendaId: string) => void;
+  permissoes?: UserPermissions;
 }) => {
   const totaisStatus = calcularTotaisStatus(itens);
   const theme = useTheme();
@@ -242,6 +432,37 @@ const SubGrupoData = ({
   const hoje = new Date().toISOString().split('T')[0];
   const isHoje = dataRecebimento === hoje;
   const isPast = dataRecebimento < hoje;
+
+  // Estados de Ordenação
+  const [orderBy, setOrderBy] = useState<string>('cliente');
+  const [order, setOrder] = useState<Order>('asc');
+
+  const handleRequestSort = (property: string) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
+  const colunas = [
+    { label: 'Cliente / PAC', field: 'cliente' },
+    { label: 'Vendedor', field: 'vendedorNome' },
+    { label: 'Data Venda', field: 'dataVenda' },
+    { label: 'Vencimento', field: 'dataVencimento' },
+    { label: 'Nº Rel ADM', field: 'numeroRelatorio' },
+    { label: 'Data Rel', field: 'dataRelatorio' },
+    { label: 'Valor da Cota', field: 'valorVenda' },
+    { label: 'Parcela', field: 'valorParcela' },
+    { label: 'Tabela', field: 'tabela' },
+    { label: 'Status Parcela', field: 'statusParcela' },
+    { label: 'Recebimento', field: 'situacaoRecebimento' },
+    { label: 'Parcela Nº', field: 'parcelaIndex' },
+    { label: 'Comissão', field: 'comissao' },
+    { label: 'Ações', field: 'acoes' },
+  ];
+
+  const itensOrdenados = useMemo(() => {
+    return ordenarItens(itens, orderBy, order);
+  }, [itens, orderBy, order]);
 
   return (
     <Box sx={{ borderBottom: `1px solid ${isDark ? '#1f2937' : '#f1f5f9'}`, '&:last-child': { borderBottom: 0 } }}>
@@ -339,25 +560,92 @@ const SubGrupoData = ({
 
       {/* Tabela do sub-grupo */}
       <Collapse in={open} timeout="auto" unmountOnExit>
-        <TableContainer>
+        <TableContainer sx={{ overflowX: 'auto', width: '100%' }}>
           <Table size="small">
             <TableHead>
               <TableRow>
-                {['Cliente / PAC', 'Vendedor', 'Data Venda', 'Mês Ref.', 'Vencimento', 'Corte (Últ.dia)', 'Nº Relatório ADM', 'Data Relatório', 'Valor da Cota', 'Parcela', 'Tabela', 'Status', 'Parcela Nº', 'Comissão'].map((h) => (
-                  <TableCell key={h} sx={{
-                    fontWeight: 700, fontSize: '0.68rem', color: 'text.secondary',
-                    bgcolor: isDark ? '#0a0e18' : '#f8fafc', textTransform: 'uppercase',
-                    letterSpacing: '0.4px', whiteSpace: 'nowrap', py: 0.8,
-                    pl: h === 'Cliente / PAC' ? 4 : undefined,
-                  }}>
-                    {h}
-                  </TableCell>
-                ))}
+                <TableCell sx={{
+                  position: 'sticky',
+                  left: 0,
+                  zIndex: 10,
+                  width: 50,
+                  minWidth: 50,
+                  bgcolor: isDark ? '#0a0e18' : '#f8fafc',
+                  py: 0.8,
+                  pl: 2,
+                }}>
+                  <Checkbox
+                    size="small"
+                    checked={itens.length > 0 && itens.every(i => selecionadas.includes(i.id))}
+                    indeterminate={itens.some(i => selecionadas.includes(i.id)) && !itens.every(i => selecionadas.includes(i.id))}
+                    onChange={(e) => onToggleSelecionarData(itens.map(i => i.id), e.target.checked)}
+                  />
+                </TableCell>
+                {colunas.map((col, index) => {
+                  let stickySx = {};
+                  if (index === 0) {
+                    stickySx = {
+                      position: 'sticky',
+                      left: 50,
+                      zIndex: 10,
+                      width: 220,
+                      minWidth: 220,
+                      bgcolor: isDark ? '#0a0e18' : '#f8fafc',
+                    };
+                  } else if (index === 1) {
+                    stickySx = {
+                      position: 'sticky',
+                      left: 270,
+                      zIndex: 10,
+                      width: 120,
+                      minWidth: 120,
+                      bgcolor: isDark ? '#0a0e18' : '#f8fafc',
+                    };
+                  } else if (index === 2) {
+                    stickySx = {
+                      position: 'sticky',
+                      left: 390,
+                      zIndex: 10,
+                      width: 100,
+                      minWidth: 100,
+                      bgcolor: isDark ? '#0a0e18' : '#f8fafc',
+                      borderRight: `1px solid ${theme.palette.divider}`,
+                    };
+                  }
+                  const isSortedActive = orderBy === col.field;
+                  return (
+                    <TableCell key={col.label} sx={{
+                      fontWeight: 700, fontSize: '0.68rem', color: 'text.secondary',
+                      bgcolor: isDark ? '#0a0e18' : '#f8fafc', textTransform: 'uppercase',
+                      letterSpacing: '0.4px', whiteSpace: 'nowrap', py: 0.8,
+                      pl: col.label === 'Cliente / PAC' ? 4 : undefined,
+                      ...stickySx
+                    }}>
+                      <TableSortLabel
+                        active={isSortedActive}
+                        direction={isSortedActive ? order : 'asc'}
+                        onClick={() => handleRequestSort(col.field)}
+                        sx={{
+                          '&.MuiTableSortLabel-root': {
+                            color: isSortedActive ? 'text.primary' : 'inherit',
+                          },
+                          '&.MuiTableSortLabel-root:hover': {
+                            color: 'text.primary',
+                          },
+                          '& .MuiTableSortLabel-icon': {
+                            color: `${theme.palette.primary.main} !important`,
+                          }
+                        }}
+                      >
+                        {col.label}
+                      </TableSortLabel>
+                    </TableCell>
+                  );
+                })}
               </TableRow>
             </TableHead>
             <TableBody>
-              {[...itens]
-                .sort((a, b) => a.cliente.localeCompare(b.cliente, 'pt-BR'))
+              {itensOrdenados
                 .map((item, idx, arr) => {
                   const isFirstOfGroup = idx === 0 || item.cliente !== arr[idx - 1].cliente;
                   const isLastOfGroup  = idx === arr.length - 1 || item.cliente !== arr[idx + 1].cliente;
@@ -366,18 +654,45 @@ const SubGrupoData = ({
                       key={item.id}
                       hover
                       sx={{
+                        bgcolor: bgCard && bgCard !== 'transparent' ? bgCard : (isDark ? '#111827' : '#ffffff'),
                         '&:last-child td': { border: 0 },
+                        '&:hover': {
+                          bgcolor: isDark ? 'rgba(255, 255, 255, 0.08) !important' : 'rgba(0, 0, 0, 0.04) !important',
+                        },
                         ...(isFirstOfGroup && idx > 0 ? {
                           '& td': { borderTop: `2px solid ${isDark ? '#1f2937' : '#e5e7eb'} !important` },
                         } : {}),
                       }}
                     >
+                      {/* Checkbox de Linha */}
+                      <TableCell sx={{
+                        position: 'sticky',
+                        left: 0,
+                        zIndex: 1,
+                        bgcolor: 'inherit',
+                        width: 50,
+                        minWidth: 50,
+                        py: 0.8,
+                        pl: 2,
+                      }}>
+                        <Checkbox
+                          size="small"
+                          checked={selecionadas.includes(item.id)}
+                          onChange={() => onToggleSelecionar(item.id)}
+                        />
+                      </TableCell>
                       {/* Célula Cliente/PAC: sempre visível, mas mantendo a borda no topo do grupo */}
                       <TableCell
                         sx={{
                           py: 0.8, pl: 4,
                           borderBottom: isLastOfGroup ? undefined : 'none',
                           verticalAlign: 'top',
+                          position: 'sticky',
+                          left: 50,
+                          zIndex: 1,
+                          bgcolor: 'inherit',
+                          width: 220,
+                          minWidth: 220,
                         }}
                       >
                         <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.78rem' }}>{item.cliente}</Typography>
@@ -387,20 +702,31 @@ const SubGrupoData = ({
                           </Typography>
                         )}
                       </TableCell>
-                      <TableCell sx={{ py: 0.8, fontSize: '0.75rem', color: 'text.secondary' }}>
+                      <TableCell sx={{
+                        py: 0.8, fontSize: '0.75rem', color: 'text.secondary',
+                        position: 'sticky',
+                        left: 270,
+                        zIndex: 1,
+                        bgcolor: 'inherit',
+                        width: 120,
+                        minWidth: 120,
+                      }}>
                         {item.vendedorNome || '—'}
                       </TableCell>
-                      <TableCell sx={{ py: 0.8, fontSize: '0.75rem', whiteSpace: 'nowrap', color: 'text.secondary' }}>
+                      <TableCell sx={{
+                        py: 0.8, fontSize: '0.75rem', whiteSpace: 'nowrap', color: 'text.secondary',
+                        position: 'sticky',
+                        left: 390,
+                        zIndex: 1,
+                        bgcolor: 'inherit',
+                        width: 100,
+                        minWidth: 100,
+                        borderRight: `1px solid ${theme.palette.divider}`,
+                      }}>
                         {item.dataVenda ? formatarData(item.dataVenda) : '—'}
                       </TableCell>
                       <TableCell sx={{ py: 0.8, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                        {formatarMesAno(item.mesReferencia)}
-                      </TableCell>
-                      <TableCell sx={{ py: 0.8, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                         {formatarData(item.dataVencimento)}
-                      </TableCell>
-                      <TableCell sx={{ py: 0.8, fontSize: '0.72rem', color: '#6366f1', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                        {formatarData(item.dataPrevisaoRecebimento)}
                       </TableCell>
                       <TableCell sx={{ py: 0.8, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
                         {item.numeroRelatorio ? (
@@ -422,13 +748,38 @@ const SubGrupoData = ({
                         {item.tabela}
                       </TableCell>
                       <TableCell sx={{ py: 0.8 }}>
-                        <StatusBadge status={item.status} />
+                        <StatusParcelaBadge status={item.statusParcela} />
+                      </TableCell>
+                      <TableCell sx={{ py: 0.8 }}>
+                        <SituacaoRecebimentoBadge situacao={item.situacaoRecebimento} />
                       </TableCell>
                       <TableCell sx={{ py: 0.8, fontSize: '0.75rem', textAlign: 'center', color: 'text.secondary' }}>
                         {item.parcelaIndex}/{item.qtdParcelas}
                       </TableCell>
                       <TableCell sx={{ py: 0.8, fontWeight: 800, color: '#10b981', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                         {formatarMoeda(item.comissao)}
+                      </TableCell>
+                      <TableCell sx={{ py: 0.8, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        {permissoes?.editarVendas ? (
+                          <Tooltip title="Editar venda">
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => onEditarVenda?.(item.vendaId)}
+                              sx={{ p: 0.5, '&:hover': { bgcolor: 'rgba(99,102,241,0.12)' } }}
+                            >
+                              <EditIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </Tooltip>
+                        ) : (
+                          <Tooltip title="Sem permissão para editar vendas">
+                            <span>
+                              <IconButton size="small" disabled sx={{ p: 0.5 }}>
+                                <EditIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -449,14 +800,59 @@ const GrupoRecebimento = ({
   grupo,
   isAtual,
   isPast,
+  onEditarVenda,
+  permissoes,
 }: {
   grupo: GrupoPeriodo;
   isAtual: boolean;
   isPast: boolean;
+  onEditarVenda?: (vendaId: string) => void;
+  permissoes?: UserPermissions;
 }) => {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
   const isDark = theme.palette.mode === 'dark';
+
+  const [selecionados, setSelecionados] = useState<string[]>(() => grupo.itens.map(i => i.id));
+
+  const handleToggleSelecionar = (id: string) => {
+    setSelecionados(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelecionarData = (ids: string[], marcar: boolean) => {
+    if (marcar) {
+      setSelecionados(prev => [...new Set([...prev, ...ids])]);
+    } else {
+      setSelecionados(prev => prev.filter(x => !ids.includes(x)));
+    }
+  };
+
+  const handleToggleSelecionarTodosMes = (marcar: boolean) => {
+    if (marcar) {
+      setSelecionados(grupo.itens.map(i => i.id));
+    } else {
+      setSelecionados([]);
+    }
+  };
+
+  const handleExportarPDF = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const itensParaExportar = grupo.itens.filter(i => selecionados.includes(i.id));
+    if (itensParaExportar.length === 0) {
+      alert('Selecione pelo menos um registro para exportar.');
+      return;
+    }
+    const totalComissoes = itensParaExportar.reduce((acc, i) => acc + i.comissao, 0);
+    const totalCredito = itensParaExportar.reduce((acc, i) => acc + i.valorVenda, 0);
+
+    exportarRecebimentosParaPDF(
+      formatarMesAno(grupo.mesPeriodo + '-01'),
+      itensParaExportar,
+      { totalComissoes, totalCredito }
+    );
+  };
 
   const bgCard = isAtual
     ? (isDark ? 'rgba(99,102,241,0.14)' : 'rgba(99,102,241,0.07)')
@@ -468,7 +864,6 @@ const GrupoRecebimento = ({
     ? '#6366f1'
     : (isDark ? '#1f2937' : '#e5e7eb');
 
-  // Datas de recebimento únicas dentro do mês
   const datasUnicas = [...new Set(grupo.itens.map((i) => i.dataPrevisaoRecebimento))].sort();
 
   return (
@@ -499,6 +894,15 @@ const GrupoRecebimento = ({
         <IconButton size="small" sx={{ p: 0.25, color: 'text.secondary' }}>
           {open ? <KeyboardArrowDownIcon fontSize="small" /> : <KeyboardArrowRightIcon fontSize="small" />}
         </IconButton>
+
+        <Checkbox
+          size="small"
+          checked={grupo.itens.length > 0 && grupo.itens.every(i => selecionados.includes(i.id))}
+          indeterminate={grupo.itens.some(i => selecionados.includes(i.id)) && !grupo.itens.every(i => selecionados.includes(i.id))}
+          onChange={(e) => handleToggleSelecionarTodosMes(e.target.checked)}
+          onClick={(e) => e.stopPropagation()}
+          sx={{ mr: 1 }}
+        />
 
         {/* Mês de recebimento */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 180 }}>
@@ -581,12 +985,12 @@ const GrupoRecebimento = ({
         </Box>
 
         {/* Barra visual de composição */}
-        <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 0.5 }}>
-          {(['A vencer', 'Vencida', 'Paga', 'Recebida'] as StatusParcela[]).map((s) => {
-            const count = grupo.itens.filter((i) => i.status === s).length;
+        <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', gap: 0.5 }}>
+          {(['A receber', 'Recebida', 'Cancelada'] as string[]).map((s) => {
+            const count = grupo.itens.filter((i) => i.situacaoRecebimento === s || i.statusParcela === s).length;
             if (!count) return null;
             const colors: Record<string, string> = {
-              'A vencer': '#6366f1', 'Vencida': '#f59e0b', 'Paga': '#10b981', 'Recebida': '#0ea5e9'
+              'A receber': '#f97316', 'Recebida': '#0ea5e9', 'Cancelada': '#ef4444'
             };
             return (
               <Tooltip key={s} title={`${s}: ${count}`}>
@@ -596,6 +1000,29 @@ const GrupoRecebimento = ({
               </Tooltip>
             );
           })}
+        </Box>
+
+        {/* Ações do Grupo (Exportar PDF) */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1 }}>
+          <Button
+            variant="contained"
+            color="error"
+            size="small"
+            startIcon={<PictureAsPdfIcon />}
+            onClick={handleExportarPDF}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 700,
+              fontSize: '0.75rem',
+              py: 0.5,
+              px: 1.5,
+              borderRadius: 1.5,
+              bgcolor: '#ef4444',
+              '&:hover': { bgcolor: '#dc2626' }
+            }}
+          >
+            PDF ({selecionados.length})
+          </Button>
         </Box>
       </Box>
 
@@ -614,6 +1041,12 @@ const GrupoRecebimento = ({
                 itens={itensDaData}
                 totalComissoes={totalComissaoData}
                 totalCredito={totalCreditoData}
+                bgCard={bgCard}
+                selecionadas={selecionados}
+                onToggleSelecionar={handleToggleSelecionar}
+                onToggleSelecionarData={handleToggleSelecionarData}
+                onEditarVenda={onEditarVenda}
+                permissoes={permissoes}
               />
             );
           })}
@@ -629,16 +1062,24 @@ const GrupoRecebimento = ({
 
 interface RelatorioRecebimentosProps {
   vendas: LancamentoVenda[];
+  vendedores?: Vendedor[];
+  regras?: RegraMaster[];
   dataInicio: string;
   dataFim: string;
   ciclos: Record<string, [number, number]>;
+  onAtualizarVenda?: (venda: LancamentoVenda) => void;
+  permissoes?: UserPermissions;
 }
 
 export const RelatorioRecebimentos = ({
   vendas,
+  vendedores = [],
+  regras = [],
   dataInicio,
   dataFim,
   ciclos,
+  onAtualizarVenda,
+  permissoes,
 }: RelatorioRecebimentosProps) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -646,14 +1087,26 @@ export const RelatorioRecebimentos = ({
 
   const [busca, setBusca] = useState('');
   const [buscaRelatorio, setBuscaRelatorio] = useState('');
-  const [filtroStatus, setFiltroStatus] = useState<Array<StatusParcela | 'A receber'>>([]); 
+  const [filtroStatus, setFiltroStatus] = useState<string[]>([]); 
 
-  const toggleFiltroStatus = (s: StatusParcela | 'A receber' | 'Todos') => {
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [vendaEmEdicao, setVendaEmEdicao] = useState<LancamentoVenda | null>(null);
+  const [snackbarMsg, setSnackbarMsg] = useState('');
+
+  const handleEditarVenda = (vendaId: string) => {
+    const v = vendas.find((item) => item.id === vendaId);
+    if (v) {
+      setVendaEmEdicao(v);
+      setOpenEditDialog(true);
+    }
+  };
+
+  const toggleFiltroStatus = (s: string) => {
     if (s === 'Todos') { setFiltroStatus([]); return; }
     setFiltroStatus((prev) =>
-      prev.includes(s as StatusParcela | 'A receber')
+      prev.includes(s)
         ? prev.filter((x) => x !== s)
-        : [...prev, s as StatusParcela | 'A receber']
+        : [...prev, s]
     );
   };
 
@@ -674,29 +1127,19 @@ export const RelatorioRecebimentos = ({
         if (!celula || !celula.valorVenda || celula.valorVenda <= 0) return;
         if (mesChave < mesInicioChave || mesChave > mesFimChave) return;
 
-        const statusEf = obterStatusEfetivo(celula.status, celula.dataVencimento);
+        const statusParcela = obterStatusEfetivo(celula.status, celula.dataVencimento || `${mesChave}-15`);
+        const situacaoRecebimento: 'A receber' | 'Recebida' = celula.recebida ? 'Recebida' : 'A receber';
 
         if (filtroStatus.length > 0) {
-          // Filtragem com múltiplos status selecionados
-          const incluirCancelada = filtroStatus.includes('Cancelada');
-
-          // Se parcela está cancelada, só incluir se 'Cancelada' está selecionada
-          if (celula.status === 'Cancelada') {
-            if (!incluirCancelada) return;
-          } else {
-            // Parcela não cancelada
-            // Verifica se passa por algum dos filtros selecionados
-            let passa = false;
-            for (const f of filtroStatus) {
-              if (f === 'Cancelada') continue;
-              if (f === 'A receber') {
-                if (statusEf === 'A vencer' || statusEf === 'Vencida') { passa = true; break; }
-              } else {
-                if (statusEf === f) { passa = true; break; }
-              }
+          let passa = false;
+          for (const f of filtroStatus) {
+            if (f === 'A receber' || f === 'Recebida') {
+              if (situacaoRecebimento === f) { passa = true; break; }
+            } else {
+              if (statusParcela === f) { passa = true; break; }
             }
-            if (!passa) return;
           }
+          if (!passa) return;
         } else {
           // Nenhum filtro = Todos (exceto canceladas)
           if (celula.status === 'Cancelada') return;
@@ -723,6 +1166,7 @@ export const RelatorioRecebimentos = ({
 
         lista.push({
           id: `${venda.id}_${mesChave}`,
+          vendaId: venda.id,
           cliente: venda.cliente,
           pac: venda.pac || '',
           vendedorNome: venda.vendedorNome || '',
@@ -735,7 +1179,8 @@ export const RelatorioRecebimentos = ({
           comissao: celula.comissaoGerada || 0,
           valorParcela: celula.valorParcela || venda.valorParcela,
           valorVenda: venda.valorVenda,
-          status: statusEf,
+          statusParcela,
+          situacaoRecebimento,
           parcelaIndex,
           qtdParcelas: venda.qtdParcelas,
           numeroRelatorio: venda.numeroRelatorio,
@@ -795,7 +1240,7 @@ export const RelatorioRecebimentos = ({
 
   // Exportar CSV
   const exportarCSV = () => {
-    const header = ['Data de Corte', 'Cliente', 'PAC', 'Vendedor', 'Mês Ref.', 'Vencimento', 'Valor da Cota', 'Valor Parcela', 'Comissão', 'Status', 'Parcela Nº'];
+    const header = ['Data de Corte', 'Cliente', 'PAC', 'Vendedor', 'Mês Ref.', 'Vencimento', 'Valor da Cota', 'Valor Parcela', 'Comissão', 'Status Parcela', 'Recebimento', 'Parcela Nº'];
     const rows = parcelas.map((p) => [
       formatarData(p.dataPrevisaoRecebimento),
       p.cliente,
@@ -806,7 +1251,8 @@ export const RelatorioRecebimentos = ({
       p.valorVenda.toFixed(2).replace('.', ','),
       p.valorParcela.toFixed(2).replace('.', ','),
       p.comissao.toFixed(2).replace('.', ','),
-      p.status,
+      p.statusParcela,
+      p.situacaoRecebimento,
       `${p.parcelaIndex}/${p.qtdParcelas}`,
     ]);
     const csv = [header, ...rows].map((r) => r.join(';')).join('\n');
@@ -819,16 +1265,16 @@ export const RelatorioRecebimentos = ({
     URL.revokeObjectURL(url);
   };
 
-  const STATUS_OPCOES: Array<StatusParcela | 'A receber' | 'Todos'> = ['Todos', 'A vencer', 'Vencida', 'A receber', 'Paga', 'Recebida', 'Cancelada'];
+  const STATUS_OPCOES = ['Todos', 'A vencer', 'Vencida', 'Paga', 'Cancelada', 'A receber', 'Recebida'];
 
   const STATUS_CORES: Record<string, { active: string; border: string }> = {
     'Todos':      { active: theme.palette.primary.main, border: theme.palette.primary.main },
-    'A vencer':   { active: '#6366f1', border: '#6366f1' },
-    'Vencida':    { active: '#f59e0b', border: '#f59e0b' },
-    'A receber':  { active: '#f97316', border: '#f97316' },
+    'A vencer':   { active: '#3b82f6', border: '#3b82f6' },
+    'Vencida':    { active: '#ef4444', border: '#ef4444' },
     'Paga':       { active: '#10b981', border: '#10b981' },
-    'Recebida':   { active: '#0ea5e9', border: '#0ea5e9' },
     'Cancelada':  { active: '#ef4444', border: '#ef4444' },
+    'A receber':  { active: '#f97316', border: '#f97316' },
+    'Recebida':   { active: '#0ea5e9', border: '#0ea5e9' },
   };
 
   return (
@@ -970,7 +1416,7 @@ export const RelatorioRecebimentos = ({
             </Typography>
           )}
           {STATUS_OPCOES.map((s) => {
-            const isAtivo = s === 'Todos' ? filtroStatus.length === 0 : filtroStatus.includes(s as StatusParcela | 'A receber');
+            const isAtivo = s === 'Todos' ? filtroStatus.length === 0 : filtroStatus.includes(s as any);
             const cor = STATUS_CORES[s];
             return (
               <Chip
@@ -1017,6 +1463,8 @@ export const RelatorioRecebimentos = ({
               grupo={grupo}
               isAtual={grupo.mesPeriodo === mesAtual}
               isPast={grupo.mesPeriodo < mesAtual}
+              onEditarVenda={handleEditarVenda}
+              permissoes={permissoes}
             />
           ))}
         </Box>
@@ -1140,6 +1588,34 @@ export const RelatorioRecebimentos = ({
           </Box>
         </Paper>
       )}
+
+      {/* Dialog para Editar Venda */}
+      <EditarVendaDialog
+        open={openEditDialog}
+        onClose={() => {
+          setOpenEditDialog(false);
+          setVendaEmEdicao(null);
+        }}
+        onSave={(vendaAtualizada) => {
+          if (onAtualizarVenda) {
+            onAtualizarVenda(vendaAtualizada);
+          }
+          setOpenEditDialog(false);
+          setVendaEmEdicao(null);
+          setSnackbarMsg('✅ Venda atualizada com sucesso!');
+        }}
+        venda={vendaEmEdicao}
+        vendedores={vendedores}
+        regras={regras}
+        ciclos={ciclos}
+      />
+
+      <Snackbar
+        open={!!snackbarMsg}
+        autoHideDuration={3000}
+        onClose={() => setSnackbarMsg('')}
+        message={snackbarMsg}
+      />
     </Box>
   );
 };

@@ -48,7 +48,7 @@ interface LinhaComissao {
   mesChave: string; // YYYY-MM
   valorVenda: number;
   valorParcela: number;
-  status: StatusParcela;
+  status: StatusParcela | 'Recebida';
   comissaoMaster: number;
   comissaoVendedor: number;
   parcelaIndex: number;
@@ -177,7 +177,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
           mesChave,
           valorVenda: venda.valorVenda,
           valorParcela: celula.valorParcela || venda.valorParcela,
-          status: celula.status,
+          status: (celula.recebida || (celula.status as string) === 'Recebida') ? 'Recebida' as any : celula.status,
           comissaoMaster: celula.comissaoGerada || 0,
           comissaoVendedor: Number(comissaoVendedorCalculada.toFixed(2)),
           parcelaIndex: parcelaIndexReal,
@@ -242,7 +242,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
     return totais;
   }, [vendedorSelecionado, vendasDoVendedor, listaMesesTimeline, tipoFiltro]);
 
-  const getStatusChip = (status: StatusParcela) => {
+  const getStatusChip = (status: StatusParcela | 'Recebida') => {
     switch (status) {
       case 'A vencer':
         return <Chip label="A vencer" size="small" color="info" sx={{ fontWeight: 700, borderRadius: 1.5, fontSize: '0.7rem' }} />;
@@ -866,14 +866,14 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                           px: 0.5,
                                           borderRadius: 0.5,
                                           color: celula.status === 'Cancelada' ? '#ef4444' :
-                                                 celula.status === 'Recebida' ? '#f97316' :
+                                                 (celula.recebida || (celula.status as string) === 'Recebida') ? '#f97316' :
                                                  celula.status === 'Paga' ? '#34d399' :
                                                  celula.status === 'Vencida' ? '#ef4444' : '#3b82f6',
                                           background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
                                           display: 'inline-block'
                                         }}
                                       >
-                                        {celula.status}
+                                        {(celula.recebida || (celula.status as string) === 'Recebida') ? 'Recebida' : celula.status}
                                       </Box>
                                     </Box>
                                   ) : ''}

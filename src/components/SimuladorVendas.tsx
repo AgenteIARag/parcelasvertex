@@ -50,7 +50,7 @@ import {
   type MesProjecao
 } from '../types';
 import { gerarProjecaoVazia, calcularTotaisLinha, getStatusInicial } from '../data/initialData';
-import { formatarMoeda, formatarChaveMesExibicao } from '../utils/formatters';
+import { formatarMoeda, formatarChaveMesExibicao, obterStatusEfetivo } from '../utils/formatters';
 
 // Funções utilitárias de máscara financeira e cálculos de vencimento
 const formatarMascaraDinheiro = (valor: string): string => {
@@ -96,15 +96,6 @@ const calcularDataPrevisaoRecebimento = (
 };
 
 
-const obterStatusEfetivo = (status: StatusParcela, dataVencimento: string): StatusParcela => {
-  if (status === 'A vencer' && dataVencimento) {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const venc = new Date(`${dataVencimento}T00:00:00`);
-    if (venc <= hoje) return 'Vencida';
-  }
-  return status;
-};
 
 interface SimuladorVendasProps {
   vendas: LancamentoVenda[];
@@ -145,7 +136,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   // Estado para controle de abas internas (Matriz horizontal vs Timeline vertical vs Resumo)
   const [abaInterna, setAbaInterna] = useState<'matriz' | 'timeline' | 'resumo'>('matriz');
   const [tipoFiltro, setTipoFiltro] = useState<'todos' | 'vendas' | 'recorrencia'>('todos');
-  const [filtroStatus, setFiltroStatus] = useState<StatusParcela | 'Todos'>('Todos');
+  const [filtroStatus, setFiltroStatus] = useState<StatusParcela | 'Recebida' | 'Todos'>('Todos');
   const [filtroPac, setFiltroPac] = useState('');
 
   // Estado para guardar ID da venda selecionada para exclusão (confirmação necessária)
@@ -270,6 +261,45 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     });
   };
 
+  const handleAlterarRecebidaParcela = (
+    vendaId: string,
+    mes: string,
+    recebida: boolean
+  ) => {
+    const venda = vendas.find((v) => v.id === vendaId);
+    if (!venda) return;
+
+    const projecaoAtualizada = {
+      ...venda.projecaoMensal,
+      [mes]: {
+        ...(venda.projecaoMensal[mes] || {
+          valorVenda: 0,
+          comissaoGerada: 0,
+          status: 'A vencer' as StatusParcela,
+          dataVencimento: `${mes}-15`
+        }),
+        recebida: recebida
+      }
+    };
+
+    const { totalVendas, totalComissoes, projecaoAtualizada: projFina } = calcularTotaisLinha(
+      projecaoAtualizada,
+      venda.percentualComissao,
+      venda.qtdParcelas
+    );
+
+    const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.valorVenda > 0);
+    const novoStatusCliente = temParcelasAtivas ? 'Ativo' : 'Cancelado';
+
+    onAtualizarVenda({
+      ...venda,
+      projecaoMensal: projFina,
+      totalVendas,
+      totalComissoes,
+      statusCliente: novoStatusCliente
+    });
+  };
+
   const handleCancelarAPartirDoMes = (vendaId: string, mesLimite: string) => {
     const venda = vendas.find((v) => v.id === vendaId);
     if (!venda) return;
@@ -311,7 +341,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   const handleAlterarParcelaCompleta = (
     vendaId: string,
     mes: string,
-    campos: { dataVencimento?: string; dataRecebimento?: string; valorParcela?: number; comissaoGerada?: number; status?: StatusParcela }
+    campos: { dataVencimento?: string; dataRecebimento?: string; valorParcela?: number; comissaoGerada?: number; status?: StatusParcela; recebida?: boolean }
   ) => {
     const venda = vendas.find((v) => v.id === vendaId);
     if (!venda) return;
@@ -456,7 +486,12 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         if (tipoFiltro === 'recorrencia' && mes === venda.mesInicio) return;
         if (filtroStatus !== 'Todos') {
           const statusEf = obterStatusEfetivo(dadosMes.status, dadosMes.dataVencimento);
-          if (statusEf !== filtroStatus) return;
+          const isRecebida = dadosMes.recebida || false;
+          if (filtroStatus === 'Recebida') {
+            if (!isRecebida) return;
+          } else {
+            if (isRecebida || statusEf !== filtroStatus) return;
+          }
         }
         
         totalComissoesPeriodo += dadosMes.comissaoGerada || 0;
@@ -494,7 +529,12 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           if (tipoFiltro === 'recorrencia' && mes === v.mesInicio) return;
           if (filtroStatus !== 'Todos') {
             const statusEf = obterStatusEfetivo(celula.status, celula.dataVencimento);
-            if (statusEf !== filtroStatus) return;
+            const isRecebida = celula.recebida || false;
+            if (filtroStatus === 'Recebida') {
+              if (!isRecebida) return;
+            } else {
+              if (isRecebida || statusEf !== filtroStatus) return;
+            }
           }
 
           totais[mes].vendas += celula.valorVenda || 0;
@@ -533,6 +573,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       dataPrevisaoRecebimento: string;
       parcelaIndex: number;
       qtdParcelas: number;
+      recebida: boolean;
     }[] = [];
 
     const mesInicioChave = dataInicio.substring(0, 7);
@@ -550,7 +591,12 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           if (tipoFiltro === 'recorrencia' && mesChave === venda.mesInicio) return false;
           if (filtroStatus !== 'Todos') {
             const statusEf = obterStatusEfetivo(celula.status, celula.dataVencimento);
-            if (statusEf !== filtroStatus) return false;
+            const isRecebida = celula.recebida || false;
+            if (filtroStatus === 'Recebida') {
+              if (!isRecebida) return false;
+            } else {
+              if (isRecebida || statusEf !== filtroStatus) return false;
+            }
           }
           return true;
         })
@@ -585,7 +631,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           dataRecebimento: celula.dataRecebimento || celula.dataVencimento || `${mesChave}-15`,
           dataPrevisaoRecebimento: calcularDataPrevisaoRecebimento(celula.dataVencimento || `${mesChave}-15`, ciclos),
           parcelaIndex: parcelaIndexReal,
-          qtdParcelas: venda.qtdParcelas
+          qtdParcelas: venda.qtdParcelas,
+          recebida: celula.recebida || false
         });
       });
     });
@@ -1067,8 +1114,15 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                     // Filtro por status da parcela
                     if (filtroStatus !== 'Todos' && dadosMes.valorVenda > 0) {
                       const statusEfCel = obterStatusEfetivo(dadosMes.status, dadosMes.dataVencimento || `${mesChaveReal}-15`);
-                      if (statusEfCel !== filtroStatus) {
-                        dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
+                      const isRecebida = dadosMes.recebida || false;
+                      if (filtroStatus === 'Recebida') {
+                        if (!isRecebida) {
+                          dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
+                        }
+                      } else {
+                        if (isRecebida || statusEfCel !== filtroStatus) {
+                          dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
+                        }
                       }
                     }
                     // Verificação automática de vencimento para exibição
@@ -1397,6 +1451,45 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                             {/* Controle de Status da Parcela e Ação de Cancelar - Apenas exibidos se houver parcela ativa faturada no mês */}
                             {dadosMes.valorVenda > 0 && (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  {/* Select para Comissão Recebida */}
+                                  {(permissoes.editarVendas || permissoes.receberParcelas) ? (
+                                    <Select
+                                      value={dadosMes.recebida ? 'Recebida' : 'A receber'}
+                                      onChange={(e) => handleAlterarRecebidaParcela(venda.id, mesChaveReal, e.target.value === 'Recebida')}
+                                      variant="standard"
+                                      disableUnderline
+                                      sx={{
+                                        fontSize: '0.62rem',
+                                        fontWeight: 700,
+                                        color: dadosMes.recebida ? '#f97316' : '#64748b',
+                                        '& .MuiSelect-select': {
+                                          py: 0.1,
+                                          px: 0.5,
+                                          borderRadius: 0.5,
+                                          background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'
+                                        }
+                                      }}
+                                    >
+                                      <MenuItem value="A receber" sx={{ fontSize: '0.7rem' }}>A receber</MenuItem>
+                                      <MenuItem value="Recebida" sx={{ fontSize: '0.7rem' }}>Recebida</MenuItem>
+                                    </Select>
+                                  ) : (
+                                    <Box
+                                      sx={{
+                                        fontSize: '0.62rem',
+                                        fontWeight: 700,
+                                        py: 0.1,
+                                        px: 0.5,
+                                        borderRadius: 0.5,
+                                        color: dadosMes.recebida ? '#f97316' : '#64748b',
+                                        background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                                        display: 'inline-block'
+                                      }}
+                                    >
+                                      {dadosMes.recebida ? 'Recebida' : 'A receber'}
+                                    </Box>
+                                  )}
+
                                   {(permissoes.editarVendas || permissoes.receberParcelas) ? (
                                     <Select
                                       value={dadosMes.status}
@@ -1407,7 +1500,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                         fontSize: '0.62rem',
                                         fontWeight: 700,
                                         color: dadosMes.status === 'Cancelada' ? '#ef4444' :
-                                               dadosMes.status === 'Recebida' ? '#f97316' :
+                                               dadosMes.recebida ? '#f97316' :
                                                dadosMes.status === 'Paga' ? '#34d399' :
                                                dadosMes.status === 'Vencida' ? '#ef4444' : '#3b82f6',
                                         '& .MuiSelect-select': {
@@ -1421,7 +1514,6 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                       {(permissoes.editarVendas || dadosMes.status === 'A vencer') && <MenuItem value="A vencer" sx={{ fontSize: '0.7rem' }}>A vencer</MenuItem>}
                                       {(permissoes.editarVendas || dadosMes.status === 'Vencida') && <MenuItem value="Vencida" sx={{ fontSize: '0.7rem' }}>Vencida</MenuItem>}
                                       {(permissoes.editarVendas || dadosMes.status === 'Paga') && <MenuItem value="Paga" sx={{ fontSize: '0.7rem' }}>Paga</MenuItem>}
-                                      {(permissoes.editarVendas || permissoes.receberParcelas || dadosMes.status === 'Recebida') && <MenuItem value="Recebida" sx={{ fontSize: '0.7rem' }}>Recebida</MenuItem>}
                                       {(permissoes.editarVendas || dadosMes.status === 'Cancelada') && <MenuItem value="Cancelada" sx={{ fontSize: '0.7rem' }}>Cancelada</MenuItem>}
                                     </Select>
                                   ) : (
@@ -1433,14 +1525,14 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                         px: 0.5,
                                         borderRadius: 0.5,
                                         color: dadosMes.status === 'Cancelada' ? '#ef4444' :
-                                               dadosMes.status === 'Recebida' ? '#f97316' :
+                                               dadosMes.recebida ? '#f97316' :
                                                dadosMes.status === 'Paga' ? '#34d399' :
                                                dadosMes.status === 'Vencida' ? '#ef4444' : '#3b82f6',
                                         background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
                                         display: 'inline-block'
                                       }}
                                     >
-                                      {dadosMes.status}
+                                      {dadosMes.recebida ? 'Recebida' : dadosMes.status}
                                     </Box>
                                   )}
 
@@ -1829,6 +1921,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           valorVenda: 0,
                           comissaoGerada: 0,
                           status: 'A vencer' as StatusParcela,
+                          recebida: false,
                           dataVencimento: `${mes}-15`
                         };
 
@@ -1839,11 +1932,18 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
                         }
                         if (filtroStatus !== 'Todos' && dadosMes.valorVenda > 0) {
-                          const statusEfCel = obterStatusEfetivo(dadosMes.status, dadosMes.dataVencimento || `${mes}-15`);
-                          if (statusEfCel !== filtroStatus) {
-                            dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
-                          }
-                        }
+                           const statusEfCel = obterStatusEfetivo(dadosMes.status, dadosMes.dataVencimento || `${mes}-15`);
+                           const isRecebida = dadosMes.recebida || false;
+                           if (filtroStatus === 'Recebida') {
+                             if (!isRecebida) {
+                               dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
+                             }
+                           } else {
+                             if (isRecebida || statusEfCel !== filtroStatus) {
+                               dadosMes = { ...dadosMes, valorVenda: 0, comissaoGerada: 0 };
+                             }
+                           }
+                         }
 
                         const temFaturamento = dadosMes.valorVenda > 0;
 
@@ -2123,52 +2223,92 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                       {formatarMoeda(linha.comissaoMaster)}
                     </TableCell>
                     <TableCell align="center">
-                      {(permissoes.editarVendas || permissoes.receberParcelas) ? (
-                        <Select
-                          value={linha.status}
-                          onChange={(e) => handleAlterarStatusParcela(linha.vendaId, linha.mesChave, e.target.value as StatusParcela)}
-                          variant="standard"
-                          disableUnderline
-                          sx={{
-                            fontSize: '0.62rem',
-                            fontWeight: 700,
-                            color: linha.status === 'Cancelada' ? '#ef4444' :
-                                   linha.status === 'Recebida' ? '#f97316' :
-                                   linha.status === 'Paga' ? '#34d399' :
-                                   linha.status === 'Vencida' ? '#ef4444' : '#3b82f6',
-                            '& .MuiSelect-select': {
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                        {/* Select para Comissão Recebida na Timeline */}
+                        {(permissoes.editarVendas || permissoes.receberParcelas) ? (
+                          <Select
+                            value={linha.recebida ? 'Recebida' : 'A receber'}
+                            onChange={(e) => handleAlterarRecebidaParcela(linha.vendaId, linha.mesChave, e.target.value === 'Recebida')}
+                            variant="standard"
+                            disableUnderline
+                            sx={{
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              color: linha.recebida ? '#f97316' : '#64748b',
+                              '& .MuiSelect-select': {
+                                py: 0.1,
+                                px: 0.5,
+                                borderRadius: 0.5,
+                                background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'
+                              }
+                            }}
+                          >
+                            <MenuItem value="A receber" sx={{ fontSize: '0.7rem' }}>A receber</MenuItem>
+                            <MenuItem value="Recebida" sx={{ fontSize: '0.7rem' }}>Recebida</MenuItem>
+                          </Select>
+                        ) : (
+                          <Box
+                            sx={{
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
                               py: 0.1,
                               px: 0.5,
                               borderRadius: 0.5,
-                              background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'
-                            }
-                          }}
-                        >
-                          {(permissoes.editarVendas || linha.status === 'A vencer') && <MenuItem value="A vencer" sx={{ fontSize: '0.7rem' }}>A vencer</MenuItem>}
-                          {(permissoes.editarVendas || linha.status === 'Vencida') && <MenuItem value="Vencida" sx={{ fontSize: '0.7rem' }}>Vencida</MenuItem>}
-                          {(permissoes.editarVendas || linha.status === 'Paga') && <MenuItem value="Paga" sx={{ fontSize: '0.7rem' }}>Paga</MenuItem>}
-                          {(permissoes.editarVendas || permissoes.receberParcelas || linha.status === 'Recebida') && <MenuItem value="Recebida" sx={{ fontSize: '0.7rem' }}>Recebida</MenuItem>}
-                          {(permissoes.editarVendas || linha.status === 'Cancelada') && <MenuItem value="Cancelada" sx={{ fontSize: '0.7rem' }}>Cancelada</MenuItem>}
-                        </Select>
-                      ) : (
-                        <Box
-                          sx={{
-                            fontSize: '0.62rem',
-                            fontWeight: 700,
-                            py: 0.1,
-                            px: 0.5,
-                            borderRadius: 0.5,
-                            color: linha.status === 'Cancelada' ? '#ef4444' :
-                                   linha.status === 'Recebida' ? '#f97316' :
-                                   linha.status === 'Paga' ? '#34d399' :
-                                   linha.status === 'Vencida' ? '#ef4444' : '#3b82f6',
-                            background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-                            display: 'inline-block'
-                          }}
-                        >
-                          {linha.status}
-                        </Box>
-                      )}
+                              color: linha.recebida ? '#f97316' : '#64748b',
+                              background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                              display: 'inline-block'
+                            }}
+                          >
+                            {linha.recebida ? 'Recebida' : 'A receber'}
+                          </Box>
+                        )}
+
+                        {(permissoes.editarVendas || permissoes.receberParcelas) ? (
+                          <Select
+                            value={linha.status}
+                            onChange={(e) => handleAlterarStatusParcela(linha.vendaId, linha.mesChave, e.target.value as StatusParcela)}
+                            variant="standard"
+                            disableUnderline
+                            sx={{
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              color: linha.status === 'Cancelada' ? '#ef4444' :
+                                     linha.recebida ? '#f97316' :
+                                     linha.status === 'Paga' ? '#34d399' :
+                                     linha.status === 'Vencida' ? '#ef4444' : '#3b82f6',
+                              '& .MuiSelect-select': {
+                                py: 0.1,
+                                px: 0.5,
+                                borderRadius: 0.5,
+                                background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'
+                              }
+                            }}
+                          >
+                            {(permissoes.editarVendas || linha.status === 'A vencer') && <MenuItem value="A vencer" sx={{ fontSize: '0.7rem' }}>A vencer</MenuItem>}
+                            {(permissoes.editarVendas || linha.status === 'Vencida') && <MenuItem value="Vencida" sx={{ fontSize: '0.7rem' }}>Vencida</MenuItem>}
+                            {(permissoes.editarVendas || linha.status === 'Paga') && <MenuItem value="Paga" sx={{ fontSize: '0.7rem' }}>Paga</MenuItem>}
+                            {(permissoes.editarVendas || linha.status === 'Cancelada') && <MenuItem value="Cancelada" sx={{ fontSize: '0.7rem' }}>Cancelada</MenuItem>}
+                          </Select>
+                        ) : (
+                          <Box
+                            sx={{
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              py: 0.1,
+                              px: 0.5,
+                              borderRadius: 0.5,
+                              color: linha.status === 'Cancelada' ? '#ef4444' :
+                                     linha.recebida ? '#f97316' :
+                                     linha.status === 'Paga' ? '#34d399' :
+                                     linha.status === 'Vencida' ? '#ef4444' : '#3b82f6',
+                              background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                              display: 'inline-block'
+                            }}
+                          >
+                            {linha.recebida ? 'Recebida' : linha.status}
+                          </Box>
+                        )}
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))
@@ -2329,7 +2469,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 interface EditarParcelaDialogProps {
   open: boolean;
   onClose: () => void;
-  onSave: (campos: { dataVencimento?: string; dataRecebimento?: string; valorParcela?: number; comissaoGerada?: number; status?: StatusParcela }) => void;
+  onSave: (campos: { dataVencimento?: string; dataRecebimento?: string; valorParcela?: number; comissaoGerada?: number; status?: StatusParcela; recebida?: boolean }) => void;
   mesChave: string;
   celula: MesProjecao;
   nomeCliente: string;
@@ -2342,6 +2482,7 @@ const EditarParcelaDialog: React.FC<EditarParcelaDialogProps> = ({ open, onClose
   const [valorParcela, setValorParcela] = useState(String(celula.valorParcela || 0));
   const [comissaoGerada, setComissaoGerada] = useState(String(celula.comissaoGerada || 0));
   const [status, setStatus] = useState<StatusParcela>(celula.status);
+  const [recebida, setRecebida] = useState(celula.recebida || false);
 
   // Reinicia os campos ao abrir o dialog
   React.useEffect(() => {
@@ -2351,6 +2492,7 @@ const EditarParcelaDialog: React.FC<EditarParcelaDialogProps> = ({ open, onClose
       setValorParcela(String(celula.valorParcela || 0));
       setComissaoGerada(String(celula.comissaoGerada || 0));
       setStatus(celula.status);
+      setRecebida(celula.recebida || false);
     }
   }, [open, celula, mesChave]);
 
@@ -2360,7 +2502,8 @@ const EditarParcelaDialog: React.FC<EditarParcelaDialogProps> = ({ open, onClose
       dataRecebimento,
       valorParcela: parseFloat(valorParcela) || 0,
       comissaoGerada: parseFloat(comissaoGerada) || 0,
-      status
+      status,
+      recebida
     });
   };
 
@@ -2418,15 +2561,27 @@ const EditarParcelaDialog: React.FC<EditarParcelaDialogProps> = ({ open, onClose
               slotProps={{ input: { startAdornment: <InputAdornment position="start">R$</InputAdornment> } }}
             />
           </Grid>
-          <Grid size={{ xs: 12 }}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth>
               <InputLabel>Status</InputLabel>
               <Select value={status} label="Status" onChange={(e) => setStatus(e.target.value as StatusParcela)}>
                 <MenuItem value="A vencer">A vencer</MenuItem>
                 <MenuItem value="Vencida">Vencida</MenuItem>
                 <MenuItem value="Paga">Paga</MenuItem>
-                <MenuItem value="Recebida">Recebida</MenuItem>
                 <MenuItem value="Cancelada">Cancelada</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <FormControl fullWidth>
+              <InputLabel>Comissão</InputLabel>
+              <Select
+                value={recebida ? 'Recebida' : 'A receber'}
+                label="Comissão"
+                onChange={(e) => setRecebida(e.target.value === 'Recebida')}
+              >
+                <MenuItem value="A receber">A receber</MenuItem>
+                <MenuItem value="Recebida">Recebida</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -2907,7 +3062,7 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
   );
 };
 
-interface EditarVendaDialogProps {
+export interface EditarVendaDialogProps {
   open: boolean;
   onClose: () => void;
   onSave: (venda: LancamentoVenda) => void;
@@ -2917,7 +3072,7 @@ interface EditarVendaDialogProps {
   ciclos: Record<string, [number, number]>;
 }
 
-const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
+export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
   open,
   onClose,
   onSave,

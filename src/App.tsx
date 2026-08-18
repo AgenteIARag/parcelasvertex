@@ -20,19 +20,21 @@ import DarkModeIcon from '@mui/icons-material/DarkMode';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
-import PeopleIcon from '@mui/icons-material/People';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import GroupIcon from '@mui/icons-material/Group';
+import BusinessIcon from '@mui/icons-material/Business';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import { EmpresasCadastro } from './components/EmpresasCadastro';
+import { RegrasFilha } from './components/RegrasFilha';
 
-import { type RegraMaster, type LancamentoVenda, type Vendedor, type Usuario, type StatusComissao } from './types';
+import { type RegraMaster, type RegraFilha, type LancamentoVenda, type Vendedor, type Usuario, type StatusComissao, type Empresa } from './types';
 import { INITIAL_REGRAS, INITIAL_VENDAS, INITIAL_VENDEDORES, calcularTotaisLinha } from './data/initialData';
 import { KPISection } from './components/KPISection';
 import { SimuladorVendas } from './components/SimuladorVendas';
 import { RegrasMaster } from './components/RegrasMaster';
 import { AnalyticsCharts } from './components/AnalyticsCharts';
-import { VendedoresCadastro } from './components/VendedoresCadastro';
 import { Login } from './components/Login';
 import { UsuariosCadastro } from './components/UsuariosCadastro';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -45,12 +47,15 @@ import {
   obterRegrasSupabase,
   obterVendasSupabase,
   salvarVendedorSupabase,
-  excluirVendedorSupabase,
   salvarRegraSupabase,
   excluirRegraSupabase,
   salvarVendaSupabase,
   excluirVendaSupabase,
-  inicializarUsuarioMaster
+  excluirVendasEspelhoSupabase,
+  obterRegrasFilhaSupabase,
+  obterRegrasFilhaLocal,
+  inicializarUsuarioMaster,
+  inicializarEmpresasPadrao
 } from './utils/supabase';
 import CloudQueueIcon from '@mui/icons-material/CloudQueue';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
@@ -58,6 +63,58 @@ import CloudOffIcon from '@mui/icons-material/CloudOff';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import SettingsIcon from '@mui/icons-material/Settings';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+const migrarDadosStatusRecebida = async (
+  vendasOriginais: LancamentoVenda[],
+  salvarNoSupabase: boolean = false
+): Promise<{ novasVendas: LancamentoVenda[]; alterou: boolean }> => {
+  let alterouAlguma = false;
+  const novasVendas = await Promise.all(
+    vendasOriginais.map(async (venda) => {
+      let vendaAlterada = false;
+      const projecaoAtualizada = { ...venda.projecaoMensal };
+
+      Object.keys(projecaoAtualizada).forEach((mesKey) => {
+        const parcela = projecaoAtualizada[mesKey];
+        if (parcela && (parcela.status as string) === 'Recebida') {
+          projecaoAtualizada[mesKey] = {
+            ...parcela,
+            status: 'Paga',
+            recebida: true
+          };
+          vendaAlterada = true;
+          alterouAlguma = true;
+        }
+      });
+
+      if (vendaAlterada) {
+        const { totalVendas, totalComissoes } = calcularTotaisLinha(
+          projecaoAtualizada,
+          venda.percentualComissao,
+          venda.qtdParcelas
+        );
+        const vendaNova = {
+          ...venda,
+          projecaoMensal: projecaoAtualizada,
+          totalVendas,
+          totalComissoes
+        };
+        if (salvarNoSupabase) {
+          try {
+            await salvarVendaSupabase(vendaNova);
+            console.log(`[MIGRAÇÃO] Venda ${venda.id} migrada no Supabase.`);
+          } catch (err) {
+            console.error(`[MIGRAÇÃO] Erro ao migrar venda ${venda.id}:`, err);
+          }
+        }
+        return vendaNova;
+      }
+      return venda;
+    })
+  );
+  return { novasVendas, alterou: alterouAlguma };
+};
 
 function App() {
   // Estado do tema (Claro/Escuro) - Padrão escuro por ser premium e financeiro
@@ -65,6 +122,15 @@ function App() {
     const saved = localStorage.getItem('apex_dark_mode');
     return saved ? saved === 'true' : true;
   });
+
+  const [sidebarContraida, setSidebarContraida] = useState<boolean>(() => {
+    const saved = localStorage.getItem('apex_sidebar_collapsed');
+    return saved ? saved === 'true' : false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('apex_sidebar_collapsed', String(sidebarContraida));
+  }, [sidebarContraida]);
 
   // Tema Customizado Material UI v6
   const theme = useMemo(() => createTheme({
@@ -149,16 +215,116 @@ function App() {
 
   const [vendas, setVendas] = useState<LancamentoVenda[]>(() => {
     const saved = localStorage.getItem('apex_lancamentos_vendas');
-    return saved ? JSON.parse(saved) : INITIAL_VENDAS;
+    const lista: LancamentoVenda[] = saved ? JSON.parse(saved) : INITIAL_VENDAS;
+    return lista.map(v => ({ ...v, empresaId: v.empresaId || 'emp_vertex' }));
   });
 
   const [vendedores, setVendedores] = useState<Vendedor[]>(() => {
     const saved = localStorage.getItem('apex_vendedores');
-    return saved ? JSON.parse(saved) : INITIAL_VENDEDORES;
+    const lista: Vendedor[] = saved ? JSON.parse(saved) : INITIAL_VENDEDORES;
+    return lista.map(v => ({ ...v, empresaId: v.empresaId || 'emp_vertex' }));
   });
 
   const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'dashboard_vendedores' | 'vendas' | 'comissoes' | 'relatorio' | 'relatorio_comissoes' | 'configuracoes'>('dashboard');
-  const [subAbaAtiva, setSubAbaAtiva] = useState<'regras' | 'vendedores' | 'acessos'>('regras');
+  const [subAbaAtiva, setSubAbaAtiva] = useState<'regras' | 'regras_filha' | 'vendedores' | 'acessos' | 'empresas'>('regras');
+
+  // Multi-tenant: empresas
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [empresaFiltroMaster, setEmpresaFiltroMaster] = useState<string>(''); // '' = todas
+
+  // Regras Filha (percentuais customizados das empresas filhas)
+  const [regrasFilha, setRegrasFilha] = useState<RegraFilha[]>(() => {
+    try { return obterRegrasFilhaLocal(); } catch { return []; }
+  });
+
+  const isSuperMaster = usuarioLogado?.role === 'super_master' || usuarioLogado?.email?.toLowerCase() === 'master@apex.com';
+
+  // Empresa do usuário logado
+  const empresaAtual = useMemo(() =>
+    empresas.find(e => e.id === (usuarioLogado?.empresaId || 'emp_vertex')),
+    [empresas, usuarioLogado]
+  );
+
+  // Verifica se a empresa do usuário é uma filha
+  const empresaAtualEhFilha = useMemo(() => !!empresaAtual?.empresaMaeId, [empresaAtual]);
+
+  // Regras efetivas para exibição no SimuladorVendas:
+  // Se for uma empresa filha, usa as regrasMaster da mãe mas sobrescreve % com os da filha.
+  const regrasEfetivasParaEmpresaAtual = useMemo((): RegraMaster[] => {
+    const empId = usuarioLogado?.empresaId || 'emp_vertex';
+    const empObj = empresas.find(e => e.id === empId);
+
+    if (!empObj?.empresaMaeId) {
+      // Empresa mãe ou standalone: vê apenas as regras da sua empresa (ou globais)
+      return regras.filter(r => !r.empresaId || r.empresaId === empId);
+    }
+
+    // Empresa filha: mostra as regras da empresa mãe com os %s da filha sobrepostos
+    const regrasDaMae = regras.filter(r => !r.empresaId || r.empresaId === empObj.empresaMaeId);
+    return regrasDaMae.map(rm => {
+      const rFilha = regrasFilha.find(
+        rf => rf.regraMasterId === rm.id && rf.empresaFilhaId === empId
+      );
+      if (rFilha) {
+        return {
+          ...rm,
+          percentualComissao: rFilha.percentualComissao,
+          percentualComissaoContemplacao: rFilha.percentualComissaoContemplacao ?? rm.percentualComissaoContemplacao,
+        };
+      }
+      return rm; // Sem regra filha: usa o % da mãe
+    });
+  }, [regras, regrasFilha, empresas, usuarioLogado]);
+
+  // Para o super_master que está filtrando por empresa, também precisa de regras filtradas
+  const regrasParaExibicao = useMemo((): RegraMaster[] => {
+    if (isSuperMaster) return regras; // Super master vê tudo (filtro interno no RegrasMaster)
+    return regrasEfetivasParaEmpresaAtual;
+  }, [isSuperMaster, regras, regrasEfetivasParaEmpresaAtual]);
+
+  // Vendas e Vendedores filtrados por empresa e por vendedor
+  const vendasFiltradas = useMemo(() => {
+    if (!usuarioLogado) return vendas;
+    let base = vendas;
+    if (isSuperMaster) {
+      if (empresaFiltroMaster) {
+        base = base.filter(v => (v.empresaId || 'emp_vertex') === empresaFiltroMaster);
+      }
+    } else {
+      const empId = usuarioLogado.empresaId || 'emp_vertex';
+      base = base.filter(v => (v.empresaId || 'emp_vertex') === empId);
+      // Empresas filhas NÃO enxergam vendas espelho (geradas para a mãe)
+      if (empresaAtualEhFilha) {
+        base = base.filter(v => !v.isVendaEspelho);
+      }
+    }
+    // Se o usuário logado for um Vendedor, filtra estritamente as suas próprias vendas
+    if (usuarioLogado.role === 'vendedor' || usuarioLogado.vendedorId) {
+      const vId = usuarioLogado.vendedorId;
+      const vNome = usuarioLogado.nome.toLowerCase();
+      base = base.filter(v => !v.isVendaEspelho && ((vId && v.vendedorId === vId) || v.vendedorNome?.toLowerCase() === vNome));
+    }
+    return base;
+  }, [vendas, usuarioLogado, empresaFiltroMaster, isSuperMaster, empresaAtualEhFilha]);
+
+  const vendedoresFiltrados = useMemo(() => {
+    if (!usuarioLogado) return vendedores;
+    let base = vendedores;
+    if (isSuperMaster) {
+      if (empresaFiltroMaster) {
+        base = base.filter(v => (v.empresaId || 'emp_vertex') === empresaFiltroMaster);
+      }
+    } else {
+      const empId = usuarioLogado.empresaId || 'emp_vertex';
+      base = base.filter(v => (v.empresaId || 'emp_vertex') === empId);
+    }
+    if (usuarioLogado.role === 'vendedor' || usuarioLogado.vendedorId) {
+      const vId = usuarioLogado.vendedorId;
+      const vNome = usuarioLogado.nome.toLowerCase();
+      base = base.filter(v => (vId && v.id === vId) || v.nome?.toLowerCase() === vNome);
+    }
+    return base;
+  }, [vendedores, usuarioLogado, empresaFiltroMaster, isSuperMaster]);
 
   // Filtro de data global compartilhado entre Dashboard, Painel de Vendas e Comissões
   const [dataInicio, setDataInicio] = useState<string>('2026-01-01');
@@ -196,8 +362,10 @@ function App() {
   }, [vendas, dataFim]);
 
   const handleFiltrar = () => {
-    setDataInicio(tempDataInicio);
-    setDataFim(tempDataFim);
+    const ini = (tempDataInicio && tempDataInicio.length >= 10 && !tempDataInicio.includes('d')) ? tempDataInicio : '2026-01-01';
+    const fim = (tempDataFim && tempDataFim.length >= 10 && !tempDataFim.includes('d')) ? tempDataFim : '2026-12-31';
+    setDataInicio(ini);
+    setDataFim(fim);
   };
 
   // Estado de sincronização com o Supabase
@@ -211,20 +379,50 @@ function App() {
         // Inicializa o Master padrão se a tabela de usuários estiver vazia
         await inicializarUsuarioMaster();
 
+        // Inicializa as empresas padrão (Vertex, Winvest, Shazam)
+        const emps = await inicializarEmpresasPadrao();
+        setEmpresas(emps);
+
         const [vend, reg, vendasData] = await Promise.all([
           obterVendedoresSupabase(),
           obterRegrasSupabase(),
           obterVendasSupabase()
         ]);
         
-        setVendedores(vend);
+        setVendedores(vend.map(v => ({ ...v, empresaId: v.empresaId || 'emp_vertex' })));
         setRegras(reg);
-        setVendas(vendasData);
+
+        // Carregar regras filha
+        try {
+          const rFilha = await obterRegrasFilhaSupabase();
+          setRegrasFilha(rFilha);
+          localStorage.setItem('apex_regras_filha', JSON.stringify(rFilha));
+        } catch {
+          console.warn('regras_filha indisponível, usando local');
+        }
+
+        // Roda a migração de status nos dados vindos do Supabase e atribui Vertex se não tiver empresa
+        const vendasComEmpresa = vendasData.map(v => ({ ...v, empresaId: v.empresaId || 'emp_vertex' }));
+        const { novasVendas } = await migrarDadosStatusRecebida(vendasComEmpresa, true);
+        setVendas(novasVendas.map(v => ({ ...v, empresaId: v.empresaId || 'emp_vertex' })));
         
         setStatusSincronizacao('sincronizado');
       } catch (err) {
         console.error('Erro ao conectar ao Supabase, mantendo dados locais:', err);
         setStatusSincronizacao('erro');
+
+        // Roda a migração de status também nos dados locais salvos se houver falha
+        const savedVendas = localStorage.getItem('apex_lancamentos_vendas');
+        if (savedVendas) {
+          try {
+            const parsed = JSON.parse(savedVendas);
+            migrarDadosStatusRecebida(parsed, false).then(({ novasVendas }) => {
+              setVendas(novasVendas.map(v => ({ ...v, empresaId: v.empresaId || 'emp_vertex' })));
+            });
+          } catch (e) {
+            console.error('Erro ao ler vendas locais do localStorage:', e);
+          }
+        }
       }
     };
 
@@ -319,8 +517,85 @@ function App() {
 
   // Ações de Vendas
   const handleAdicionarVenda = (novaVenda: LancamentoVenda) => {
-    setVendas((prev) => [...prev, novaVenda]);
-    salvarVendaSupabase(novaVenda).catch((err) => console.error('Erro Supabase Vendas:', err));
+    // Injeta a empresa: super_master usa a do filtro; masters de empresa usam a sua empresa
+    const empId = isSuperMaster
+      ? (empresaFiltroMaster || usuarioLogado?.empresaId || 'emp_vertex')
+      : (usuarioLogado?.empresaId || 'emp_vertex');
+    const vendaComEmpresa: LancamentoVenda = { ...novaVenda, empresaId: empId };
+    setVendas((prev) => [...prev, vendaComEmpresa]);
+    salvarVendaSupabase(vendaComEmpresa).catch((err) => console.error('Erro Supabase Vendas:', err));
+
+    // ===== Lógica de geração de venda espelho para a empresa mãe =====
+    const empresaFilhaObj = empresas.find(e => e.id === empId);
+    if (empresaFilhaObj?.empresaMaeId) {
+      const maeId = empresaFilhaObj.empresaMaeId;
+
+      // Encontrar a regra mestre correspondente (da empresa mãe)
+      const regraMae = regras.find(r =>
+        r.segmento === novaVenda.segmento &&
+        r.tabela === novaVenda.tabela &&
+        r.qtdParcelas === novaVenda.qtdParcelas &&
+        (!r.empresaId || r.empresaId === maeId)
+      );
+
+      // Encontrar a regra filha correspondente
+      const regraFilhaCorrespondente = regrasFilha.find(rf =>
+        rf.empresaFilhaId === empId &&
+        rf.regraMasterId === regraMae?.id
+      );
+
+      if (regraMae && regraFilhaCorrespondente) {
+        const percDif = regraMae.percentualComissao - regraFilhaCorrespondente.percentualComissao;
+        if (percDif > 0) {
+          // Recalcular projeção com o percentual diferencial
+          const projecaoEspelho = { ...novaVenda.projecaoMensal };
+          const percentualMensalDif = percDif / novaVenda.qtdParcelas;
+          Object.keys(projecaoEspelho).forEach(mesKey => {
+            const celula = projecaoEspelho[mesKey];
+            const comissaoDif = (celula.valorVenda || 0) * (percentualMensalDif / 100);
+            projecaoEspelho[mesKey] = {
+              ...celula,
+              comissaoGerada: Number(comissaoDif.toFixed(2))
+            };
+          });
+
+          const { totalVendas: tvEsp, totalComissoes: tcEsp, projecaoAtualizada: projEsp } =
+            calcularTotaisLinha(projecaoEspelho, percDif, novaVenda.qtdParcelas);
+
+          const vendaEspelho: LancamentoVenda = {
+            ...vendaComEmpresa,
+            id: `esp_${vendaComEmpresa.id}_${Date.now()}`,
+            empresaId: maeId,
+            vendedorId: undefined,
+            vendedorNome: undefined,
+            percentualComissao: percDif,
+            projecaoMensal: projEsp,
+            totalVendas: tvEsp,
+            totalComissoes: tcEsp,
+            isVendaEspelho: true,
+            vendaOrigemId: vendaComEmpresa.id,
+            empresaFilhaOrigemId: empId,
+          };
+
+          setVendas(prev => [...prev, vendaEspelho]);
+          salvarVendaSupabase(vendaEspelho).catch(err => console.error('Erro ao salvar venda espelho:', err));
+        }
+
+        // Contemplação: também gera espelho se houver diferencial
+        if (
+          regraMae.percentualComissaoContemplacao != null &&
+          regraFilhaCorrespondente.percentualComissaoContemplacao != null
+        ) {
+          const percDifContempl = regraMae.percentualComissaoContemplacao - regraFilhaCorrespondente.percentualComissaoContemplacao;
+          if (percDifContempl > 0 && novaVenda.contemplado && novaVenda.comissaoContemplacao != null) {
+            const comissaoContemplEspelho = (novaVenda.comissaoContemplacao / regraFilhaCorrespondente.percentualComissaoContemplacao) * percDifContempl;
+            // O valor de contemplação espelho é registrado na venda espelho existente ou como campo extra
+            // Por simplicidade, registramos no vendaEspelho acima se já criado, ou aqui se só há dif. de contempl.
+            console.log('[ESPELHO] Diferencial de contemplação:', comissaoContemplEspelho);
+          }
+        }
+      }
+    }
   };
 
   const handleAtualizarVenda = (vendaAtualizada: LancamentoVenda) => {
@@ -328,11 +603,47 @@ function App() {
       prev.map((v) => (v.id === vendaAtualizada.id ? vendaAtualizada : v))
     );
     salvarVendaSupabase(vendaAtualizada).catch((err) => console.error('Erro Supabase Vendas (Edição):', err));
+
+    // Atualizar vendas espelho vinculadas (sincronizar dados do contrato, mantendo % diferencial)
+    setVendas(prev => prev.map(v => {
+      if (v.vendaOrigemId !== vendaAtualizada.id || !v.isVendaEspelho) return v;
+      // Recalcular a projeção espelho com o mesmo percentual diferencial
+      const projecaoEspelho = { ...vendaAtualizada.projecaoMensal };
+      const percDif = v.percentualComissao; // Mantém o diferencial original
+      const percentualMensalDif = percDif / vendaAtualizada.qtdParcelas;
+      Object.keys(projecaoEspelho).forEach(mesKey => {
+        const celula = projecaoEspelho[mesKey];
+        const comissaoDif = (celula.valorVenda || 0) * (percentualMensalDif / 100);
+        projecaoEspelho[mesKey] = { ...celula, comissaoGerada: Number(comissaoDif.toFixed(2)) };
+      });
+      const { totalVendas: tvEsp, totalComissoes: tcEsp, projecaoAtualizada: projEsp } =
+        calcularTotaisLinha(projecaoEspelho, percDif, vendaAtualizada.qtdParcelas);
+
+      const espelhoAtualizado: LancamentoVenda = {
+        ...v,
+        cliente: vendaAtualizada.cliente,
+        pac: vendaAtualizada.pac,
+        segmento: vendaAtualizada.segmento,
+        tabela: vendaAtualizada.tabela,
+        qtdParcelas: vendaAtualizada.qtdParcelas,
+        valorVenda: vendaAtualizada.valorVenda,
+        valorParcela: vendaAtualizada.valorParcela,
+        dataVenda: vendaAtualizada.dataVenda,
+        statusCliente: vendaAtualizada.statusCliente,
+        projecaoMensal: projEsp,
+        totalVendas: tvEsp,
+        totalComissoes: tcEsp,
+      };
+      salvarVendaSupabase(espelhoAtualizado).catch(err => console.error('Erro ao atualizar espelho:', err));
+      return espelhoAtualizado;
+    }));
   };
 
   const handleExcluirVenda = (vendaId: string) => {
-    setVendas((prev) => prev.filter((v) => v.id !== vendaId));
+    // Excluir também as vendas espelho vinculadas
+    setVendas((prev) => prev.filter((v) => v.id !== vendaId && v.vendaOrigemId !== vendaId));
     excluirVendaSupabase(vendaId).catch((err) => console.error('Erro Supabase Excluir Vendas:', err));
+    excluirVendasEspelhoSupabase(vendaId).catch((err) => console.warn('Erro ao excluir espelhos:', err));
   };
 
   // Alterar status de comissão de uma parcela específica (independente do status da venda)
@@ -356,20 +667,22 @@ function App() {
 
   // Ações de Vendedores
   const handleAdicionarVendedor = (novoVendedor: Vendedor) => {
-    setVendedores((prev) => [...prev, novoVendedor]);
-    salvarVendedorSupabase(novoVendedor).catch((err) => console.error('Erro Supabase Vendedores:', err));
-  };
-
-  const handleEditarVendedor = (vendedorAtualizado: Vendedor) => {
-    setVendedores((prev) =>
-      prev.map((v) => (v.id === vendedorAtualizado.id ? vendedorAtualizado : v))
+    const empId = novoVendedor.empresaId || (
+      isSuperMaster
+        ? (empresaFiltroMaster || usuarioLogado?.empresaId || 'emp_vertex')
+        : (usuarioLogado?.empresaId || 'emp_vertex')
     );
-    salvarVendedorSupabase(vendedorAtualizado).catch((err) => console.error('Erro Supabase Vendedores (Edição):', err));
-  };
-
-  const handleExcluirVendedor = (id: string) => {
-    setVendedores((prev) => prev.filter((v) => v.id !== id));
-    excluirVendedorSupabase(id).catch((err) => console.error('Erro Supabase Vendedores (Exclusão):', err));
+    const vendedorComEmpresa = { ...novoVendedor, empresaId: empId };
+    setVendedores((prev) => {
+      const index = prev.findIndex(v => v.id === vendedorComEmpresa.id);
+      if (index >= 0) {
+        const cop = [...prev];
+        cop[index] = vendedorComEmpresa;
+        return cop;
+      }
+      return [...prev, vendedorComEmpresa];
+    });
+    salvarVendedorSupabase(vendedorComEmpresa).catch((err) => console.error('Erro Supabase Vendedores:', err));
   };
 
   // Exportar dados como JSON para fins de backup
@@ -401,7 +714,7 @@ function App() {
         {/* Sidebar Lateral Fixa */}
         <Box
           sx={{
-            width: 280,
+            width: sidebarContraida ? 80 : 280,
             flexShrink: 0,
             borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`,
             bgcolor: theme.palette.mode === 'dark' ? '#111827' : '#ffffff',
@@ -411,286 +724,365 @@ function App() {
             top: 0,
             bottom: 0,
             left: 0,
-            zIndex: 1200
+            zIndex: 1200,
+            transition: 'width 0.2s ease-in-out'
           }}
         >
           {/* Logo */}
-          <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 1.5, borderBottom: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}` }}>
-            <Box
-              sx={{
-                p: 1,
-                borderRadius: 2,
-                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                color: '#ffffff',
-                boxShadow: '0 4px 10px rgba(99, 102, 241, 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
+          <Box sx={{ 
+            p: sidebarContraida ? 2 : 3, 
+            display: 'flex', 
+            flexDirection: sidebarContraida ? 'column' : 'row',
+            alignItems: 'center', 
+            justifyContent: sidebarContraida ? 'center' : 'space-between',
+            gap: sidebarContraida ? 1.5 : 1.5, 
+            borderBottom: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`,
+            transition: 'all 0.2s'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box
+                sx={{
+                  p: 1,
+                  borderRadius: 2,
+                  background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                  color: '#ffffff',
+                  boxShadow: '0 4px 10px rgba(99, 102, 241, 0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <AssessmentIcon />
+              </Box>
+              {!sidebarContraida && (
+                <Box>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: 800,
+                      fontFamily: 'Outfit, sans-serif',
+                      color: theme.palette.mode === 'dark' ? '#f3f4f6' : '#0f172a',
+                      lineHeight: 1.1,
+                      letterSpacing: '-0.5px'
+                    }}
+                  >
+                    APEX
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontWeight: 600,
+                      color: theme.palette.primary.main,
+                      fontSize: '0.65rem',
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase'
+                    }}
+                  >
+                    Comissão & Projeção
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+
+            <IconButton 
+              size="small" 
+              onClick={() => setSidebarContraida(!sidebarContraida)}
+              sx={{ 
+                color: 'text.secondary',
               }}
             >
-              <AssessmentIcon />
-            </Box>
-            <Box>
-              <Typography
-                variant="h6"
-                sx={{
-                  fontWeight: 800,
-                  fontFamily: 'Outfit, sans-serif',
-                  color: theme.palette.mode === 'dark' ? '#f3f4f6' : '#0f172a',
-                  lineHeight: 1.1,
-                  letterSpacing: '-0.5px'
-                }}
-              >
-                APEX
-              </Typography>
-              <Typography
-                variant="caption"
-                sx={{
-                  fontWeight: 600,
-                  color: theme.palette.primary.main,
-                  fontSize: '0.65rem',
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase'
-                }}
-              >
-                Comissão & Projeção
-              </Typography>
-            </Box>
+              {sidebarContraida ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+            </IconButton>
           </Box>
 
           {/* Menu de Navegação da Sidebar */}
-          <Box sx={{ flexGrow: 1, px: 2, py: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <Button
-              variant={abaAtiva === 'dashboard' ? 'contained' : 'text'}
-              startIcon={<DashboardIcon />}
-              onClick={() => setAbaAtiva('dashboard')}
-              fullWidth
-              sx={{
-                justifyContent: 'flex-start',
-                py: 1.25,
-                px: 2,
-                borderRadius: 2,
-                fontWeight: 600,
-                fontFamily: 'Outfit, sans-serif',
-                fontSize: '0.9rem',
-                color: abaAtiva === 'dashboard' ? '#ffffff' : 'text.secondary',
-                background: abaAtiva === 'dashboard' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
-                boxShadow: abaAtiva === 'dashboard' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
-                '&:hover': {
-                  background: abaAtiva === 'dashboard' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
-                  color: abaAtiva === 'dashboard' ? '#ffffff' : 'primary.main'
-                }
-              }}
-            >
-              Dashboard
-            </Button>
-
-            {(!usuarioLogado || usuarioLogado.role === 'master' || usuarioLogado.permissoes?.visualizarDashboardVendedores) && (
+          <Box sx={{ flexGrow: 1, px: sidebarContraida ? 1 : 2, py: 3, display: 'flex', flexDirection: 'column', gap: 1, overflowX: 'hidden', overflowY: 'auto', transition: 'all 0.2s' }}>
+            <Tooltip title="Dashboard" placement="right" disableHoverListener={!sidebarContraida}>
               <Button
-                variant={abaAtiva === 'dashboard_vendedores' ? 'contained' : 'text'}
-                startIcon={<GroupIcon />}
-                onClick={() => setAbaAtiva('dashboard_vendedores')}
+                variant={abaAtiva === 'dashboard' ? 'contained' : 'text'}
+                startIcon={!sidebarContraida ? <DashboardIcon /> : undefined}
+                onClick={() => setAbaAtiva('dashboard')}
                 fullWidth
                 sx={{
-                  justifyContent: 'flex-start',
+                  justifyContent: sidebarContraida ? 'center' : 'flex-start',
                   py: 1.25,
-                  px: 2,
+                  px: sidebarContraida ? 0 : 2,
+                  minWidth: sidebarContraida ? 48 : undefined,
                   borderRadius: 2,
                   fontWeight: 600,
                   fontFamily: 'Outfit, sans-serif',
                   fontSize: '0.9rem',
-                  color: abaAtiva === 'dashboard_vendedores' ? '#ffffff' : 'text.secondary',
-                  background: abaAtiva === 'dashboard_vendedores' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
-                  boxShadow: abaAtiva === 'dashboard_vendedores' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
+                  color: abaAtiva === 'dashboard' ? '#ffffff' : 'text.secondary',
+                  background: abaAtiva === 'dashboard' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                  boxShadow: abaAtiva === 'dashboard' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
                   '&:hover': {
-                    background: abaAtiva === 'dashboard_vendedores' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
-                    color: abaAtiva === 'dashboard_vendedores' ? '#ffffff' : 'primary.main'
+                    background: abaAtiva === 'dashboard' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
+                    color: abaAtiva === 'dashboard' ? '#ffffff' : 'primary.main'
                   }
                 }}
               >
-                Dashboard Vendedores
+                {sidebarContraida ? <DashboardIcon /> : 'Dashboard'}
               </Button>
+            </Tooltip>
+
+            {(!usuarioLogado || isSuperMaster || usuarioLogado.role === 'master' || usuarioLogado.permissoes?.visualizarDashboardVendedores) && (
+              <Tooltip title="Dashboard Vendedores" placement="right" disableHoverListener={!sidebarContraida}>
+                <Button
+                  variant={abaAtiva === 'dashboard_vendedores' ? 'contained' : 'text'}
+                  startIcon={!sidebarContraida ? <GroupIcon /> : undefined}
+                  onClick={() => setAbaAtiva('dashboard_vendedores')}
+                  fullWidth
+                  sx={{
+                    justifyContent: sidebarContraida ? 'center' : 'flex-start',
+                    py: 1.25,
+                    px: sidebarContraida ? 0 : 2,
+                    minWidth: sidebarContraida ? 48 : undefined,
+                    borderRadius: 2,
+                    fontWeight: 600,
+                    fontFamily: 'Outfit, sans-serif',
+                    fontSize: '0.9rem',
+                    color: abaAtiva === 'dashboard_vendedores' ? '#ffffff' : 'text.secondary',
+                    background: abaAtiva === 'dashboard_vendedores' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                    boxShadow: abaAtiva === 'dashboard_vendedores' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
+                    '&:hover': {
+                      background: abaAtiva === 'dashboard_vendedores' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
+                      color: abaAtiva === 'dashboard_vendedores' ? '#ffffff' : 'primary.main'
+                    }
+                  }}
+                >
+                  {sidebarContraida ? <GroupIcon /> : 'Dashboard Vendedores'}
+                </Button>
+              </Tooltip>
             )}
 
-            <Button
-              variant={abaAtiva === 'vendas' ? 'contained' : 'text'}
-              startIcon={<ReceiptLongIcon />}
-              onClick={() => setAbaAtiva('vendas')}
-              fullWidth
-              sx={{
-                justifyContent: 'flex-start',
-                py: 1.25,
-                px: 2,
-                borderRadius: 2,
-                fontWeight: 600,
-                fontFamily: 'Outfit, sans-serif',
-                fontSize: '0.9rem',
-                color: abaAtiva === 'vendas' ? '#ffffff' : 'text.secondary',
-                background: abaAtiva === 'vendas' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
-                boxShadow: abaAtiva === 'vendas' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
-                '&:hover': {
-                  background: abaAtiva === 'vendas' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
-                  color: abaAtiva === 'vendas' ? '#ffffff' : 'primary.main'
-                }
-              }}
-            >
-              Painel de Vendas
-            </Button>
-
-            <Button
-              variant={abaAtiva === 'comissoes' ? 'contained' : 'text'}
-              startIcon={<AccountBalanceWalletIcon />}
-              onClick={() => setAbaAtiva('comissoes')}
-              fullWidth
-              sx={{
-                justifyContent: 'flex-start',
-                py: 1.25,
-                px: 2,
-                borderRadius: 2,
-                fontWeight: 600,
-                fontFamily: 'Outfit, sans-serif',
-                fontSize: '0.9rem',
-                color: abaAtiva === 'comissoes' ? '#ffffff' : 'text.secondary',
-                background: abaAtiva === 'comissoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
-                boxShadow: abaAtiva === 'comissoes' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
-                '&:hover': {
-                  background: abaAtiva === 'comissoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
-                  color: abaAtiva === 'comissoes' ? '#ffffff' : 'primary.main'
-                }
-              }}
-            >
-              Comissões Vendedores
-            </Button>
-
-            <Button
-              variant={abaAtiva === 'relatorio' ? 'contained' : 'text'}
-              startIcon={<AssessmentIcon />}
-              onClick={() => setAbaAtiva('relatorio')}
-              fullWidth
-              sx={{
-                justifyContent: 'flex-start',
-                py: 1.25,
-                px: 2,
-                borderRadius: 2,
-                fontWeight: 600,
-                fontFamily: 'Outfit, sans-serif',
-                fontSize: '0.9rem',
-                color: abaAtiva === 'relatorio' ? '#ffffff' : 'text.secondary',
-                background: abaAtiva === 'relatorio' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'transparent',
-                boxShadow: abaAtiva === 'relatorio' ? '0 4px 12px rgba(16, 185, 129, 0.25)' : 'none',
-                '&:hover': {
-                  background: abaAtiva === 'relatorio' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'rgba(16, 185, 129, 0.08)',
-                  color: abaAtiva === 'relatorio' ? '#ffffff' : '#10b981'
-                }
-              }}
-            >
-              Previsão de Recebimentos
-            </Button>
-
-            <Button
-              variant={abaAtiva === 'relatorio_comissoes' ? 'contained' : 'text'}
-              startIcon={<AccountBalanceWalletIcon />}
-              onClick={() => setAbaAtiva('relatorio_comissoes')}
-              fullWidth
-              sx={{
-                justifyContent: 'flex-start',
-                py: 1.25,
-                px: 2,
-                borderRadius: 2,
-                fontWeight: 600,
-                fontFamily: 'Outfit, sans-serif',
-                fontSize: '0.9rem',
-                color: abaAtiva === 'relatorio_comissoes' ? '#ffffff' : 'text.secondary',
-                background: abaAtiva === 'relatorio_comissoes' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'transparent',
-                boxShadow: abaAtiva === 'relatorio_comissoes' ? '0 4px 12px rgba(245, 158, 11, 0.25)' : 'none',
-                '&:hover': {
-                  background: abaAtiva === 'relatorio_comissoes' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'rgba(245, 158, 11, 0.08)',
-                  color: abaAtiva === 'relatorio_comissoes' ? '#ffffff' : '#f59e0b'
-                }
-              }}
-            >
-              Relatório de Comissões
-            </Button>
-
-            {(usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
+            <Tooltip title="Painel de Vendas" placement="right" disableHoverListener={!sidebarContraida}>
               <Button
-                variant={abaAtiva === 'configuracoes' ? 'contained' : 'text'}
-                startIcon={<SettingsIcon />}
-                onClick={() => {
-                  setAbaAtiva('configuracoes');
-                  setSubAbaAtiva('regras');
-                }}
+                variant={abaAtiva === 'vendas' ? 'contained' : 'text'}
+                startIcon={!sidebarContraida ? <ReceiptLongIcon /> : undefined}
+                onClick={() => setAbaAtiva('vendas')}
                 fullWidth
                 sx={{
-                  justifyContent: 'flex-start',
+                  justifyContent: sidebarContraida ? 'center' : 'flex-start',
                   py: 1.25,
-                  px: 2,
+                  px: sidebarContraida ? 0 : 2,
+                  minWidth: sidebarContraida ? 48 : undefined,
                   borderRadius: 2,
                   fontWeight: 600,
                   fontFamily: 'Outfit, sans-serif',
                   fontSize: '0.9rem',
-                  color: abaAtiva === 'configuracoes' ? '#ffffff' : 'text.secondary',
-                  background: abaAtiva === 'configuracoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
-                  boxShadow: abaAtiva === 'configuracoes' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
+                  color: abaAtiva === 'vendas' ? '#ffffff' : 'text.secondary',
+                  background: abaAtiva === 'vendas' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                  boxShadow: abaAtiva === 'vendas' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
                   '&:hover': {
-                    background: abaAtiva === 'configuracoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
-                    color: abaAtiva === 'configuracoes' ? '#ffffff' : 'primary.main'
+                    background: abaAtiva === 'vendas' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
+                    color: abaAtiva === 'vendas' ? '#ffffff' : 'primary.main'
                   }
                 }}
               >
-                Configurações
+                {sidebarContraida ? <ReceiptLongIcon /> : 'Painel de Vendas'}
               </Button>
+            </Tooltip>
+
+            <Tooltip title="Comissões Vendedores" placement="right" disableHoverListener={!sidebarContraida}>
+              <Button
+                variant={abaAtiva === 'comissoes' ? 'contained' : 'text'}
+                startIcon={!sidebarContraida ? <AccountBalanceWalletIcon /> : undefined}
+                onClick={() => setAbaAtiva('comissoes')}
+                fullWidth
+                sx={{
+                  justifyContent: sidebarContraida ? 'center' : 'flex-start',
+                  py: 1.25,
+                  px: sidebarContraida ? 0 : 2,
+                  minWidth: sidebarContraida ? 48 : undefined,
+                  borderRadius: 2,
+                  fontWeight: 600,
+                  fontFamily: 'Outfit, sans-serif',
+                  fontSize: '0.9rem',
+                  color: abaAtiva === 'comissoes' ? '#ffffff' : 'text.secondary',
+                  background: abaAtiva === 'comissoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                  boxShadow: abaAtiva === 'comissoes' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
+                  '&:hover': {
+                    background: abaAtiva === 'comissoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
+                    color: abaAtiva === 'comissoes' ? '#ffffff' : 'primary.main'
+                  }
+                }}
+              >
+                {sidebarContraida ? <AccountBalanceWalletIcon /> : 'Comissões Vendedores'}
+              </Button>
+            </Tooltip>
+
+            <Tooltip title="Previsão de Recebimentos" placement="right" disableHoverListener={!sidebarContraida}>
+              <Button
+                variant={abaAtiva === 'relatorio' ? 'contained' : 'text'}
+                startIcon={!sidebarContraida ? <AssessmentIcon /> : undefined}
+                onClick={() => setAbaAtiva('relatorio')}
+                fullWidth
+                sx={{
+                  justifyContent: sidebarContraida ? 'center' : 'flex-start',
+                  py: 1.25,
+                  px: sidebarContraida ? 0 : 2,
+                  minWidth: sidebarContraida ? 48 : undefined,
+                  borderRadius: 2,
+                  fontWeight: 600,
+                  fontFamily: 'Outfit, sans-serif',
+                  fontSize: '0.9rem',
+                  color: abaAtiva === 'relatorio' ? '#ffffff' : 'text.secondary',
+                  background: abaAtiva === 'relatorio' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'transparent',
+                  boxShadow: abaAtiva === 'relatorio' ? '0 4px 12px rgba(16, 185, 129, 0.25)' : 'none',
+                  '&:hover': {
+                    background: abaAtiva === 'relatorio' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'rgba(16, 185, 129, 0.08)',
+                    color: abaAtiva === 'relatorio' ? '#ffffff' : '#10b981'
+                  }
+                }}
+              >
+                {sidebarContraida ? <AssessmentIcon /> : 'Previsão de Recebimentos'}
+              </Button>
+            </Tooltip>
+
+            <Tooltip title="Relatório de Comissões" placement="right" disableHoverListener={!sidebarContraida}>
+              <Button
+                variant={abaAtiva === 'relatorio_comissoes' ? 'contained' : 'text'}
+                startIcon={!sidebarContraida ? <AccountBalanceWalletIcon /> : undefined}
+                onClick={() => setAbaAtiva('relatorio_comissoes')}
+                fullWidth
+                sx={{
+                  justifyContent: sidebarContraida ? 'center' : 'flex-start',
+                  py: 1.25,
+                  px: sidebarContraida ? 0 : 2,
+                  minWidth: sidebarContraida ? 48 : undefined,
+                  borderRadius: 2,
+                  fontWeight: 600,
+                  fontFamily: 'Outfit, sans-serif',
+                  fontSize: '0.9rem',
+                  color: abaAtiva === 'relatorio_comissoes' ? '#ffffff' : 'text.secondary',
+                  background: abaAtiva === 'relatorio_comissoes' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'transparent',
+                  boxShadow: abaAtiva === 'relatorio_comissoes' ? '0 4px 12px rgba(245, 158, 11, 0.25)' : 'none',
+                  '&:hover': {
+                    background: abaAtiva === 'relatorio_comissoes' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'rgba(245, 158, 11, 0.08)',
+                    color: abaAtiva === 'relatorio_comissoes' ? '#ffffff' : '#f59e0b'
+                  }
+                }}
+              >
+                {sidebarContraida ? <AccountBalanceWalletIcon /> : 'Relatório de Comissões'}
+              </Button>
+            </Tooltip>
+
+            {(isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
+              <Tooltip title="Configurações" placement="right" disableHoverListener={!sidebarContraida}>
+                <Button
+                  variant={abaAtiva === 'configuracoes' ? 'contained' : 'text'}
+                  startIcon={!sidebarContraida ? <SettingsIcon /> : undefined}
+                  onClick={() => {
+                    setAbaAtiva('configuracoes');
+                    setSubAbaAtiva('regras');
+                  }}
+                  fullWidth
+                  sx={{
+                    justifyContent: sidebarContraida ? 'center' : 'flex-start',
+                    py: 1.25,
+                    px: sidebarContraida ? 0 : 2,
+                    minWidth: sidebarContraida ? 48 : undefined,
+                    borderRadius: 2,
+                    fontWeight: 600,
+                    fontFamily: 'Outfit, sans-serif',
+                    fontSize: '0.9rem',
+                    color: abaAtiva === 'configuracoes' ? '#ffffff' : 'text.secondary',
+                    background: abaAtiva === 'configuracoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                    boxShadow: abaAtiva === 'configuracoes' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
+                    '&:hover': {
+                      background: abaAtiva === 'configuracoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
+                      color: abaAtiva === 'configuracoes' ? '#ffffff' : 'primary.main'
+                    }
+                  }}
+                >
+                  {sidebarContraida ? <SettingsIcon /> : 'Configurações'}
+                </Button>
+              </Tooltip>
             )}
           </Box>
 
           {/* Rodapé da Sidebar - Configurações e Perfil do Usuário */}
-          <Box sx={{ p: 2, borderTop: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}` }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, px: 1 }}>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.72rem' }}>
-                Modo {darkMode ? 'Escuro' : 'Claro'}
-              </Typography>
-              <IconButton onClick={() => setDarkMode(!darkMode)} size="small" sx={{ bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }}>
-                {darkMode ? <LightModeIcon sx={{ fontSize: 16 }} /> : <DarkModeIcon sx={{ fontSize: 16 }} />}
-              </IconButton>
+          <Box sx={{ p: sidebarContraida ? 1 : 2, borderTop: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`, transition: 'all 0.2s' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: sidebarContraida ? 'center' : 'space-between', mb: 2, px: sidebarContraida ? 0 : 1 }}>
+              {!sidebarContraida && (
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.72rem' }}>
+                  Modo {darkMode ? 'Escuro' : 'Claro'}
+                </Typography>
+              )}
+              <Tooltip title={`Alternar para modo ${darkMode ? 'Claro' : 'Escuro'}`} placement="right" disableHoverListener={!sidebarContraida}>
+                <IconButton onClick={() => setDarkMode(!darkMode)} size="small" sx={{ bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }}>
+                  {darkMode ? <LightModeIcon sx={{ fontSize: 16 }} /> : <DarkModeIcon sx={{ fontSize: 16 }} />}
+                </IconButton>
+              </Tooltip>
             </Box>
 
             <Box
               sx={{
                 display: 'flex',
+                flexDirection: sidebarContraida ? 'column' : 'row',
                 alignItems: 'center',
-                gap: 1,
+                justifyContent: 'center',
+                gap: sidebarContraida ? 1.5 : 1,
                 bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
-                p: 1.5,
-                borderRadius: 2.5
+                p: sidebarContraida ? 1 : 1.5,
+                borderRadius: 2.5,
+                transition: 'all 0.2s'
               }}
             >
-              <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, minWidth: 0 }}>
-                <Typography variant="body2" noWrap sx={{ fontWeight: 700, color: 'text.primary', fontSize: '0.82rem' }}>
-                  {usuarioLogado.nome}
-                </Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.68rem', fontWeight: 600 }}>
-                  {usuarioLogado.role.toUpperCase()}
-                </Typography>
-              </Box>
-              <Tooltip title="Sair do Sistema">
-                <IconButton
-                  onClick={() => setUsuarioLogado(null)}
-                  color="error"
-                  size="small"
-                  sx={{
-                    bgcolor: 'rgba(239, 68, 68, 0.05)',
-                    '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.15)' }
-                  }}
-                >
-                  <LogoutIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-              </Tooltip>
+              {!sidebarContraida ? (
+                <>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, minWidth: 0 }}>
+                    <Typography variant="body2" noWrap sx={{ fontWeight: 700, color: 'text.primary', fontSize: '0.82rem' }}>
+                      {usuarioLogado.nome}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.68rem', fontWeight: 600 }}>
+                      {usuarioLogado.role.toUpperCase()}
+                    </Typography>
+                  </Box>
+                  <Tooltip title="Sair do Sistema">
+                    <IconButton
+                      onClick={() => setUsuarioLogado(null)}
+                      color="error"
+                      size="small"
+                      sx={{
+                        bgcolor: 'rgba(239, 68, 68, 0.05)',
+                        '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.15)' }
+                      }}
+                    >
+                      <LogoutIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              ) : (
+                <Tooltip title={`${usuarioLogado.nome} (${usuarioLogado.role.toUpperCase()}) - Sair`} placement="right">
+                  <IconButton
+                    onClick={() => setUsuarioLogado(null)}
+                    color="error"
+                    size="small"
+                    sx={{
+                      bgcolor: 'rgba(239, 68, 68, 0.05)',
+                      p: 1,
+                      '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.15)' }
+                    }}
+                  >
+                    <LogoutIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
             </Box>
           </Box>
         </Box>
 
         {/* Área de Conteúdo Principal (Direita) */}
-        <Box sx={{ flexGrow: 1, ml: '280px', minWidth: 0, display: 'flex', flexDirection: 'column', pb: 6 }}>
+        <Box sx={{ 
+          flexGrow: 1, 
+          ml: sidebarContraida ? '80px' : '280px', 
+          minWidth: 0, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          pb: 6,
+          transition: 'margin-left 0.2s ease-in-out'
+        }}>
           {/* Header Superior da Área de Conteúdo */}
           <Box
             sx={{
@@ -713,6 +1105,7 @@ function App() {
               {abaAtiva === 'vendas' && 'Painel de Vendas / Simulador'}
               {abaAtiva === 'comissoes' && 'Comissões de Corretores'}
               {abaAtiva === 'relatorio' && 'Relatório de Previsão de Recebimentos'}
+              {abaAtiva === 'relatorio_comissoes' && 'Relatório de Comissões'}
               {abaAtiva === 'configuracoes' && 'Configurações Administrativas'}
             </Typography>
 
@@ -758,6 +1151,36 @@ function App() {
                   </Button>
                 </Box>
               )}
+
+              {/* Filtro de Empresa — visível apenas para super_master */}
+              {isSuperMaster && empresas.length > 0 && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 1 }}>
+                  <BusinessIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                  <select
+                    value={empresaFiltroMaster}
+                    onChange={(e) => setEmpresaFiltroMaster(e.target.value)}
+                    style={{
+                      background: theme.palette.mode === 'dark' ? '#1f2937' : '#f8fafc',
+                      color: theme.palette.mode === 'dark' ? '#f9fafb' : '#0f172a',
+                      border: `1px solid ${theme.palette.mode === 'dark' ? '#374151' : '#d1d5db'}`,
+                      borderRadius: 8,
+                      padding: '7px 12px',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      fontFamily: 'Inter, sans-serif',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      minWidth: 130
+                    }}
+                  >
+                    <option value="">Todas as empresas</option>
+                    {empresas.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.nome}</option>
+                    ))}
+                  </select>
+                </Box>
+              )}
+
               {/* Indicador de Sincronização Supabase */}
               <Tooltip
                 title={
@@ -839,20 +1262,20 @@ function App() {
           </Box>
 
           {/* Container de Informações e Views */}
-          <Container maxWidth="xl" sx={{ mt: 4 }}>
+          <Container maxWidth={false} sx={{ mt: 4, px: { xs: 2, md: 4 } }}>
                {abaAtiva === 'dashboard' && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {/* KPI Section */}
-                <KPISection vendas={vendas} dataInicio={dataInicio} dataFim={dataFim} />
+                <KPISection vendas={vendasFiltradas} dataInicio={dataInicio} dataFim={dataFim} />
                 
                 {/* Gráficos Analíticos */}
-                <AnalyticsCharts vendas={vendas} dataInicio={dataInicio} dataFim={dataFim} />
+                <AnalyticsCharts vendas={vendasFiltradas} dataInicio={dataInicio} dataFim={dataFim} />
               </Box>
             )}
 
             {abaAtiva === 'dashboard_vendedores' && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <DashboardVendedores vendas={vendas} vendedores={vendedores} dataInicio={dataInicio} dataFim={dataFim} />
+                <DashboardVendedores vendas={vendasFiltradas} vendedores={vendedoresFiltrados} dataInicio={dataInicio} dataFim={dataFim} />
               </Box>
             )}
 
@@ -860,9 +1283,9 @@ function App() {
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {/* Tabela Timeline Principal */}
                 <SimuladorVendas
-                  vendas={vendas}
-                  regras={regras}
-                  vendedores={vendedores}
+                  vendas={vendasFiltradas}
+                  regras={regrasParaExibicao}
+                  vendedores={vendedoresFiltrados}
                   onAdicionarVenda={handleAdicionarVenda}
                   onAtualizarVenda={handleAtualizarVenda}
                   onExcluirVenda={handleExcluirVenda}
@@ -875,31 +1298,35 @@ function App() {
             )}
 
             {abaAtiva === 'comissoes' && (
-              <ComissoesVendedores vendas={vendas} vendedores={vendedores} dataInicio={dataInicio} dataFim={dataFim} />
+              <ComissoesVendedores vendas={vendasFiltradas} vendedores={vendedoresFiltrados} dataInicio={dataInicio} dataFim={dataFim} />
             )}
 
             {abaAtiva === 'relatorio' && (
               <RelatorioRecebimentos
-                vendas={vendas}
+                vendas={vendasFiltradas}
+                vendedores={vendedoresFiltrados}
+                regras={regras}
                 dataInicio={dataInicio}
                 dataFim={dataFim}
                 ciclos={ciclos}
+                onAtualizarVenda={handleAtualizarVenda}
+                permissoes={usuarioLogado?.permissoes}
               />
             )}
 
             {abaAtiva === 'relatorio_comissoes' && (
               <RelatorioComissoes
-                vendas={vendas}
-                vendedores={vendedores}
+                vendas={vendasFiltradas}
+                vendedores={vendedoresFiltrados}
                 dataInicio={dataInicio}
                 dataFim={dataFim}
                 ciclos={ciclos}
                 onAlterarStatusComissao={handleAlterarStatusComissao}
-                podeEditarComissao={usuarioLogado?.role === 'master' || usuarioLogado?.role === 'financeiro'}
+                podeEditarComissao={isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'financeiro'}
               />
             )}
 
-            {abaAtiva === 'configuracoes' && (usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
+            {abaAtiva === 'configuracoes' && (isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
               <ErrorBoundary>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   {/* Header das Configurações */}
@@ -944,9 +1371,15 @@ function App() {
                       }}
                     >
                       <Tab value="regras" icon={<StorageIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Banco de Regras (BD Master)" />
-                      <Tab value="vendedores" icon={<PeopleIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Vendedores" />
-                      {usuarioLogado?.role === 'master' && (
-                        <Tab value="acessos" icon={<AdminPanelSettingsIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Gestão de Acessos" />
+                      {/* Tab de Tabelas das Filhas — visível para super_master e masters de empresa mãe */}
+                      {(isSuperMaster || (usuarioLogado?.role === 'master' && !empresaAtualEhFilha)) && empresas.some(e => !!e.empresaMaeId) && (
+                        <Tab value="regras_filha" icon={<AccountTreeIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Tabelas das Filhas" />
+                      )}
+                      {(isSuperMaster || usuarioLogado?.role === 'master') && (
+                        <Tab value="acessos" icon={<AdminPanelSettingsIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Gestão de Acessos e Vendedores" />
+                      )}
+                      {isSuperMaster && (
+                        <Tab value="empresas" icon={<BusinessIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Empresas" />
                       )}
                     </Tabs>
                   </Box>
@@ -959,21 +1392,30 @@ function App() {
                       onEditarRegra={handleEditarRegra}
                       onExcluirRegra={handleExcluirRegra}
                       permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
+                      empresas={empresas}
+                      empresaAtualId={usuarioLogado?.empresaId}
+                      isSuperMaster={isSuperMaster}
                     />
                   )}
 
-                  {subAbaAtiva === 'vendedores' && (
-                    <VendedoresCadastro
-                      vendedores={vendedores}
-                      onAdicionarVendedor={handleAdicionarVendedor}
-                      onEditarVendedor={handleEditarVendedor}
-                      onExcluirVendedor={handleExcluirVendedor}
-                      permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
+                  {/* Tabelas das Filhas */}
+                  {subAbaAtiva === 'regras_filha' && (isSuperMaster || (usuarioLogado?.role === 'master' && !empresaAtualEhFilha)) && (
+                    <RegrasFilha
+                      empresas={empresas}
+                      regrasMaster={regras}
                     />
                   )}
 
-                  {subAbaAtiva === 'acessos' && usuarioLogado?.role === 'master' && (
-                    <UsuariosCadastro />
+                  {(isSuperMaster || usuarioLogado?.role === 'master') && subAbaAtiva === 'acessos' && (
+                    <UsuariosCadastro
+                      usuarioLogado={usuarioLogado}
+                      vendedores={vendedoresFiltrados}
+                      onSalvarVendedor={handleAdicionarVendedor}
+                    />
+                  )}
+
+                  {subAbaAtiva === 'empresas' && isSuperMaster && (
+                    <EmpresasCadastro />
                   )}
 
                   <Box

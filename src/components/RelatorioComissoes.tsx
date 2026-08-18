@@ -23,6 +23,11 @@ import {
   Select,
   MenuItem,
 } from '@mui/material';
+import Checkbox from '@mui/material/Checkbox';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import TableSortLabel from '@mui/material/TableSortLabel';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
@@ -33,7 +38,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import CancelIcon from '@mui/icons-material/Cancel';
 import PersonIcon from '@mui/icons-material/Person';
-import type { LancamentoVenda, StatusParcela, StatusComissao, Vendedor } from '../types';
+import type { LancamentoVenda, StatusComissao, Vendedor } from '../types';
 
 // ──────────────────────────────────────────────────────────
 // Helpers
@@ -75,15 +80,7 @@ const calcularDataPrevisaoRecebimento = (
   return `${ano}-${mes}-${dia}`;
 };
 
-const obterStatusEfetivo = (status: StatusParcela, dataVencimento: string): StatusParcela => {
-  if (status === 'A vencer' && dataVencimento) {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const venc = new Date(`${dataVencimento}T00:00:00`);
-    if (venc <= hoje) return 'Vencida';
-  }
-  return status;
-};
+
 
 // ──────────────────────────────────────────────────────────
 // Tipos internos
@@ -107,7 +104,7 @@ interface ParcelaComissaoLinha {
   percentualVendedor: number;      // % do vendedor
   valorParcela: number;
   valorVenda: number;
-  status: StatusParcela;
+  status: 'A receber' | 'Recebida' | 'Cancelada';
   statusComissao: StatusComissao;  // Status de pagamento da comissão ao parceiro
   parcelaIndex: number;
   qtdParcelas: number;
@@ -127,15 +124,13 @@ interface GrupoPeriodoComissao {
 // Sub-componente: Badge de Status
 // ──────────────────────────────────────────────────────────
 
-const StatusBadge = ({ status }: { status: StatusParcela }) => {
-  const map: Record<StatusParcela, { color: string; bg: string; icon: React.ReactNode }> = {
-    'A vencer':  { color: '#6366f1', bg: 'rgba(99,102,241,0.12)',  icon: <HourglassEmptyIcon sx={{ fontSize: 12 }} /> },
-    'Vencida':   { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  icon: <HourglassEmptyIcon sx={{ fontSize: 12 }} /> },
-    'Paga':      { color: '#10b981', bg: 'rgba(16,185,129,0.12)',  icon: <CheckCircleIcon sx={{ fontSize: 12 }} /> },
+const StatusBadge = ({ status }: { status: 'A receber' | 'Recebida' | 'Cancelada' }) => {
+  const map: Record<'A receber' | 'Recebida' | 'Cancelada', { color: string; bg: string; icon: React.ReactNode }> = {
+    'A receber': { color: '#f97316', bg: 'rgba(249,115,22,0.12)',  icon: <HourglassEmptyIcon sx={{ fontSize: 12 }} /> },
     'Recebida':  { color: '#0ea5e9', bg: 'rgba(14,165,233,0.12)',  icon: <CheckCircleIcon sx={{ fontSize: 12 }} /> },
     'Cancelada': { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   icon: <CancelIcon sx={{ fontSize: 12 }} /> },
   };
-  const s = map[status] || map['A vencer'];
+  const s = map[status] || map['A receber'];
   return (
     <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, px: 1, py: 0.25,
       borderRadius: 99, bgcolor: s.bg, color: s.color, fontWeight: 700, fontSize: '0.7rem' }}>
@@ -187,6 +182,180 @@ const StatusComissaoBadge = ({
 };
 
 // ──────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
+// PDF Export Helper
+// ──────────────────────────────────────────────────────────
+
+const exportarComissoesParaPDF = (mesAnoFormatado: string, itens: ParcelaComissaoLinha[], totais: { totalComissoes: number, totalCredito: number }) => {
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  // Título e Header
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(245, 158, 11); // Âmbar / Ouro (marca de comissões)
+  doc.text('APEX - Relatório de Comissões de Vendedores', 14, 15);
+
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Período de Referência: ${mesAnoFormatado}`, 14, 21);
+
+  // Resumo Financeiro
+  doc.setFont('helvetica', 'bold');
+  doc.setFillColor(248, 250, 252);
+  doc.rect(14, 25, 269, 15, 'F');
+  doc.setFontSize(10);
+  doc.setTextColor(30, 41, 59);
+  doc.text(`Total de Parcelas: ${itens.length}`, 20, 34);
+  doc.text(`Crédito Total: ${formatarMoeda(totais.totalCredito)}`, 100, 34);
+  doc.text(`Comissões Totais: ${formatarMoeda(totais.totalComissoes)}`, 190, 34);
+
+  // Tabela
+  const headers = [
+    'Vendedor',
+    'Cliente / PAC',
+    'Data Venda',
+    'Vencimento',
+    'Nº Rel ADM',
+    'Data Rel',
+    'Valor da Cota',
+    'Parcela',
+    'Tabela',
+    'Status Venda',
+    'Parcela Nº',
+    'Comissão Vendedor',
+    'Status Comissão'
+  ];
+
+  const rows = itens.map(item => [
+    item.vendedorNome || '—',
+    item.cliente + (item.pac ? `\nPAC: ${item.pac}` : ''),
+    item.dataVenda ? formatarData(item.dataVenda) : '—',
+    formatarData(item.dataVencimento),
+    item.numeroRelatorio || '—',
+    item.dataRelatorio ? formatarData(item.dataRelatorio) : '—',
+    formatarMoeda(item.valorVenda),
+    formatarMoeda(item.valorParcela),
+    item.tabela,
+    item.status,
+    `${item.parcelaIndex}/${item.qtdParcelas}`,
+    formatarMoeda(item.comissaoVendedor),
+    item.statusComissao
+  ]);
+
+  autoTable(doc, {
+    startY: 45,
+    head: [headers],
+    body: rows,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [245, 158, 11],
+      textColor: [255, 255, 255],
+      fontSize: 8,
+      fontStyle: 'bold',
+      halign: 'center',
+      valign: 'middle'
+    },
+    bodyStyles: {
+      fontSize: 7.5,
+      textColor: [51, 65, 85],
+      valign: 'top'
+    },
+    columnStyles: {
+      0: { cellWidth: 20 }, // Vendedor
+      1: { cellWidth: 32 }, // Cliente / PAC
+      2: { cellWidth: 16 }, // Data Venda
+      3: { cellWidth: 16 }, // Vencimento
+      4: { cellWidth: 18 }, // Nº Rel ADM
+      5: { cellWidth: 16 }, // Data Rel
+      6: { cellWidth: 20, halign: 'right' }, // Valor da Cota
+      7: { cellWidth: 18, halign: 'right' }, // Parcela
+      8: { cellWidth: 26 }, // Tabela
+      9: { cellWidth: 18, halign: 'center' }, // Status Venda
+      10: { cellWidth: 12, halign: 'center' }, // Parcela Nº
+      11: { cellWidth: 22, halign: 'right' }, // Comissão Vendedor
+      12: { cellWidth: 20, halign: 'center' } // Status Comissão
+    },
+    margin: { left: 14, right: 14 }
+  });
+
+  // Adicionar numeração de página no final
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    const numPaginaStr = `Página ${i} de ${totalPages}`;
+    doc.text(numPaginaStr, 283 - doc.getTextWidth(numPaginaStr), 200);
+    doc.text('Gerado por APEX - Comissões de Vendedores', 14, 200);
+  }
+
+  // Salvar PDF
+  doc.save(`apex_comissoes_${mesAnoFormatado.replace('/', '_')}.pdf`);
+};
+
+// ──────────────────────────────────────────────────────────
+// Helper de Ordenação Genérica
+// ──────────────────────────────────────────────────────────
+
+type Order = 'asc' | 'desc';
+
+function obterValorOrdenacao(item: ParcelaComissaoLinha, campo: string) {
+  switch (campo) {
+    case 'vendedorNome':
+      return item.vendedorNome || '';
+    case 'cliente':
+      return item.cliente || '';
+    case 'dataVenda':
+      return item.dataVenda || '';
+    case 'dataVencimento':
+      return item.dataVencimento || '';
+    case 'numeroRelatorio':
+      return item.numeroRelatorio || '';
+    case 'dataRelatorio':
+      return item.dataRelatorio || '';
+    case 'valorVenda':
+      return item.valorVenda || 0;
+    case 'valorParcela':
+      return item.valorParcela || 0;
+    case 'tabela':
+      return item.tabela || '';
+    case 'status':
+      return item.status || '';
+    case 'parcelaIndex':
+      return item.parcelaIndex || 0;
+    case 'comissaoVendedor':
+      return item.comissaoVendedor || 0;
+    case 'statusComissao':
+      return item.statusComissao || '';
+    default:
+      return '';
+  }
+}
+
+function ordenarItens(itens: ParcelaComissaoLinha[], orderBy: string, order: Order): ParcelaComissaoLinha[] {
+  return [...itens].sort((a, b) => {
+    const valA = obterValorOrdenacao(a, orderBy);
+    const valB = obterValorOrdenacao(b, orderBy);
+
+    if (typeof valA === 'number' && typeof valB === 'number') {
+      return order === 'asc' ? valA - valB : valB - valA;
+    }
+
+    const strA = String(valA).toLowerCase();
+    const strB = String(valB).toLowerCase();
+
+    if (strA < strB) return order === 'asc' ? -1 : 1;
+    if (strA > strB) return order === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+
 // Sub-componente: Sub-grupo por data de previsão de pagamento
 // ──────────────────────────────────────────────────────────
 
@@ -197,6 +366,10 @@ const SubGrupoDataComissao = ({
   totalCredito,
   onAlterarStatusComissao,
   podeEditarComissao,
+  bgCard,
+  selecionadas,
+  onToggleSelecionar,
+  onToggleSelecionarData,
 }: {
   dataPagamento: string;
   itens: ParcelaComissaoLinha[];
@@ -204,6 +377,10 @@ const SubGrupoDataComissao = ({
   totalCredito: number;
   onAlterarStatusComissao: (vendaId: string, mesChave: string, novoStatus: StatusComissao) => void;
   podeEditarComissao: boolean;
+  bgCard?: string;
+  selecionadas: string[];
+  onToggleSelecionar: (id: string) => void;
+  onToggleSelecionarData: (ids: string[], marcar: boolean) => void;
 }) => {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
@@ -211,6 +388,36 @@ const SubGrupoDataComissao = ({
   const hoje = new Date().toISOString().split('T')[0];
   const isHoje = dataPagamento === hoje;
   const isPast = dataPagamento < hoje;
+
+  // Estados de Ordenação
+  const [orderBy, setOrderBy] = useState<string>('vendedorNome');
+  const [order, setOrder] = useState<Order>('asc');
+
+  const handleRequestSort = (property: string) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
+  const colunas = [
+    { label: 'Vendedor', field: 'vendedorNome' },
+    { label: 'Cliente / PAC', field: 'cliente' },
+    { label: 'Data Venda', field: 'dataVenda' },
+    { label: 'Vencimento', field: 'dataVencimento' },
+    { label: 'Nº Rel ADM', field: 'numeroRelatorio' },
+    { label: 'Data Rel', field: 'dataRelatorio' },
+    { label: 'Valor da Cota', field: 'valorVenda' },
+    { label: 'Parcela', field: 'valorParcela' },
+    { label: 'Tabela', field: 'tabela' },
+    { label: 'Status Venda', field: 'status' },
+    { label: 'Parcela Nº', field: 'parcelaIndex' },
+    { label: 'Comissão Vendedor', field: 'comissaoVendedor' },
+    { label: 'Status Comissão', field: 'statusComissao' },
+  ];
+
+  const itensOrdenados = useMemo(() => {
+    return ordenarItens(itens, orderBy, order);
+  }, [itens, orderBy, order]);
 
   return (
     <Box sx={{ borderBottom: `1px solid ${isDark ? '#1f2937' : '#f1f5f9'}`, '&:last-child': { borderBottom: 0 } }}>
@@ -301,25 +508,92 @@ const SubGrupoDataComissao = ({
 
       {/* Tabela do sub-grupo */}
       <Collapse in={open} timeout="auto" unmountOnExit>
-        <TableContainer>
+        <TableContainer sx={{ overflowX: 'auto', width: '100%' }}>
           <Table size="small">
             <TableHead>
               <TableRow>
-                {['Vendedor', 'Cliente / PAC', 'Data Venda', 'Mês Ref.', 'Vencimento', 'Corte (Últ.dia)', 'Nº Relatório ADM', 'Data Relatório', 'Valor da Cota', 'Parcela', 'Tabela', 'Status Venda', 'Parcela Nº', 'Comissão Vendedor', 'Status Comissão'].map((h) => (
-                  <TableCell key={h} sx={{
-                    fontWeight: 700, fontSize: '0.68rem', color: 'text.secondary',
-                    bgcolor: isDark ? '#0a0e18' : '#f8fafc', textTransform: 'uppercase',
-                    letterSpacing: '0.4px', whiteSpace: 'nowrap', py: 0.8,
-                    pl: h === 'Vendedor' ? 4 : undefined,
-                  }}>
-                    {h}
-                  </TableCell>
-                ))}
+                <TableCell sx={{
+                  position: 'sticky',
+                  left: 0,
+                  zIndex: 10,
+                  width: 50,
+                  minWidth: 50,
+                  bgcolor: isDark ? '#0a0e18' : '#f8fafc',
+                  py: 0.8,
+                  pl: 2,
+                }}>
+                  <Checkbox
+                    size="small"
+                    checked={itens.length > 0 && itens.every(i => selecionadas.includes(i.id))}
+                    indeterminate={itens.some(i => selecionadas.includes(i.id)) && !itens.every(i => selecionadas.includes(i.id))}
+                    onChange={(e) => onToggleSelecionarData(itens.map(i => i.id), e.target.checked)}
+                  />
+                </TableCell>
+                {colunas.map((col, index) => {
+                  let stickySx = {};
+                  if (index === 0) {
+                    stickySx = {
+                      position: 'sticky',
+                      left: 50,
+                      zIndex: 10,
+                      width: 130,
+                      minWidth: 130,
+                      bgcolor: isDark ? '#0a0e18' : '#f8fafc',
+                    };
+                  } else if (index === 1) {
+                    stickySx = {
+                      position: 'sticky',
+                      left: 180,
+                      zIndex: 10,
+                      width: 210,
+                      minWidth: 210,
+                      bgcolor: isDark ? '#0a0e18' : '#f8fafc',
+                    };
+                  } else if (index === 2) {
+                    stickySx = {
+                      position: 'sticky',
+                      left: 390,
+                      zIndex: 10,
+                      width: 100,
+                      minWidth: 100,
+                      bgcolor: isDark ? '#0a0e18' : '#f8fafc',
+                      borderRight: `1px solid ${theme.palette.divider}`,
+                    };
+                  }
+                  const isSortedActive = orderBy === col.field;
+                  return (
+                    <TableCell key={col.label} sx={{
+                      fontWeight: 700, fontSize: '0.68rem', color: 'text.secondary',
+                      bgcolor: isDark ? '#0a0e18' : '#f8fafc', textTransform: 'uppercase',
+                      letterSpacing: '0.4px', whiteSpace: 'nowrap', py: 0.8,
+                      pl: col.label === 'Vendedor' ? 4 : undefined,
+                      ...stickySx
+                    }}>
+                      <TableSortLabel
+                        active={isSortedActive}
+                        direction={isSortedActive ? order : 'asc'}
+                        onClick={() => handleRequestSort(col.field)}
+                        sx={{
+                          '&.MuiTableSortLabel-root': {
+                            color: isSortedActive ? 'text.primary' : 'inherit',
+                          },
+                          '&.MuiTableSortLabel-root:hover': {
+                            color: 'text.primary',
+                          },
+                          '& .MuiTableSortLabel-icon': {
+                            color: `${theme.palette.primary.main} !important`,
+                          }
+                        }}
+                      >
+                        {col.label}
+                      </TableSortLabel>
+                    </TableCell>
+                  );
+                })}
               </TableRow>
             </TableHead>
             <TableBody>
-              {[...itens]
-                .sort((a, b) => a.cliente.localeCompare(b.cliente, 'pt-BR'))
+              {itensOrdenados
                 .map((item, idx, arr) => {
                   const isFirstOfGroup = idx === 0 || item.cliente !== arr[idx - 1].cliente;
                   const isLastOfGroup  = idx === arr.length - 1 || item.cliente !== arr[idx + 1].cliente;
@@ -328,14 +602,43 @@ const SubGrupoDataComissao = ({
                       key={item.id}
                       hover
                       sx={{
+                        bgcolor: bgCard && bgCard !== 'transparent' ? bgCard : (isDark ? '#111827' : '#ffffff'),
                         '&:last-child td': { border: 0 },
+                        '&:hover': {
+                          bgcolor: isDark ? 'rgba(255, 255, 255, 0.08) !important' : 'rgba(0, 0, 0, 0.04) !important',
+                        },
                         ...(isFirstOfGroup && idx > 0 ? {
                           '& td': { borderTop: `2px solid ${isDark ? '#1f2937' : '#e5e7eb'} !important` },
                         } : {}),
                       }}
                     >
+                      {/* Checkbox de Linha */}
+                      <TableCell sx={{
+                        position: 'sticky',
+                        left: 0,
+                        zIndex: 1,
+                        bgcolor: 'inherit',
+                        width: 50,
+                        minWidth: 50,
+                        py: 0.8,
+                        pl: 2,
+                      }}>
+                        <Checkbox
+                          size="small"
+                          checked={selecionadas.includes(item.id)}
+                          onChange={() => onToggleSelecionar(item.id)}
+                        />
+                      </TableCell>
                       {/* Vendedor — sempre visível */}
-                      <TableCell sx={{ py: 0.8, pl: 4 }}>
+                      <TableCell sx={{
+                        py: 0.8, pl: 4,
+                        position: 'sticky',
+                        left: 50,
+                        zIndex: 1,
+                        bgcolor: 'inherit',
+                        width: 130,
+                        minWidth: 130,
+                      }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.78rem', color: theme.palette.primary.main }}>
                           {item.vendedorNome || 'Vendedor Não Atribuído'}
                         </Typography>
@@ -347,6 +650,12 @@ const SubGrupoDataComissao = ({
                           py: 0.8,
                           borderBottom: isLastOfGroup ? undefined : 'none',
                           verticalAlign: 'top',
+                          position: 'sticky',
+                          left: 180,
+                          zIndex: 1,
+                          bgcolor: 'inherit',
+                          width: 210,
+                          minWidth: 210,
                         }}
                       >
                         <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>{item.cliente}</Typography>
@@ -357,17 +666,20 @@ const SubGrupoDataComissao = ({
                         )}
                       </TableCell>
 
-                      <TableCell sx={{ py: 0.8, fontSize: '0.75rem', whiteSpace: 'nowrap', color: 'text.secondary' }}>
+                      <TableCell sx={{
+                        py: 0.8, fontSize: '0.75rem', whiteSpace: 'nowrap', color: 'text.secondary',
+                        position: 'sticky',
+                        left: 390,
+                        zIndex: 1,
+                        bgcolor: 'inherit',
+                        width: 100,
+                        minWidth: 100,
+                        borderRight: `1px solid ${theme.palette.divider}`,
+                      }}>
                         {item.dataVenda ? formatarData(item.dataVenda) : '—'}
                       </TableCell>
                       <TableCell sx={{ py: 0.8, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                        {formatarMesAno(item.mesReferencia)}
-                      </TableCell>
-                      <TableCell sx={{ py: 0.8, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                         {formatarData(item.dataVencimento)}
-                      </TableCell>
-                      <TableCell sx={{ py: 0.8, fontSize: '0.72rem', color: '#f59e0b', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                        {formatarData(item.dataPrevisaoPagamento)}
                       </TableCell>
                       <TableCell sx={{ py: 0.8, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
                         {item.numeroRelatorio ? (
@@ -441,6 +753,47 @@ const GrupoPagamentoComissao = ({
   const [open, setOpen] = useState(false);
   const isDark = theme.palette.mode === 'dark';
 
+  const [selecionados, setSelecionados] = useState<string[]>(() => grupo.itens.map(i => i.id));
+
+  const handleToggleSelecionar = (id: string) => {
+    setSelecionados(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelecionarData = (ids: string[], marcar: boolean) => {
+    if (marcar) {
+      setSelecionados(prev => [...new Set([...prev, ...ids])]);
+    } else {
+      setSelecionados(prev => prev.filter(x => !ids.includes(x)));
+    }
+  };
+
+  const handleToggleSelecionarTodosMes = (marcar: boolean) => {
+    if (marcar) {
+      setSelecionados(grupo.itens.map(i => i.id));
+    } else {
+      setSelecionados([]);
+    }
+  };
+
+  const handleExportarPDF = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const itensParaExportar = grupo.itens.filter(i => selecionados.includes(i.id));
+    if (itensParaExportar.length === 0) {
+      alert('Selecione pelo menos um registro para exportar.');
+      return;
+    }
+    const totalComissoes = itensParaExportar.reduce((acc, i) => acc + i.comissaoVendedor, 0);
+    const totalCredito = itensParaExportar.reduce((acc, i) => acc + i.valorVenda, 0);
+
+    exportarComissoesParaPDF(
+      formatarMesAno(grupo.mesPeriodo + '-01'),
+      itensParaExportar,
+      { totalComissoes, totalCredito }
+    );
+  };
+
   const bgCard = isAtual
     ? (isDark ? 'rgba(245,158,11,0.14)' : 'rgba(245,158,11,0.07)')
     : isPast
@@ -481,6 +834,15 @@ const GrupoPagamentoComissao = ({
         <IconButton size="small" sx={{ p: 0.25, color: 'text.secondary' }}>
           {open ? <KeyboardArrowDownIcon fontSize="small" /> : <KeyboardArrowRightIcon fontSize="small" />}
         </IconButton>
+
+        <Checkbox
+          size="small"
+          checked={grupo.itens.length > 0 && grupo.itens.every(i => selecionados.includes(i.id))}
+          indeterminate={grupo.itens.some(i => selecionados.includes(i.id)) && !grupo.itens.every(i => selecionados.includes(i.id))}
+          onChange={(e) => handleToggleSelecionarTodosMes(e.target.checked)}
+          onClick={(e) => e.stopPropagation()}
+          sx={{ mr: 1 }}
+        />
 
         {/* Mês de pagamento */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 190 }}>
@@ -556,12 +918,12 @@ const GrupoPagamentoComissao = ({
         </Box>
 
         {/* Badges de status */}
-        <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 0.5 }}>
-          {(['A vencer', 'Vencida', 'Paga', 'Recebida'] as StatusParcela[]).map((s) => {
+        <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', gap: 0.5 }}>
+          {(['A receber', 'Recebida', 'Cancelada'] as string[]).map((s) => {
             const count = grupo.itens.filter((i) => i.status === s).length;
             if (!count) return null;
             const colors: Record<string, string> = {
-              'A vencer': '#6366f1', 'Vencida': '#f59e0b', 'Paga': '#10b981', 'Recebida': '#0ea5e9'
+              'A receber': '#f97316', 'Recebida': '#0ea5e9', 'Cancelada': '#ef4444'
             };
             return (
               <Tooltip key={s} title={`${s}: ${count}`}>
@@ -571,6 +933,29 @@ const GrupoPagamentoComissao = ({
               </Tooltip>
             );
           })}
+        </Box>
+
+        {/* Ações do Grupo (Exportar PDF) */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1 }}>
+          <Button
+            variant="contained"
+            color="error"
+            size="small"
+            startIcon={<PictureAsPdfIcon />}
+            onClick={handleExportarPDF}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 700,
+              fontSize: '0.75rem',
+              py: 0.5,
+              px: 1.5,
+              borderRadius: 1.5,
+              bgcolor: '#ef4444',
+              '&:hover': { bgcolor: '#dc2626' }
+            }}
+          >
+            PDF ({selecionados.length})
+          </Button>
         </Box>
       </Box>
 
@@ -591,6 +976,10 @@ const GrupoPagamentoComissao = ({
                 totalCredito={totalCreditoData}
                 onAlterarStatusComissao={onAlterarStatusComissao}
                 podeEditarComissao={podeEditarComissao}
+                bgCard={bgCard}
+                selecionadas={selecionados}
+                onToggleSelecionar={handleToggleSelecionar}
+                onToggleSelecionarData={handleToggleSelecionarData}
               />
             );
           })}
@@ -630,14 +1019,14 @@ export const RelatorioComissoes = ({
   const [busca, setBusca] = useState('');
   const [buscaRelatorio, setBuscaRelatorio] = useState('');
   const [vendedorIdFiltro, setVendedorIdFiltro] = useState<string>('Todos');
-  const [filtroStatus, setFiltroStatus] = useState<Array<StatusParcela | 'A receber'>>([]); 
+  const [filtroStatus, setFiltroStatus] = useState<Array<'A receber' | 'Recebida' | 'Cancelada'>>([]); 
 
-  const toggleFiltroStatus = (s: StatusParcela | 'A receber' | 'Todos') => {
+  const toggleFiltroStatus = (s: string) => {
     if (s === 'Todos') { setFiltroStatus([]); return; }
     setFiltroStatus((prev) =>
-      prev.includes(s as StatusParcela | 'A receber')
+      prev.includes(s as any)
         ? prev.filter((x) => x !== s)
-        : [...prev, s as StatusParcela | 'A receber']
+        : [...prev, s as any]
     );
   };
 
@@ -672,7 +1061,9 @@ export const RelatorioComissoes = ({
         if (!celula || !celula.valorVenda || celula.valorVenda <= 0) return;
         if (mesChave < mesInicioChave || mesChave > mesFimChave) return;
 
-        const statusEf = obterStatusEfetivo(celula.status, celula.dataVencimento);
+        const statusEf = celula.status === 'Cancelada'
+          ? 'Cancelada' as any
+          : (celula.recebida ? 'Recebida' as any : 'A receber' as any);
 
         if (filtroStatus.length > 0) {
           const incluirCancelada = filtroStatus.includes('Cancelada');
@@ -810,14 +1201,11 @@ export const RelatorioComissoes = ({
   const totalComissoesContestadas = parcelas.reduce((acc, p) => p.statusComissao === 'Contestada' ? acc + p.comissaoVendedor : acc, 0);
   const qtdComissoesPagas = parcelas.filter((p) => p.statusComissao === 'Paga').length;
 
-  const STATUS_OPCOES: Array<StatusParcela | 'A receber' | 'Todos'> = ['Todos', 'A vencer', 'Vencida', 'A receber', 'Paga', 'Recebida', 'Cancelada'];
+  const STATUS_OPCOES = ['Todos', 'A receber', 'Recebida', 'Cancelada'];
 
   const STATUS_CORES: Record<string, { active: string; border: string }> = {
     'Todos':      { active: '#f59e0b', border: '#f59e0b' },
-    'A vencer':   { active: '#6366f1', border: '#6366f1' },
-    'Vencida':    { active: '#f59e0b', border: '#f59e0b' },
     'A receber':  { active: '#f97316', border: '#f97316' },
-    'Paga':       { active: '#10b981', border: '#10b981' },
     'Recebida':   { active: '#0ea5e9', border: '#0ea5e9' },
     'Cancelada':  { active: '#ef4444', border: '#ef4444' },
   };
@@ -995,7 +1383,7 @@ export const RelatorioComissoes = ({
             </Typography>
           )}
           {STATUS_OPCOES.map((s) => {
-            const isAtivo = s === 'Todos' ? filtroStatus.length === 0 : filtroStatus.includes(s as StatusParcela | 'A receber');
+            const isAtivo = s === 'Todos' ? filtroStatus.length === 0 : filtroStatus.includes(s as any);
             const cor = STATUS_CORES[s];
             return (
               <Chip
