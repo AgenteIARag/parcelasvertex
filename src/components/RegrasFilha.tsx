@@ -22,6 +22,11 @@ import {
   CircularProgress,
   Tooltip,
   Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import HomeIcon from '@mui/icons-material/Home';
@@ -29,7 +34,9 @@ import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import type { Empresa, RegraMaster, RegraFilha, SegmentoType } from '../types';
+import CloseIcon from '@mui/icons-material/Close';
+import EditIcon from '@mui/icons-material/Edit';
+import type { Empresa, RegraMaster, RegraFilha, SegmentoType, TipoTabela } from '../types';
 import { obterRegrasFilhaSupabase, salvarRegraFilhaSupabase } from '../utils/supabase';
 
 interface RegrasFilhaProps {
@@ -42,6 +49,7 @@ type EditMap = Record<string, {
   percentual: number | '';
   percentualAdesao: number | '';
   percentualMensal: number | '';
+  percentuaisParcelas?: number[];
   percentualContempl: number | '';
 }>;
 
@@ -55,6 +63,27 @@ const SEGMENTO_COLORS: Record<SegmentoType, { bg: string; text: string }> = {
   'Imóveis': { bg: 'rgba(99,102,241,0.12)', text: '#818cf8' },
   'Autos Leves': { bg: 'rgba(16,185,129,0.12)', text: '#34d399' },
   'Pesados': { bg: 'rgba(245,158,11,0.12)', text: '#fbbf24' },
+};
+
+// Helper para gerar a grade padrão de uma regra
+const gerarGradePadrao = (
+  qtd: number,
+  tipo: TipoTabela = 'Linear',
+  pTotal: number = 0,
+  pAdesao: number = 0,
+  pMensal: number = 0
+): number[] => {
+  if (!qtd || qtd <= 0) return [];
+  if (tipo === 'Adesão') {
+    const rest = Math.max(1, qtd - 1);
+    const vMensal = Number((pMensal / rest).toFixed(3));
+    const arr = [pAdesao];
+    for (let i = 1; i < qtd; i++) arr.push(vMensal);
+    return arr;
+  } else {
+    const vLinear = Number((pTotal / qtd).toFixed(3));
+    return Array(qtd).fill(vLinear);
+  }
 };
 
 export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster }) => {
@@ -73,6 +102,10 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Dialog de personalização de parcelas da filha
+  const [modalGradeRegra, setModalGradeRegra] = useState<RegraMaster | null>(null);
+  const [gradeFilhaTemp, setGradeFilhaTemp] = useState<number[]>([]);
 
   // Empresa mãe da filha selecionada
   const empresaFilhaObj = empresas.find(e => e.id === empresaFilhaSelecionada);
@@ -95,10 +128,26 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
       const mapa: EditMap = {};
       regrasDaMae.forEach(rm => {
         const rFilha = data.find(rf => rf.regraMasterId === rm.id);
+        const pComissao = rFilha ? rFilha.percentualComissao : '';
+        const pAdesao = rFilha?.percentualAdesao ?? (rm.tipoTabela === 'Adesão' ? rm.percentualAdesao ?? '' : '');
+        const pMensal = rFilha?.percentualMensal ?? (rm.tipoTabela === 'Adesão' ? rm.percentualMensal ?? '' : '');
+        
+        let grade = rFilha?.percentuaisParcelas;
+        if (!grade || grade.length !== rm.qtdParcelas) {
+          grade = gerarGradePadrao(
+            rm.qtdParcelas,
+            rm.tipoTabela || 'Linear',
+            Number(pComissao || 0),
+            Number(pAdesao || 0),
+            Number(pMensal || 0)
+          );
+        }
+
         mapa[rm.id] = {
-          percentual: rFilha ? rFilha.percentualComissao : '',
-          percentualAdesao: rFilha?.percentualAdesao ?? (rm.tipoTabela === 'Adesão' ? rm.percentualAdesao ?? '' : ''),
-          percentualMensal: rFilha?.percentualMensal ?? (rm.tipoTabela === 'Adesão' ? rm.percentualMensal ?? '' : ''),
+          percentual: pComissao,
+          percentualAdesao: pAdesao,
+          percentualMensal: pMensal,
+          percentuaisParcelas: grade,
           percentualContempl: rFilha?.percentualComissaoContemplacao ?? '',
         };
       });
@@ -116,25 +165,50 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
 
   const handleChangePercentual = (regraMasterId: string, valor: string) => {
     const num = valor === '' ? '' : Math.max(0, parseFloat(valor));
+    const rm = regrasDaMae.find(r => r.id === regraMasterId);
+    const qtd = rm?.qtdParcelas || 1;
+    const grade = num !== '' ? gerarGradePadrao(qtd, 'Linear', Number(num), 0, 0) : [];
     setEditMap(prev => ({
       ...prev,
-      [regraMasterId]: { ...prev[regraMasterId], percentual: num }
+      [regraMasterId]: {
+        ...prev[regraMasterId],
+        percentual: num,
+        percentuaisParcelas: grade
+      }
     }));
   };
 
   const handleChangeAdesao = (regraMasterId: string, valor: string) => {
     const num = valor === '' ? '' : Math.max(0, parseFloat(valor));
+    const rm = regrasDaMae.find(r => r.id === regraMasterId);
+    const qtd = rm?.qtdParcelas || 1;
+    const mensalAtual = editMap[regraMasterId]?.percentualMensal || 0;
+    const grade = gerarGradePadrao(qtd, 'Adesão', 0, Number(num || 0), Number(mensalAtual));
     setEditMap(prev => ({
       ...prev,
-      [regraMasterId]: { ...prev[regraMasterId], percentualAdesao: num }
+      [regraMasterId]: {
+        ...prev[regraMasterId],
+        percentualAdesao: num,
+        percentual: Number((Number(num || 0) + Number(mensalAtual)).toFixed(2)),
+        percentuaisParcelas: grade
+      }
     }));
   };
 
   const handleChangeMensal = (regraMasterId: string, valor: string) => {
     const num = valor === '' ? '' : Math.max(0, parseFloat(valor));
+    const rm = regrasDaMae.find(r => r.id === regraMasterId);
+    const qtd = rm?.qtdParcelas || 1;
+    const adesaoAtual = editMap[regraMasterId]?.percentualAdesao || 0;
+    const grade = gerarGradePadrao(qtd, 'Adesão', 0, Number(adesaoAtual), Number(num || 0));
     setEditMap(prev => ({
       ...prev,
-      [regraMasterId]: { ...prev[regraMasterId], percentualMensal: num }
+      [regraMasterId]: {
+        ...prev[regraMasterId],
+        percentualMensal: num,
+        percentual: Number((Number(adesaoAtual) + Number(num || 0)).toFixed(2)),
+        percentuaisParcelas: grade
+      }
     }));
   };
 
@@ -144,6 +218,41 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
       ...prev,
       [regraMasterId]: { ...prev[regraMasterId], percentualContempl: num }
     }));
+  };
+
+  const handleAbrirModalGrade = (rm: RegraMaster) => {
+    setModalGradeRegra(rm);
+    const gradeAtual = editMap[rm.id]?.percentuaisParcelas;
+    if (gradeAtual && gradeAtual.length === rm.qtdParcelas) {
+      setGradeFilhaTemp([...gradeAtual]);
+    } else {
+      setGradeFilhaTemp(
+        gerarGradePadrao(
+          rm.qtdParcelas,
+          rm.tipoTabela || 'Linear',
+          Number(editMap[rm.id]?.percentual || 0),
+          Number(editMap[rm.id]?.percentualAdesao || 0),
+          Number(editMap[rm.id]?.percentualMensal || 0)
+        )
+      );
+    }
+  };
+
+  const handleSalvarModalGrade = () => {
+    if (!modalGradeRegra) return;
+    const somaTotal = Number(gradeFilhaTemp.reduce((a, b) => a + (Number(b) || 0), 0).toFixed(2));
+    
+    setEditMap(prev => ({
+      ...prev,
+      [modalGradeRegra.id]: {
+        ...prev[modalGradeRegra.id],
+        percentual: somaTotal,
+        percentualAdesao: gradeFilhaTemp[0] || 0,
+        percentualMensal: Number(gradeFilhaTemp.slice(1).reduce((a, b) => a + (Number(b) || 0), 0).toFixed(2)),
+        percentuaisParcelas: [...gradeFilhaTemp]
+      }
+    }));
+    setModalGradeRegra(null);
   };
 
   const handleSalvar = async () => {
@@ -158,6 +267,15 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
         if (!edit) continue;
 
         const isAdesao = rm.tipoTabela === 'Adesão';
+        const gradeFinal = (edit.percentuaisParcelas && edit.percentuaisParcelas.length === rm.qtdParcelas)
+          ? edit.percentuaisParcelas
+          : gerarGradePadrao(
+              rm.qtdParcelas,
+              rm.tipoTabela || 'Linear',
+              Number(edit.percentual || 0),
+              Number(edit.percentualAdesao || 0),
+              Number(edit.percentualMensal || 0)
+            );
 
         if (isAdesao) {
           if (edit.percentualAdesao === '' && edit.percentualMensal === '') continue;
@@ -184,6 +302,7 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
             percentualComissao: Number((pAdesao + pMensal).toFixed(2)),
             percentualAdesao: pAdesao,
             percentualMensal: pMensal,
+            percentuaisParcelas: gradeFinal,
             percentualComissaoContemplacao: edit.percentualContempl !== '' ? Number(edit.percentualContempl) : undefined,
           };
           promises.push(salvarRegraFilhaSupabase(regra));
@@ -204,6 +323,7 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
             regraMasterId: rm.id,
             tipoTabela: 'Linear',
             percentualComissao: percentual,
+            percentuaisParcelas: gradeFinal,
             percentualComissaoContemplacao: edit.percentualContempl !== '' ? Number(edit.percentualContempl) : undefined,
           };
           promises.push(salvarRegraFilhaSupabase(regra));
@@ -281,7 +401,7 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
             Tabelas de Comissão por Empresa Filha
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-            Configure os percentuais das empresas filhas (Linear ou Adesão). A diferença para a tabela da mãe gera repasses automáticos de comissão.
+            Configure os percentuais das empresas filhas (com ajuste fino parcela a parcela). A diferença para a tabela da mãe gera repasses automáticos de comissão.
           </Typography>
         </Box>
 
@@ -353,7 +473,7 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
       }}>
         <InfoOutlinedIcon sx={{ fontSize: 20, color: '#60a5fa', mt: 0.2, flexShrink: 0 }} />
         <Typography variant="body2" sx={{ color: isDark ? '#93c5fd' : '#1d4ed8', lineHeight: 1.6 }}>
-          <strong>Como funciona:</strong> quando uma venda é registrada pela empresa filha, o sistema gera automaticamente uma venda espelho para a empresa mãe com o <strong>diferencial</strong> (% Mãe − % Filha). Na modalidade <strong>Adesão</strong>, o diferencial da 1ª parcela e das parcelas mensais são calculados separadamente.
+          <strong>Como funciona:</strong> você pode preencher o percentual global da filha ou clicar no botão <strong>"Editar Grade"</strong> para ajustar o percentual de cada parcela individualmente. O repasse da mãe é calculado exatamente pela diferença em cada parcela.
         </Typography>
       </Box>
 
@@ -390,6 +510,7 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
                 <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>Parcelas</TableCell>
                 <TableCell sx={{ ...hCellSx, textAlign: 'right' }}>% Mãe (Base)</TableCell>
                 <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>% Filha Configurado</TableCell>
+                <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>Grade de Parcelas</TableCell>
                 <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>Diferencial (Mãe)</TableCell>
                 <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>% Contempl. Mãe</TableCell>
                 <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>% Contempl. Filha</TableCell>
@@ -519,6 +640,24 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
                         />
                       )}
                     </TableCell>
+                    {/* Grade de Parcelas (Botão para ajuste fino) */}
+                    <TableCell align="center">
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<EditIcon sx={{ fontSize: 13 }} />}
+                        onClick={() => handleAbrirModalGrade(rm)}
+                        sx={{
+                          fontSize: '0.72rem',
+                          textTransform: 'none',
+                          borderRadius: 2,
+                          py: 0.4,
+                          px: 1.2
+                        }}
+                      >
+                        Ajustar Parcelas
+                      </Button>
+                    </TableCell>
                     {/* Diferencial */}
                     <TableCell align="center">
                       {isAdesao ? (
@@ -631,6 +770,111 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
             </TableBody>
           </Table>
         </TableContainer>
+      )}
+
+      {/* Modal de Ajuste Fino de Grade de Parcelas da Filha */}
+      {modalGradeRegra && (
+        <Dialog
+          open={!!modalGradeRegra}
+          onClose={() => setModalGradeRegra(null)}
+          maxWidth="sm"
+          fullWidth
+          slotProps={{
+            paper: {
+              sx: {
+                borderRadius: 4,
+                bgcolor: isDark ? '#1e293b' : '#ffffff',
+                border: `1px solid ${borderColor}`,
+                p: 1
+              }
+            }
+          }}
+        >
+          <DialogTitle sx={{
+            fontFamily: 'Outfit, sans-serif',
+            fontWeight: 700,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            Ajustar Parcelas da Filha ({modalGradeRegra.tabela} - {modalGradeRegra.qtdParcelas}x)
+            <IconButton onClick={() => setModalGradeRegra(null)} size="small">
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent>
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Edite o percentual de cada parcela para a empresa filha. O percentual da filha não pode superar o da mãe em cada parcela.
+              </Typography>
+            </Box>
+
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
+              gap: 1.5,
+              maxHeight: 300,
+              overflowY: 'auto',
+              p: 0.5
+            }}>
+              {Array.from({ length: modalGradeRegra.qtdParcelas }).map((_, i) => {
+                const gradeMae = modalGradeRegra.percentuaisParcelas && modalGradeRegra.percentuaisParcelas.length === modalGradeRegra.qtdParcelas
+                  ? modalGradeRegra.percentuaisParcelas
+                  : gerarGradePadrao(modalGradeRegra.qtdParcelas, modalGradeRegra.tipoTabela, modalGradeRegra.percentualComissao, modalGradeRegra.percentualAdesao || 0, modalGradeRegra.percentualMensal || 0);
+
+                const maxMae = gradeMae[i] !== undefined ? gradeMae[i] : 100;
+                const valFilha = gradeFilhaTemp[i] !== undefined ? gradeFilhaTemp[i] : 0;
+                const difParcela = Number(Math.max(0, maxMae - valFilha).toFixed(2));
+
+                return (
+                  <Box key={i} sx={{
+                    p: 1.5,
+                    border: `1px solid ${valFilha > maxMae ? theme.palette.error.main : borderColor}`,
+                    borderRadius: 2,
+                    bgcolor: isDark ? 'rgba(15,23,42,0.4)' : '#f8fafc'
+                  }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>
+                      Parcela {i + 1} (Mãe: {maxMae}%)
+                    </Typography>
+                    <TextField
+                      size="small"
+                      type="number"
+                      value={valFilha}
+                      onChange={(e) => {
+                        const num = e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value));
+                        const novo = [...gradeFilhaTemp];
+                        novo[i] = num;
+                        setGradeFilhaTemp(novo);
+                      }}
+                      error={valFilha > maxMae}
+                      slotProps={{
+                        input: { endAdornment: <InputAdornment position="end">%</InputAdornment> },
+                        htmlInput: { step: '0.01', min: '0', max: String(maxMae) }
+                      }}
+                    />
+                    <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 700, mt: 0.5, display: 'block' }}>
+                      Dif. Repasse: +{difParcela.toFixed(2).replace('.', ',')}%
+                    </Typography>
+                  </Box>
+                );
+              })}
+            </Box>
+
+            <Box sx={{ mt: 2, p: 1.5, borderRadius: 2, bgcolor: isDark ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                Total da Filha: {Number(gradeFilhaTemp.reduce((a, b) => a + (Number(b) || 0), 0)).toFixed(2).replace('.', ',')}%
+              </Typography>
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setModalGradeRegra(null)} sx={{ textTransform: 'none' }}>
+              Cancelar
+            </Button>
+            <Button variant="contained" onClick={handleSalvarModalGrade} sx={{ textTransform: 'none', fontWeight: 700 }}>
+              Aplicar Grade
+            </Button>
+          </DialogActions>
+        </Dialog>
       )}
 
       {regrasDaMae.length > 0 && (

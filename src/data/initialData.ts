@@ -70,7 +70,8 @@ export const calcularTotaisLinha = (
   qtdParcelas: number,
   tipoTabela: TipoTabela = 'Linear',
   percentualAdesao?: number,
-  percentualMensalRestante?: number
+  percentualMensalRestante?: number,
+  percentuaisParcelas?: number[]
 ): { totalVendas: number; totalComissoes: number; projecaoAtualizada: ProjecaoMensalType } => {
   let totalVendas = 0;
   let totalComissoes = 0;
@@ -85,6 +86,7 @@ export const calcularTotaisLinha = (
   const mesesComVenda = chavesOrdenadas.filter(k => (projecaoAtualizada[k]?.valorVenda || 0) > 0);
   const primeiraChaveComVenda = mesesComVenda.length > 0 ? mesesComVenda[0] : null;
 
+  const temGradePersonalizada = Array.isArray(percentuaisParcelas) && percentuaisParcelas.length > 0;
   const isAdesao = tipoTabela === 'Adesão';
   const pAdesao = percentualAdesao ?? 0;
   const pMensal = percentualMensalRestante ?? 0;
@@ -96,7 +98,14 @@ export const calcularTotaisLinha = (
     
     let comissao = 0;
     if (valor > 0) {
-      if (isAdesao) {
+      if (temGradePersonalizada) {
+        // Usa a grade de percentuais por parcela individual [P1, P2, ..., Pn]
+        const indiceParcela = mesesComVenda.indexOf(mesChave);
+        const percParcela = (indiceParcela >= 0 && percentuaisParcelas![indiceParcela] !== undefined)
+          ? percentuaisParcelas![indiceParcela]
+          : 0;
+        comissao = valor * (percParcela / 100);
+      } else if (isAdesao) {
         if (mesChave === primeiraChaveComVenda) {
           // 1ª Parcela: recebe a comissão de Adesão
           comissao = valor * (pAdesao / 100);

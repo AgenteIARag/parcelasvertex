@@ -76,8 +76,32 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
   const [percentualComissao, setPercentualComissao] = useState<number | ''>('');
   const [percentualAdesao, setPercentualAdesao] = useState<number | ''>('');
   const [percentualMensal, setPercentualMensal] = useState<number | ''>('');
+  const [percentuaisParcelas, setPercentuaisParcelas] = useState<number[]>([]);
   const [percentualComissaoContemplacao, setPercentualComissaoContemplacao] = useState<number | ''>('');
   const [empresaIdForm, setEmpresaIdForm] = useState<string>(empresaAtualId || '');
+
+  // Helper para recalcular a grade padrão de parcelas
+  const recalcularGradePadrao = (
+    qtd: number,
+    tipo: TipoTabela,
+    pTotal: number,
+    pAdesao: number,
+    pMensal: number
+  ): number[] => {
+    if (!qtd || qtd <= 0) return [];
+    if (tipo === 'Adesão') {
+      const rest = Math.max(1, qtd - 1);
+      const valorMensalParcela = Number((pMensal / rest).toFixed(3));
+      const arr = [pAdesao];
+      for (let i = 1; i < qtd; i++) {
+        arr.push(valorMensalParcela);
+      }
+      return arr;
+    } else {
+      const valorLinear = Number((pTotal / qtd).toFixed(3));
+      return Array(qtd).fill(valorLinear);
+    }
+  };
 
   // Filtro de empresa para o super_master
   const [empresaFiltro, setEmpresaFiltro] = useState<string>('');
@@ -90,16 +114,30 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
       setEditId(regra.id);
       setSegmento(regra.segmento);
       setTabela(regra.tabela);
-      setQtdParcelas(regra.qtdParcelas);
-      setTipoTabela(regra.tipoTabela || 'Linear');
+      const qtd = regra.qtdParcelas;
+      setQtdParcelas(qtd);
+      const tipo = regra.tipoTabela || 'Linear';
+      setTipoTabela(tipo);
       setPercentualComissao(regra.percentualComissao);
       setPercentualAdesao(regra.percentualAdesao ?? '');
       setPercentualMensal(regra.percentualMensal ?? '');
+      if (regra.percentuaisParcelas && regra.percentuaisParcelas.length > 0) {
+        setPercentuaisParcelas(regra.percentuaisParcelas);
+      } else {
+        setPercentuaisParcelas(
+          recalcularGradePadrao(
+            qtd,
+            tipo,
+            regra.percentualComissao,
+            regra.percentualAdesao || 0,
+            regra.percentualMensal || 0
+          )
+        );
+      }
       setPercentualComissaoContemplacao(regra.percentualComissaoContemplacao ?? '');
       setEmpresaIdForm(regra.empresaId || empresaAtualId || '');
     } else {
       setEditId(null);
-      // Se estiver visualizando um segmento específico nas abas (exceto "Todos"), pré-seleciona ele no formulário
       setSegmento(abaSegmento !== 'Todos' ? abaSegmento : 'Imóveis');
       setTabela('');
       setQtdParcelas('');
@@ -107,6 +145,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
       setPercentualComissao('');
       setPercentualAdesao('');
       setPercentualMensal('');
+      setPercentuaisParcelas([]);
       setPercentualComissaoContemplacao('');
       setEmpresaIdForm(empresaAtualId || '');
     }
@@ -116,6 +155,22 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
 
   const handleClose = () => {
     setOpen(false);
+  };
+
+  const handleAlterarParcelaIndividual = (index: number, valorStr: string) => {
+    const num = valorStr === '' ? 0 : Math.max(0, parseFloat(valorStr));
+    const novaGrade = [...percentuaisParcelas];
+    novaGrade[index] = num;
+    setPercentuaisParcelas(novaGrade);
+    
+    // Atualiza a soma total em tempo real
+    const soma = Number(novaGrade.reduce((a, b) => a + (Number(b) || 0), 0).toFixed(2));
+    setPercentualComissao(soma);
+    if (tipoTabela === 'Adesão') {
+      setPercentualAdesao(novaGrade[0] || 0);
+      const somaMensal = Number(novaGrade.slice(1).reduce((a, b) => a + (Number(b) || 0), 0).toFixed(2));
+      setPercentualMensal(somaMensal);
+    }
   };
 
   const validarFormulario = () => {
@@ -144,16 +199,28 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
   const handleSalvar = () => {
     if (!validarFormulario()) return;
 
-    const pComissaoFinal = tipoTabela === 'Linear'
-      ? Number(percentualComissao)
-      : Number(percentualAdesao || 0) + Number(percentualMensal || 0);
+    const qtd = Number(qtdParcelas);
+    const gradeFinal = percentuaisParcelas.length === qtd
+      ? percentuaisParcelas
+      : recalcularGradePadrao(
+          qtd,
+          tipoTabela,
+          Number(percentualComissao || 0),
+          Number(percentualAdesao || 0),
+          Number(percentualMensal || 0)
+        );
+
+    const pComissaoFinal = gradeFinal.length > 0
+      ? Number(gradeFinal.reduce((a, b) => a + Number(b), 0).toFixed(2))
+      : (tipoTabela === 'Linear' ? Number(percentualComissao) : Number(percentualAdesao || 0) + Number(percentualMensal || 0));
 
     const dadosRegra: Omit<RegraMaster, 'id'> = {
       segmento,
       tabela: tabela.trim(),
-      qtdParcelas: Number(qtdParcelas),
+      qtdParcelas: qtd,
       tipoTabela,
       percentualComissao: pComissaoFinal,
+      percentuaisParcelas: gradeFinal,
       ...(tipoTabela === 'Adesão' && {
         percentualAdesao: Number(percentualAdesao),
         percentualMensal: Number(percentualMensal)
@@ -425,11 +492,32 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                           <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.success.main }}>
                             Total: {Number(regra.percentualComissao || 0).toFixed(2).replace('.', ',')}%
                           </Typography>
+                          {regra.percentuaisParcelas && regra.percentuaisParcelas.length > 0 && (
+                            <Tooltip title={regra.percentuaisParcelas.map((p, i) => `P${i + 1}: ${p}%`).join(' | ')}>
+                              <Chip
+                                label="Ver Grade"
+                                size="small"
+                                sx={{ height: 16, fontSize: '0.62rem', cursor: 'pointer', mt: 0.2 }}
+                              />
+                            </Tooltip>
+                          )}
                         </Box>
                       ) : (
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.success.main }}>
-                          {Number(regra.percentualComissao || 0).toFixed(2).replace('.', ',')}% Linear
-                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.2 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.success.main }}>
+                            {Number(regra.percentualComissao || 0).toFixed(2).replace('.', ',')}% Linear
+                          </Typography>
+                          {regra.percentuaisParcelas && regra.percentuaisParcelas.length > 0 && (
+                            <Tooltip title={regra.percentuaisParcelas.map((p, i) => `P${i + 1}: ${p}%`).join(' | ')}>
+                              <Chip
+                                label="Grade Customizada"
+                                size="small"
+                                color="info"
+                                sx={{ height: 16, fontSize: '0.62rem', cursor: 'pointer', mt: 0.2 }}
+                              />
+                            </Tooltip>
+                          )}
+                        </Box>
                       )}
                     </TableCell>
                     <TableCell
@@ -500,7 +588,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
         open={open}
         onClose={handleClose}
         fullWidth
-        maxWidth="xs"
+        maxWidth="sm"
         slotProps={{
           paper: {
             sx: {
@@ -586,7 +674,21 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                   labelId="tipo-tabela-label"
                   value={tipoTabela}
                   label="Tipo de Tabela"
-                  onChange={(e) => setTipoTabela(e.target.value as TipoTabela)}
+                  onChange={(e) => {
+                    const novoTipo = e.target.value as TipoTabela;
+                    setTipoTabela(novoTipo);
+                    if (qtdParcelas) {
+                      setPercentuaisParcelas(
+                        recalcularGradePadrao(
+                          Number(qtdParcelas),
+                          novoTipo,
+                          Number(percentualComissao || 0),
+                          Number(percentualAdesao || 0),
+                          Number(percentualMensal || 0)
+                        )
+                      );
+                    }
+                  }}
                 >
                   <MenuItem value="Linear">Linear (Igual em todas as parcelas)</MenuItem>
                   <MenuItem value="Adesão">Adesão (Entrada na 1ª + Mensal)</MenuItem>
@@ -598,11 +700,22 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                 fullWidth
                 label="Qtd. Parcelas"
                 type="number"
-                placeholder="Ex: 120"
+                placeholder="Ex: 12"
                 value={qtdParcelas}
                 onChange={(e) => {
                   const val = e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value));
                   setQtdParcelas(val);
+                  if (val && typeof val === 'number') {
+                    setPercentuaisParcelas(
+                      recalcularGradePadrao(
+                        val,
+                        tipoTabela,
+                        Number(percentualComissao || 0),
+                        Number(percentualAdesao || 0),
+                        Number(percentualMensal || 0)
+                      )
+                    );
+                  }
                 }}
                 error={!!errors.qtdParcelas}
                 helperText={errors.qtdParcelas}
@@ -625,15 +738,26 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                   onChange={(e) => {
                     const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
                     setPercentualComissao(val);
+                    if (qtdParcelas && typeof qtdParcelas === 'number' && val !== '') {
+                      setPercentuaisParcelas(
+                        recalcularGradePadrao(
+                          qtdParcelas,
+                          'Linear',
+                          Number(val),
+                          0,
+                          0
+                        )
+                      );
+                    }
                   }}
                   error={!!errors.percentualComissao}
-                  helperText={errors.percentualComissao || "Distribuída igualmente entre todas as parcelas"}
+                  helperText={errors.percentualComissao || "Distribuída entre as parcelas de comissão"}
                   slotProps={{
                     input: {
                       endAdornment: <InputAdornment position="end">%</InputAdornment>
                     },
                     htmlInput: {
-                      step: '0.1',
+                      step: '0.01',
                       min: '0',
                       max: '100'
                     }
@@ -652,15 +776,27 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                     onChange={(e) => {
                       const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
                       setPercentualAdesao(val);
+                      if (qtdParcelas && typeof qtdParcelas === 'number') {
+                        setPercentuaisParcelas(
+                          recalcularGradePadrao(
+                            qtdParcelas,
+                            'Adesão',
+                            0,
+                            Number(val || 0),
+                            Number(percentualMensal || 0)
+                          )
+                        );
+                        setPercentualComissao(Number((Number(val || 0) + Number(percentualMensal || 0)).toFixed(2)));
+                      }
                     }}
                     error={!!errors.percentualAdesao}
-                    helperText={errors.percentualAdesao || "Pago integralmente na 1ª parcela"}
+                    helperText={errors.percentualAdesao || "Pago na 1ª parcela"}
                     slotProps={{
                       input: {
                         endAdornment: <InputAdornment position="end">%</InputAdornment>
                       },
                       htmlInput: {
-                        step: '0.1',
+                        step: '0.01',
                         min: '0',
                         max: '100'
                       }
@@ -677,6 +813,18 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                     onChange={(e) => {
                       const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
                       setPercentualMensal(val);
+                      if (qtdParcelas && typeof qtdParcelas === 'number') {
+                        setPercentuaisParcelas(
+                          recalcularGradePadrao(
+                            qtdParcelas,
+                            'Adesão',
+                            0,
+                            Number(percentualAdesao || 0),
+                            Number(val || 0)
+                          )
+                        );
+                        setPercentualComissao(Number((Number(percentualAdesao || 0) + Number(val || 0)).toFixed(2)));
+                      }
                     }}
                     error={!!errors.percentualMensal}
                     helperText={errors.percentualMensal || `Fracionado em ${Math.max(1, Number(qtdParcelas || 1) - 1)} parcelas`}
@@ -685,24 +833,77 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                         endAdornment: <InputAdornment position="end">%</InputAdornment>
                       },
                       htmlInput: {
-                        step: '0.1',
+                        step: '0.01',
                         min: '0',
                         max: '100'
                       }
                     }}
                   />
                 </Grid>
-                <Grid size={{ xs: 12 }}>
-                  <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.06)', border: '1px dashed #f59e0b' }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#f59e0b' }}>
-                      Total da Comissão: {(Number(percentualAdesao || 0) + Number(percentualMensal || 0)).toFixed(2).replace('.', ',')}%
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                      1ª Parcela recebe {Number(percentualAdesao || 0).toFixed(2).replace('.', ',')}%. Parcelas 2 a {qtdParcelas || 'N'} recebem {qtdParcelas && Number(qtdParcelas) > 1 ? (Number(percentualMensal || 0) / (Number(qtdParcelas) - 1)).toFixed(3).replace('.', ',') : '0'}% ao mês.
-                    </Typography>
-                  </Box>
-                </Grid>
               </>
+            )}
+
+            {/* Seção da Grade de Parcelas Customizadas */}
+            {qtdParcelas && Number(qtdParcelas) > 0 && (
+              <Grid size={{ xs: 12 }}>
+                <Box sx={{
+                  p: 2,
+                  borderRadius: 2.5,
+                  border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(15,23,42,0.6)' : '#f8fafc'
+                }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, fontFamily: 'Outfit, sans-serif' }}>
+                        📊 Grade de Percentuais por Parcela ({qtdParcelas}x)
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        Ajuste o percentual individual de cada parcela. O total é calculado automaticamente.
+                      </Typography>
+                    </Box>
+                    <Chip
+                      label={`Total: ${Number(percentualComissao || 0).toFixed(2).replace('.', ',')}%`}
+                      color="primary"
+                      size="small"
+                      sx={{ fontWeight: 800, fontSize: '0.8rem' }}
+                    />
+                  </Box>
+
+                  <Box sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
+                    gap: 1.5,
+                    maxHeight: 220,
+                    overflowY: 'auto',
+                    p: 0.5
+                  }}>
+                    {Array.from({ length: Number(qtdParcelas) }).map((_, i) => {
+                      const valParcela = percentuaisParcelas[i] !== undefined ? percentuaisParcelas[i] : '';
+                      return (
+                        <Box key={i} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                          <TextField
+                            size="small"
+                            label={`Parcela ${i + 1}`}
+                            type="number"
+                            value={valParcela}
+                            onChange={(e) => handleAlterarParcelaIndividual(i, e.target.value)}
+                            slotProps={{
+                              input: {
+                                endAdornment: <InputAdornment position="end">%</InputAdornment>
+                              },
+                              htmlInput: {
+                                step: '0.01',
+                                min: '0',
+                                max: '100'
+                              }
+                            }}
+                          />
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </Box>
+              </Grid>
             )}
 
             <Grid size={{ xs: 12 }}>
@@ -722,7 +923,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                     endAdornment: <InputAdornment position="end">%</InputAdornment>
                   },
                   htmlInput: {
-                    step: '0.1',
+                    step: '0.01',
                     min: '0',
                     max: '100'
                   }

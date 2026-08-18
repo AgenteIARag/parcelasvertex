@@ -19,6 +19,7 @@ export interface RegraMaster {
   percentualComissao: number; // Percentual linear total (ou total na adesão). Ex: 5 significa 5%
   percentualAdesao?: number; // % pago na 1ª parcela (ex: 2 = 2%)
   percentualMensal?: number; // % restante fracionado nas parcelas restantes (ex: 3 = 3%)
+  percentuaisParcelas?: number[]; // Percentual exato de cada parcela individual [p1, p2, ..., pn]
   percentualComissaoContemplacao?: number; // % de comissão pago na contemplação (ex: 2.5 = 2.5%)
 }
 
@@ -35,6 +36,7 @@ export interface RegraFilha {
   percentualComissao: number; // % da filha (deve ser ≤ % da mãe)
   percentualAdesao?: number;  // % adesão da filha
   percentualMensal?: number;  // % mensal da filha
+  percentuaisParcelas?: number[]; // Grade de percentuais por parcela da filha
   percentualComissaoContemplacao?: number; // % contempl. da filha
 }
 
@@ -99,6 +101,7 @@ export interface LancamentoVenda {
   percentualComissao: number; // Percentual copiado/calculado da Regra Master
   percentualAdesao?: number; // % adesão pago na 1ª parcela
   percentualMensal?: number; // % mensal restante
+  percentuaisParcelas?: number[]; // Percentual de comissão de cada parcela
   valorVenda: number; // Valor de referência geral da venda (Crédito)
   valorParcela: number; // Valor nominal da parcela
   projecaoMensal: ProjecaoMensalType;

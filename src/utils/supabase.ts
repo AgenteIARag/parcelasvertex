@@ -100,6 +100,7 @@ export const obterRegrasSupabase = async (): Promise<RegraMaster[]> => {
     percentualComissao: Number(r.percentual_comissao ?? r.percentualComissao ?? 0),
     percentualAdesao: r.percentual_adesao != null ? Number(r.percentual_adesao) : undefined,
     percentualMensal: r.percentual_mensal != null ? Number(r.percentual_mensal) : undefined,
+    percentuaisParcelas: Array.isArray(r.percentuais_parcelas) ? r.percentuais_parcelas.map(Number) : undefined,
     percentualComissaoContemplacao: r.percentual_comissao_contemplacao != null
       ? Number(r.percentual_comissao_contemplacao)
       : undefined
@@ -118,6 +119,9 @@ export const salvarRegraSupabase = async (regra: RegraMaster): Promise<void> => 
   if (regra.empresaId) payload.empresa_id = regra.empresaId;
   if (regra.percentualAdesao != null) payload.percentual_adesao = regra.percentualAdesao;
   if (regra.percentualMensal != null) payload.percentual_mensal = regra.percentualMensal;
+  if (regra.percentuaisParcelas && Array.isArray(regra.percentuaisParcelas)) {
+    payload.percentuais_parcelas = regra.percentuaisParcelas;
+  }
   if (regra.percentualComissaoContemplacao != null) {
     payload.percentual_comissao_contemplacao = regra.percentualComissaoContemplacao;
   }
@@ -177,6 +181,7 @@ export const obterRegrasFilhaSupabase = async (empresaFilhaId?: string): Promise
     percentualComissao: Number(r.percentual_comissao),
     percentualAdesao: r.percentual_adesao != null ? Number(r.percentual_adesao) : undefined,
     percentualMensal: r.percentual_mensal != null ? Number(r.percentual_mensal) : undefined,
+    percentuaisParcelas: Array.isArray(r.percentuais_parcelas) ? r.percentuais_parcelas.map(Number) : undefined,
     percentualComissaoContemplacao: r.percentual_comissao_contemplacao != null
       ? Number(r.percentual_comissao_contemplacao)
       : undefined
@@ -193,6 +198,9 @@ export const salvarRegraFilhaSupabase = async (regra: RegraFilha): Promise<void>
   };
   if (regra.percentualAdesao != null) payload.percentual_adesao = regra.percentualAdesao;
   if (regra.percentualMensal != null) payload.percentual_mensal = regra.percentualMensal;
+  if (regra.percentuaisParcelas && Array.isArray(regra.percentuaisParcelas)) {
+    payload.percentuais_parcelas = regra.percentuaisParcelas;
+  }
   if (regra.percentualComissaoContemplacao != null) {
     payload.percentual_comissao_contemplacao = regra.percentualComissaoContemplacao;
   }
@@ -277,6 +285,7 @@ export const obterVendasSupabase = async (): Promise<LancamentoVenda[]> => {
       percentualComissao: Number(v.percentual_comissao),
       percentualAdesao: v.percentual_adesao != null ? Number(v.percentual_adesao) : undefined,
       percentualMensal: v.percentual_mensal != null ? Number(v.percentual_mensal) : undefined,
+      percentuaisParcelas: Array.isArray(v.percentuais_parcelas) ? v.percentuais_parcelas.map(Number) : undefined,
       valorVenda: Number(v.valor_venda),
       valorParcela: Number(v.valor_parcela),
       projecaoMensal: proj,
@@ -315,6 +324,7 @@ export const salvarVendaSupabase = async (venda: LancamentoVenda): Promise<void>
     percentual_comissao: venda.percentualComissao,
     percentual_adesao: venda.percentualAdesao ?? null,
     percentual_mensal: venda.percentualMensal ?? null,
+    percentuais_parcelas: venda.percentuaisParcelas && Array.isArray(venda.percentuaisParcelas) ? venda.percentuaisParcelas : null,
     valor_venda: venda.valorVenda,
     valor_parcela: venda.valorParcela,
     projecao_mensal: projecaoComMetadata,
@@ -558,7 +568,7 @@ export const excluirEmpresaLocal = (id: string): Empresa[] => {
 };
 
 export const migrarTabelasHierarquia = async (): Promise<void> => {
-  // Tenta adicionar as colunas e tabelas necessárias para a hierarquia empresa mãe/filha e tipoTabela Linear/Adesão
+  // Tenta adicionar as colunas e tabelas necessárias para a hierarquia empresa mãe/filha e tipoTabela Linear/Adesão e percentuais_parcelas
   try {
     // Adicionar empresa_mae_id nas empresas
     await supabase.rpc('exec_sql', {
@@ -567,12 +577,13 @@ export const migrarTabelasHierarquia = async (): Promise<void> => {
   } catch { /* silencioso */ }
 
   try {
-    // Adicionar empresa_id e colunas de Adesão nas regras_master
+    // Adicionar empresa_id e colunas de Adesão e grade de parcelas nas regras_master
     await supabase.rpc('exec_sql', {
       sql: `ALTER TABLE regras_master ADD COLUMN IF NOT EXISTS empresa_id TEXT;
             ALTER TABLE regras_master ADD COLUMN IF NOT EXISTS tipo_tabela TEXT DEFAULT 'Linear';
             ALTER TABLE regras_master ADD COLUMN IF NOT EXISTS percentual_adesao NUMERIC;
             ALTER TABLE regras_master ADD COLUMN IF NOT EXISTS percentual_mensal NUMERIC;
+            ALTER TABLE regras_master ADD COLUMN IF NOT EXISTS percentuais_parcelas JSONB;
             ALTER TABLE regras_master ADD COLUMN IF NOT EXISTS percentual_comissao_contemplacao NUMERIC;`
     });
   } catch { /* silencioso */ }
@@ -589,6 +600,7 @@ export const migrarTabelasHierarquia = async (): Promise<void> => {
           percentual_comissao NUMERIC NOT NULL,
           percentual_adesao NUMERIC,
           percentual_mensal NUMERIC,
+          percentuais_parcelas JSONB,
           percentual_comissao_contemplacao NUMERIC,
           created_at TIMESTAMPTZ DEFAULT NOW()
         );
@@ -597,7 +609,7 @@ export const migrarTabelasHierarquia = async (): Promise<void> => {
   } catch { /* silencioso */ }
 
   try {
-    // Adicionar colunas de hierarquia e Adesão nas vendas
+    // Adicionar colunas de hierarquia e grade de parcelas nas vendas
     await supabase.rpc('exec_sql', {
       sql: `
         ALTER TABLE vendas ADD COLUMN IF NOT EXISTS venda_origem_id TEXT;
@@ -606,6 +618,7 @@ export const migrarTabelasHierarquia = async (): Promise<void> => {
         ALTER TABLE vendas ADD COLUMN IF NOT EXISTS tipo_tabela TEXT DEFAULT 'Linear';
         ALTER TABLE vendas ADD COLUMN IF NOT EXISTS percentual_adesao NUMERIC;
         ALTER TABLE vendas ADD COLUMN IF NOT EXISTS percentual_mensal NUMERIC;
+        ALTER TABLE vendas ADD COLUMN IF NOT EXISTS percentuais_parcelas JSONB;
       `
     });
   } catch { /* silencioso */ }

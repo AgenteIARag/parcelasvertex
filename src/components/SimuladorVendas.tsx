@@ -205,7 +205,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       venda.qtdParcelas,
       venda.tipoTabela || 'Linear',
       venda.percentualAdesao,
-      venda.percentualMensal
+      venda.percentualMensal,
+      venda.percentuaisParcelas
     );
 
     const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.valorVenda > 0);
@@ -253,7 +254,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       venda.qtdParcelas,
       venda.tipoTabela || 'Linear',
       venda.percentualAdesao,
-      venda.percentualMensal
+      venda.percentualMensal,
+      venda.percentuaisParcelas
     );
 
     const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.valorVenda > 0);
@@ -295,7 +297,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       venda.qtdParcelas,
       venda.tipoTabela || 'Linear',
       venda.percentualAdesao,
-      venda.percentualMensal
+      venda.percentualMensal,
+      venda.percentuaisParcelas
     );
 
     const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.valorVenda > 0);
@@ -338,7 +341,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       venda.qtdParcelas,
       venda.tipoTabela || 'Linear',
       venda.percentualAdesao,
-      venda.percentualMensal
+      venda.percentualMensal,
+      venda.percentuaisParcelas
     );
 
     onAtualizarVenda({
@@ -373,7 +377,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       venda.qtdParcelas,
       venda.tipoTabela || 'Linear',
       venda.percentualAdesao,
-      venda.percentualMensal
+      venda.percentualMensal,
+      venda.percentuaisParcelas
     );
     const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.valorVenda > 0);
     onAtualizarVenda({ ...venda, projecaoMensal: projFina, totalVendas, totalComissoes, statusCliente: temParcelasAtivas ? 'Ativo' : 'Cancelado' });
@@ -2668,6 +2673,7 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
   const [tipoTabelaInput, setTipoTabelaInput] = useState<TipoTabela>('Linear');
   const [percentualAdesaoInput, setPercentualAdesaoInput] = useState<number>(0);
   const [percentualMensalInput, setPercentualMensalInput] = useState<number>(0);
+  const [percentuaisParcelasInput, setPercentuaisParcelasInput] = useState<number[] | undefined>(undefined);
 
   useEffect(() => {
     if (segmento && tabela) {
@@ -2680,6 +2686,7 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
       setTipoTabelaInput('Linear');
       setPercentualAdesaoInput(0);
       setPercentualMensalInput(0);
+      setPercentuaisParcelasInput(undefined);
     } else {
       setParcelasDisponiveis([]);
       setQtdParcelas('');
@@ -2687,6 +2694,7 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
       setTipoTabelaInput('Linear');
       setPercentualAdesaoInput(0);
       setPercentualMensalInput(0);
+      setPercentuaisParcelasInput(undefined);
     }
   }, [tabela, segmento, regras]);
 
@@ -2703,17 +2711,20 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
         setTipoTabelaInput(regra.tipoTabela || 'Linear');
         setPercentualAdesaoInput(regra.percentualAdesao || 0);
         setPercentualMensalInput(regra.percentualMensal || 0);
+        setPercentuaisParcelasInput(regra.percentuaisParcelas);
       } else {
         setPercentualComissao(0);
         setTipoTabelaInput('Linear');
         setPercentualAdesaoInput(0);
         setPercentualMensalInput(0);
+        setPercentuaisParcelasInput(undefined);
       }
     } else {
       setPercentualComissao(0);
       setTipoTabelaInput('Linear');
       setPercentualAdesaoInput(0);
       setPercentualMensalInput(0);
+      setPercentuaisParcelasInput(undefined);
     }
   }, [qtdParcelas, tabela, segmento, regras]);
 
@@ -2786,7 +2797,10 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
       const dataPrevisaoRecebimento = calcularDataPrevisaoRecebimento(dataVenc, ciclos);
 
       let comissaoCalculada = 0;
-      if (isAdesao) {
+      if (percentuaisParcelasInput && percentuaisParcelasInput.length > 0) {
+        const pParcela = percentuaisParcelasInput[i] !== undefined ? percentuaisParcelasInput[i] : 0;
+        comissaoCalculada = Number((valorVendaV * (pParcela / 100)).toFixed(2));
+      } else if (isAdesao) {
         if (i === 0) {
           // 1ª Parcela recebe comissão de Adesão
           comissaoCalculada = Number((valorVendaV * (percentualAdesaoInput / 100)).toFixed(2));
@@ -2814,7 +2828,8 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
       parcelas,
       tipoTabelaInput,
       percentualAdesaoInput,
-      percentualMensalInput
+      percentualMensalInput,
+      percentuaisParcelasInput
     );
 
     const novaVenda: LancamentoVenda = {
@@ -2834,6 +2849,7 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
       percentualComissao,
       percentualAdesao: isAdesao ? percentualAdesaoInput : undefined,
       percentualMensal: isAdesao ? percentualMensalInput : undefined,
+      percentuaisParcelas: percentuaisParcelasInput,
       valorVenda: valorVendaV,
       valorParcela: valorParcelaV,
       projecaoMensal: projecaoAtualizada,
@@ -3172,6 +3188,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
   const [tipoTabelaInput, setTipoTabelaInput] = useState<TipoTabela>('Linear');
   const [percentualAdesaoInput, setPercentualAdesaoInput] = useState<number>(0);
   const [percentualMensalInput, setPercentualMensalInput] = useState<number>(0);
+  const [percentuaisParcelasInput, setPercentuaisParcelasInput] = useState<number[] | undefined>(undefined);
 
   useEffect(() => {
     if (venda) {
@@ -3185,6 +3202,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       setPercentualComissao(venda.percentualComissao);
       setPercentualAdesaoInput(venda.percentualAdesao || 0);
       setPercentualMensalInput(venda.percentualMensal || 0);
+      setPercentuaisParcelasInput(venda.percentuaisParcelas);
       setValorVendaExibicao(formatarMoedaInput(venda.valorVenda));
       setValorParcelaExibicao(formatarMoedaInput(venda.valorParcela));
       setDataVendaInput(venda.dataVenda || '');
@@ -3220,6 +3238,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
     setTipoTabelaInput('Linear');
     setPercentualAdesaoInput(0);
     setPercentualMensalInput(0);
+    setPercentuaisParcelasInput(undefined);
     setParcelasDisponiveis([]);
   };
 
@@ -3234,6 +3253,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
     setTipoTabelaInput('Linear');
     setPercentualAdesaoInput(0);
     setPercentualMensalInput(0);
+    setPercentuaisParcelasInput(undefined);
   };
 
   const handleQtdParcelasChange = (pars: number) => {
@@ -3249,11 +3269,13 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       setTipoTabelaInput(regra.tipoTabela || 'Linear');
       setPercentualAdesaoInput(regra.percentualAdesao || 0);
       setPercentualMensalInput(regra.percentualMensal || 0);
+      setPercentuaisParcelasInput(regra.percentuaisParcelas);
     } else {
       setPercentualComissao(0);
       setTipoTabelaInput('Linear');
       setPercentualAdesaoInput(0);
       setPercentualMensalInput(0);
+      setPercentuaisParcelasInput(undefined);
     }
   };
 
@@ -3351,13 +3373,14 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
     }
 
     // Lançamento de comissão de contemplação no mês da contemplação
+    let valorComissaoContempl = 0;
     if (contemplado && dataContemplacao) {
       const mesContemplacao = dataContemplacao.substring(0, 7);
       const regraVigente = regras.find(r => r.segmento === segmento && r.tabela === tabela && r.qtdParcelas === Number(qtdParcelas));
       const pctContempl = regraVigente?.percentualComissaoContemplacao || 0;
-      const comissaoContempl = pctContempl > 0 ? Number((valorVendaV * (pctContempl / 100)).toFixed(2)) : 0;
+      valorComissaoContempl = pctContempl > 0 ? Number((valorVendaV * (pctContempl / 100)).toFixed(2)) : 0;
       if (proj[mesContemplacao]) {
-        proj[mesContemplacao] = { ...proj[mesContemplacao], comissaoGerada: (proj[mesContemplacao].comissaoGerada || 0) + comissaoContempl };
+        proj[mesContemplacao] = { ...proj[mesContemplacao], comissaoGerada: (proj[mesContemplacao].comissaoGerada || 0) + valorComissaoContempl };
       }
     }
 
@@ -3367,7 +3390,8 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       parcelas,
       tipoTabelaInput,
       percentualAdesaoInput,
-      percentualMensalInput
+      percentualMensalInput,
+      percentuaisParcelasInput
     );
 
     const vendaAtualizada: LancamentoVenda = {
@@ -3387,6 +3411,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       percentualComissao,
       percentualAdesao: isAdesao ? percentualAdesaoInput : undefined,
       percentualMensal: isAdesao ? percentualMensalInput : undefined,
+      percentuaisParcelas: percentuaisParcelasInput,
       valorVenda: valorVendaV,
       valorParcela: valorParcelaV,
       projecaoMensal: projecaoAtualizada,

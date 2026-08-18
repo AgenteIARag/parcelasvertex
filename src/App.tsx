@@ -272,6 +272,7 @@ function App() {
           percentualComissao: rFilha.percentualComissao,
           percentualAdesao: rFilha.percentualAdesao ?? rm.percentualAdesao,
           percentualMensal: rFilha.percentualMensal ?? rm.percentualMensal,
+          percentuaisParcelas: rFilha.percentuaisParcelas ?? rm.percentuaisParcelas,
           percentualComissaoContemplacao: rFilha.percentualComissaoContemplacao ?? rm.percentualComissaoContemplacao,
         };
       }
@@ -548,80 +549,81 @@ function App() {
       );
 
       if (regraMae && regraFilhaCorrespondente) {
-        const isAdesao = novaVenda.tipoTabela === 'Adesão' || regraMae.tipoTabela === 'Adesão';
-
-        if (isAdesao) {
-          const pAdesaoMae = regraMae.percentualAdesao ?? 0;
-          const pMensalMae = regraMae.percentualMensal ?? 0;
-          const pAdesaoFilha = regraFilhaCorrespondente.percentualAdesao ?? 0;
-          const pMensalFilha = regraFilhaCorrespondente.percentualMensal ?? 0;
-
-          const difAdesao = Number(Math.max(0, pAdesaoMae - pAdesaoFilha).toFixed(2));
-          const difMensal = Number(Math.max(0, pMensalMae - pMensalFilha).toFixed(2));
-          const percDifTotal = Number((difAdesao + difMensal).toFixed(2));
-
-          if (difAdesao > 0 || difMensal > 0) {
-            const projecaoEspelho = { ...novaVenda.projecaoMensal };
-            const { totalVendas: tvEsp, totalComissoes: tcEsp, projecaoAtualizada: projEsp } =
-              calcularTotaisLinha(
-                projecaoEspelho,
-                percDifTotal,
-                novaVenda.qtdParcelas,
-                'Adesão',
-                difAdesao,
-                difMensal
-              );
-
-            const vendaEspelho: LancamentoVenda = {
-              ...vendaComEmpresa,
-              id: `esp_${vendaComEmpresa.id}_${Date.now()}`,
-              empresaId: maeId,
-              vendedorId: undefined,
-              vendedorNome: undefined,
-              tipoTabela: 'Adesão',
-              percentualComissao: percDifTotal,
-              percentualAdesao: difAdesao,
-              percentualMensal: difMensal,
-              projecaoMensal: projEsp,
-              totalVendas: tvEsp,
-              totalComissoes: tcEsp,
-              isVendaEspelho: true,
-              vendaOrigemId: vendaComEmpresa.id,
-              empresaFilhaOrigemId: empId,
-            };
-
-            setVendas(prev => [...prev, vendaEspelho]);
-            salvarVendaSupabase(vendaEspelho).catch(err => console.error('Erro ao salvar venda espelho Adesão:', err));
+        const qtd = novaVenda.qtdParcelas;
+        
+        // Obter grade completa de parcelas da mãe
+        let gradeMae = regraMae.percentuaisParcelas;
+        if (!gradeMae || gradeMae.length !== qtd) {
+          if (regraMae.tipoTabela === 'Adesão') {
+            const rest = Math.max(1, qtd - 1);
+            const vM = Number(((regraMae.percentualMensal || 0) / rest).toFixed(3));
+            gradeMae = [regraMae.percentualAdesao || 0];
+            for (let i = 1; i < qtd; i++) gradeMae.push(vM);
+          } else {
+            const vL = Number((regraMae.percentualComissao / qtd).toFixed(3));
+            gradeMae = Array(qtd).fill(vL);
           }
-        } else {
-          // Linear
-          const percDif = Number((regraMae.percentualComissao - regraFilhaCorrespondente.percentualComissao).toFixed(2));
-          if (percDif > 0) {
-            const projecaoEspelho = { ...novaVenda.projecaoMensal };
-            const { totalVendas: tvEsp, totalComissoes: tcEsp, projecaoAtualizada: projEsp } =
-              calcularTotaisLinha(projecaoEspelho, percDif, novaVenda.qtdParcelas, 'Linear');
+        }
 
-            const vendaEspelho: LancamentoVenda = {
-              ...vendaComEmpresa,
-              id: `esp_${vendaComEmpresa.id}_${Date.now()}`,
-              empresaId: maeId,
-              vendedorId: undefined,
-              vendedorNome: undefined,
-              tipoTabela: 'Linear',
-              percentualComissao: percDif,
-              percentualAdesao: undefined,
-              percentualMensal: undefined,
-              projecaoMensal: projEsp,
-              totalVendas: tvEsp,
-              totalComissoes: tcEsp,
-              isVendaEspelho: true,
-              vendaOrigemId: vendaComEmpresa.id,
-              empresaFilhaOrigemId: empId,
-            };
-
-            setVendas(prev => [...prev, vendaEspelho]);
-            salvarVendaSupabase(vendaEspelho).catch(err => console.error('Erro ao salvar venda espelho Linear:', err));
+        // Obter grade completa de parcelas da filha
+        let gradeFilha = novaVenda.percentuaisParcelas || regraFilhaCorrespondente.percentuaisParcelas;
+        if (!gradeFilha || gradeFilha.length !== qtd) {
+          if (regraFilhaCorrespondente.tipoTabela === 'Adesão') {
+            const rest = Math.max(1, qtd - 1);
+            const vM = Number(((regraFilhaCorrespondente.percentualMensal || 0) / rest).toFixed(3));
+            gradeFilha = [regraFilhaCorrespondente.percentualAdesao || 0];
+            for (let i = 1; i < qtd; i++) gradeFilha.push(vM);
+          } else {
+            const vL = Number((regraFilhaCorrespondente.percentualComissao / qtd).toFixed(3));
+            gradeFilha = Array(qtd).fill(vL);
           }
+        }
+
+        // Calcular grade diferencial exata [difP1, difP2, ..., difPn]
+        const gradeDiferencial = gradeMae.map((pMae, i) =>
+          Math.max(0, Number((pMae - (gradeFilha![i] || 0)).toFixed(2)))
+        );
+
+        const percDifTotal = Number(gradeDiferencial.reduce((a, b) => a + b, 0).toFixed(2));
+        const temDiferencialPositivo = gradeDiferencial.some(d => d > 0);
+
+        if (temDiferencialPositivo) {
+          const projecaoEspelho = { ...novaVenda.projecaoMensal };
+          const difAdesao = gradeDiferencial[0] || 0;
+          const difMensal = Number(gradeDiferencial.slice(1).reduce((a, b) => a + b, 0).toFixed(2));
+
+          const { totalVendas: tvEsp, totalComissoes: tcEsp, projecaoAtualizada: projEsp } =
+            calcularTotaisLinha(
+              projecaoEspelho,
+              percDifTotal,
+              novaVenda.qtdParcelas,
+              regraMae.tipoTabela || 'Linear',
+              difAdesao,
+              difMensal,
+              gradeDiferencial
+            );
+
+          const vendaEspelho: LancamentoVenda = {
+            ...vendaComEmpresa,
+            id: `esp_${vendaComEmpresa.id}_${Date.now()}`,
+            empresaId: maeId,
+            vendedorId: undefined,
+            vendedorNome: undefined,
+            tipoTabela: regraMae.tipoTabela || 'Linear',
+            percentualComissao: percDifTotal,
+            percentualAdesao: difAdesao,
+            percentualMensal: difMensal,
+            percentuaisParcelas: gradeDiferencial,
+            projecaoMensal: projEsp,
+            totalVendas: tvEsp,
+            totalComissoes: tcEsp,
+            isVendaEspelho: true,
+            vendaOrigemId: vendaComEmpresa.id,
+            empresaFilhaOrigemId: empId,
+          };
+
+          setVendas(prev => [...prev, vendaEspelho]);
+          salvarVendaSupabase(vendaEspelho).catch(err => console.error('Erro ao salvar venda espelho:', err));
         }
 
         // Contemplação: também gera espelho se houver diferencial
@@ -657,7 +659,8 @@ function App() {
           vendaAtualizada.qtdParcelas,
           v.tipoTabela || 'Linear',
           v.percentualAdesao,
-          v.percentualMensal
+          v.percentualMensal,
+          v.percentuaisParcelas
         );
 
       const espelhoAtualizado: LancamentoVenda = {
