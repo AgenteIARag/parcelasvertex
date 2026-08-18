@@ -1418,7 +1418,8 @@ function App() {
                     <EmpresasCadastro />
                   )}
 
-                  <Box
+                  {/* Ciclos de Faturamento — oculto visualmente, lógica preservada */}
+                  {false && <Box
                     sx={{
                       mt: 4,
                       p: 3,
@@ -1571,7 +1572,7 @@ function App() {
                         })}
                       </Box>
                     </Box>
-                  </Box>
+                  </Box>}
 
                 </Box>
               </ErrorBoundary>
