@@ -27,6 +27,7 @@ import {
   Tabs,
   Tab,
   Tooltip,
+  FormHelperText
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -38,6 +39,7 @@ import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import BusinessIcon from '@mui/icons-material/Business';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { type RegraMaster, type SegmentoType, type UserPermissions, type Empresa, type TipoTabela } from '../types';
 
 interface RegrasMasterProps {
@@ -621,12 +623,49 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
             {isSuperMaster && empresas.length > 0 && (
               <Grid size={{ xs: 12 }}>
                 <FormControl fullWidth>
-                  <InputLabel id="empresa-regra-label">Empresa Proprietária da Regra</InputLabel>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                      Empresa Proprietária da Regra
+                    </Typography>
+                    <Tooltip
+                      arrow
+                      title={
+                        <Box sx={{ p: 0.5 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                            💡 Como funciona a Empresa Proprietária:
+                          </Typography>
+                          <Typography variant="caption" sx={{ display: 'block', mb: 0.5, lineHeight: 1.4 }}>
+                            • <strong>Empresa Mãe (ex: Vetex Master):</strong> A regra pertence exclusivamente à matriz. As empresas filhas usarão essa tabela como base para cadastrar seus percentuais e repassar o diferencial de comissão das vendas.
+                          </Typography>
+                          <Typography variant="caption" sx={{ display: 'block', lineHeight: 1.4 }}>
+                            • <strong>Global:</strong> Regra padrão do sistema, visível para todas as empresas sem vínculo exclusivo.
+                          </Typography>
+                        </Box>
+                      }
+                      slotProps={{
+                        tooltip: {
+                          sx: {
+                            bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#1e293b',
+                            color: '#f8fafc',
+                            p: 1.5,
+                            borderRadius: 2,
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                            maxWidth: 320,
+                            border: '1px solid rgba(255,255,255,0.1)'
+                          }
+                        }
+                      }}
+                    >
+                      <IconButton size="small" sx={{ p: 0.2, color: 'primary.main' }}>
+                        <InfoOutlinedIcon sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
                   <Select
-                    labelId="empresa-regra-label"
                     value={empresaIdForm}
-                    label="Empresa Proprietária da Regra"
                     onChange={e => setEmpresaIdForm(e.target.value)}
+                    displayEmpty
+                    size="small"
                   >
                     <MenuItem value=""><em>Global (sem empresa específica)</em></MenuItem>
                     {empresas.filter(e => !e.empresaMaeId).map(e => (
@@ -638,6 +677,11 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                       </MenuItem>
                     ))}
                   </Select>
+                  <FormHelperText sx={{ fontSize: '0.72rem' }}>
+                    {empresaIdForm 
+                      ? 'Regra vinculada à Empresa Mãe (base de repasse das filhas)' 
+                      : 'Regra padrão compartilhada entre todas as empresas'}
+                  </FormHelperText>
                 </FormControl>
               </Grid>
             )}
