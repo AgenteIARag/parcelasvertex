@@ -96,7 +96,10 @@ export const obterRegrasSupabase = async (): Promise<RegraMaster[]> => {
     segmento: r.segmento,
     tabela: r.tabela,
     qtdParcelas: Number(r.qtd_parcelas ?? r.qtdParcelas ?? 0),
+    tipoTabela: (r.tipo_tabela as any) || 'Linear',
     percentualComissao: Number(r.percentual_comissao ?? r.percentualComissao ?? 0),
+    percentualAdesao: r.percentual_adesao != null ? Number(r.percentual_adesao) : undefined,
+    percentualMensal: r.percentual_mensal != null ? Number(r.percentual_mensal) : undefined,
     percentualComissaoContemplacao: r.percentual_comissao_contemplacao != null
       ? Number(r.percentual_comissao_contemplacao)
       : undefined
@@ -109,16 +112,19 @@ export const salvarRegraSupabase = async (regra: RegraMaster): Promise<void> => 
     segmento: regra.segmento,
     tabela: regra.tabela,
     qtd_parcelas: regra.qtdParcelas,
+    tipo_tabela: regra.tipoTabela || 'Linear',
     percentual_comissao: regra.percentualComissao,
   };
   if (regra.empresaId) payload.empresa_id = regra.empresaId;
+  if (regra.percentualAdesao != null) payload.percentual_adesao = regra.percentualAdesao;
+  if (regra.percentualMensal != null) payload.percentual_mensal = regra.percentualMensal;
   if (regra.percentualComissaoContemplacao != null) {
     payload.percentual_comissao_contemplacao = regra.percentualComissaoContemplacao;
   }
 
   const { error } = await supabase.from('regras_master').upsert(payload);
   if (error) {
-    // Tenta sem a coluna empresa_id se não existir
+    // Tenta sem colunas novas caso não existam
     if (error.code === '42703') {
       const { error: e2 } = await supabase.from('regras_master').upsert({
         id: regra.id,
@@ -167,7 +173,10 @@ export const obterRegrasFilhaSupabase = async (empresaFilhaId?: string): Promise
     id: r.id,
     empresaFilhaId: r.empresa_filha_id,
     regraMasterId: r.regra_master_id,
+    tipoTabela: (r.tipo_tabela as any) || 'Linear',
     percentualComissao: Number(r.percentual_comissao),
+    percentualAdesao: r.percentual_adesao != null ? Number(r.percentual_adesao) : undefined,
+    percentualMensal: r.percentual_mensal != null ? Number(r.percentual_mensal) : undefined,
     percentualComissaoContemplacao: r.percentual_comissao_contemplacao != null
       ? Number(r.percentual_comissao_contemplacao)
       : undefined
@@ -179,8 +188,11 @@ export const salvarRegraFilhaSupabase = async (regra: RegraFilha): Promise<void>
     id: regra.id,
     empresa_filha_id: regra.empresaFilhaId,
     regra_master_id: regra.regraMasterId,
+    tipo_tabela: regra.tipoTabela || 'Linear',
     percentual_comissao: regra.percentualComissao,
   };
+  if (regra.percentualAdesao != null) payload.percentual_adesao = regra.percentualAdesao;
+  if (regra.percentualMensal != null) payload.percentual_mensal = regra.percentualMensal;
   if (regra.percentualComissaoContemplacao != null) {
     payload.percentual_comissao_contemplacao = regra.percentualComissaoContemplacao;
   }
@@ -261,7 +273,10 @@ export const obterVendasSupabase = async (): Promise<LancamentoVenda[]> => {
       segmento: v.segmento,
       tabela: v.tabela,
       qtdParcelas: v.qtd_parcelas,
+      tipoTabela: (v.tipo_tabela as any) || 'Linear',
       percentualComissao: Number(v.percentual_comissao),
+      percentualAdesao: v.percentual_adesao != null ? Number(v.percentual_adesao) : undefined,
+      percentualMensal: v.percentual_mensal != null ? Number(v.percentual_mensal) : undefined,
       valorVenda: Number(v.valor_venda),
       valorParcela: Number(v.valor_parcela),
       projecaoMensal: proj,
@@ -296,7 +311,10 @@ export const salvarVendaSupabase = async (venda: LancamentoVenda): Promise<void>
     segmento: venda.segmento,
     tabela: venda.tabela,
     qtd_parcelas: venda.qtdParcelas,
+    tipo_tabela: venda.tipoTabela || 'Linear',
     percentual_comissao: venda.percentualComissao,
+    percentual_adesao: venda.percentualAdesao ?? null,
+    percentual_mensal: venda.percentualMensal ?? null,
     valor_venda: venda.valorVenda,
     valor_parcela: venda.valorParcela,
     projecao_mensal: projecaoComMetadata,
@@ -540,7 +558,7 @@ export const excluirEmpresaLocal = (id: string): Empresa[] => {
 };
 
 export const migrarTabelasHierarquia = async (): Promise<void> => {
-  // Tenta adicionar as colunas e tabelas necessárias para a hierarquia empresa mãe/filha
+  // Tenta adicionar as colunas e tabelas necessárias para a hierarquia empresa mãe/filha e tipoTabela Linear/Adesão
   try {
     // Adicionar empresa_mae_id nas empresas
     await supabase.rpc('exec_sql', {
@@ -549,9 +567,12 @@ export const migrarTabelasHierarquia = async (): Promise<void> => {
   } catch { /* silencioso */ }
 
   try {
-    // Adicionar empresa_id nas regras_master
+    // Adicionar empresa_id e colunas de Adesão nas regras_master
     await supabase.rpc('exec_sql', {
       sql: `ALTER TABLE regras_master ADD COLUMN IF NOT EXISTS empresa_id TEXT;
+            ALTER TABLE regras_master ADD COLUMN IF NOT EXISTS tipo_tabela TEXT DEFAULT 'Linear';
+            ALTER TABLE regras_master ADD COLUMN IF NOT EXISTS percentual_adesao NUMERIC;
+            ALTER TABLE regras_master ADD COLUMN IF NOT EXISTS percentual_mensal NUMERIC;
             ALTER TABLE regras_master ADD COLUMN IF NOT EXISTS percentual_comissao_contemplacao NUMERIC;`
     });
   } catch { /* silencioso */ }
@@ -564,7 +585,10 @@ export const migrarTabelasHierarquia = async (): Promise<void> => {
           id TEXT PRIMARY KEY,
           empresa_filha_id TEXT NOT NULL,
           regra_master_id TEXT NOT NULL,
+          tipo_tabela TEXT DEFAULT 'Linear',
           percentual_comissao NUMERIC NOT NULL,
+          percentual_adesao NUMERIC,
+          percentual_mensal NUMERIC,
           percentual_comissao_contemplacao NUMERIC,
           created_at TIMESTAMPTZ DEFAULT NOW()
         );
@@ -573,12 +597,15 @@ export const migrarTabelasHierarquia = async (): Promise<void> => {
   } catch { /* silencioso */ }
 
   try {
-    // Adicionar colunas de hierarquia nas vendas
+    // Adicionar colunas de hierarquia e Adesão nas vendas
     await supabase.rpc('exec_sql', {
       sql: `
         ALTER TABLE vendas ADD COLUMN IF NOT EXISTS venda_origem_id TEXT;
         ALTER TABLE vendas ADD COLUMN IF NOT EXISTS is_venda_espelho BOOLEAN DEFAULT false;
         ALTER TABLE vendas ADD COLUMN IF NOT EXISTS empresa_filha_origem_id TEXT;
+        ALTER TABLE vendas ADD COLUMN IF NOT EXISTS tipo_tabela TEXT DEFAULT 'Linear';
+        ALTER TABLE vendas ADD COLUMN IF NOT EXISTS percentual_adesao NUMERIC;
+        ALTER TABLE vendas ADD COLUMN IF NOT EXISTS percentual_mensal NUMERIC;
       `
     });
   } catch { /* silencioso */ }

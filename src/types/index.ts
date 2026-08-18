@@ -7,13 +7,18 @@ export interface Empresa {
   empresaMaeId?: string; // Se preenchido, esta é uma empresa filha
 }
 
+export type TipoTabela = 'Linear' | 'Adesão';
+
 export interface RegraMaster {
   id: string;
   empresaId?: string; // ID da empresa proprietária da regra (empresa mãe)
   segmento: SegmentoType;
   tabela: string;
   qtdParcelas: number;
-  percentualComissao: number; // Ex: 5 significa 5% (ou 0.05, vamos usar de 0 a 100 para facilidade de inserção pelo usuário, ex: 5% = 5)
+  tipoTabela?: TipoTabela; // 'Linear' (default) ou 'Adesão'
+  percentualComissao: number; // Percentual linear total (ou total na adesão). Ex: 5 significa 5%
+  percentualAdesao?: number; // % pago na 1ª parcela (ex: 2 = 2%)
+  percentualMensal?: number; // % restante fracionado nas parcelas restantes (ex: 3 = 3%)
   percentualComissaoContemplacao?: number; // % de comissão pago na contemplação (ex: 2.5 = 2.5%)
 }
 
@@ -26,7 +31,10 @@ export interface RegraFilha {
   id: string;
   empresaFilhaId: string;
   regraMasterId: string;      // Referência à regra da mãe
+  tipoTabela?: TipoTabela;    // 'Linear' ou 'Adesão'
   percentualComissao: number; // % da filha (deve ser ≤ % da mãe)
+  percentualAdesao?: number;  // % adesão da filha
+  percentualMensal?: number;  // % mensal da filha
   percentualComissaoContemplacao?: number; // % contempl. da filha
 }
 
@@ -87,7 +95,10 @@ export interface LancamentoVenda {
   segmento: SegmentoType;
   tabela: string;
   qtdParcelas: number;
+  tipoTabela?: TipoTabela; // 'Linear' ou 'Adesão'
   percentualComissao: number; // Percentual copiado/calculado da Regra Master
+  percentualAdesao?: number; // % adesão pago na 1ª parcela
+  percentualMensal?: number; // % mensal restante
   valorVenda: number; // Valor de referência geral da venda (Crédito)
   valorParcela: number; // Valor nominal da parcela
   projecaoMensal: ProjecaoMensalType;

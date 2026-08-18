@@ -37,8 +37,13 @@ interface RegrasFilhaProps {
   regrasMaster: RegraMaster[]; // Regras da empresa mãe
 }
 
-/** Mapa local de edições (regraMasterId -> percentualComissao editado) */
-type EditMap = Record<string, { percentual: number | ''; percentualContempl: number | '' }>;
+/** Mapa local de edições (regraMasterId -> campos editados) */
+type EditMap = Record<string, {
+  percentual: number | '';
+  percentualAdesao: number | '';
+  percentualMensal: number | '';
+  percentualContempl: number | '';
+}>;
 
 const SEGMENTO_ICONS: Record<SegmentoType, React.ReactNode> = {
   'Imóveis': <HomeIcon sx={{ fontSize: 16 }} />,
@@ -57,7 +62,7 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
   const isDark = theme.palette.mode === 'dark';
 
   // Empresas filhas disponíveis
-  const empresasFilhas = empresas.filter(e => !!e.empresaMaeId && e.ativo);
+  const empresasFilhas = empresas.filter(e => !e.ativo ? false : !!e.empresaMaeId);
 
   const [empresaFilhaSelecionada, setEmpresaFilhaSelecionada] = useState<string>(
     empresasFilhas[0]?.id || ''
@@ -92,6 +97,8 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
         const rFilha = data.find(rf => rf.regraMasterId === rm.id);
         mapa[rm.id] = {
           percentual: rFilha ? rFilha.percentualComissao : '',
+          percentualAdesao: rFilha?.percentualAdesao ?? (rm.tipoTabela === 'Adesão' ? rm.percentualAdesao ?? '' : ''),
+          percentualMensal: rFilha?.percentualMensal ?? (rm.tipoTabela === 'Adesão' ? rm.percentualMensal ?? '' : ''),
           percentualContempl: rFilha?.percentualComissaoContemplacao ?? '',
         };
       });
@@ -101,7 +108,7 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
     } finally {
       setLoading(false);
     }
-  }, [empresaFilhaSelecionada]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [empresaFilhaSelecionada, regrasDaMae]);
 
   useEffect(() => {
     if (empresaFilhaSelecionada) carregarRegrasFilha();
@@ -112,6 +119,22 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
     setEditMap(prev => ({
       ...prev,
       [regraMasterId]: { ...prev[regraMasterId], percentual: num }
+    }));
+  };
+
+  const handleChangeAdesao = (regraMasterId: string, valor: string) => {
+    const num = valor === '' ? '' : Math.max(0, parseFloat(valor));
+    setEditMap(prev => ({
+      ...prev,
+      [regraMasterId]: { ...prev[regraMasterId], percentualAdesao: num }
+    }));
+  };
+
+  const handleChangeMensal = (regraMasterId: string, valor: string) => {
+    const num = valor === '' ? '' : Math.max(0, parseFloat(valor));
+    setEditMap(prev => ({
+      ...prev,
+      [regraMasterId]: { ...prev[regraMasterId], percentualMensal: num }
     }));
   };
 
@@ -132,25 +155,59 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
 
       for (const rm of regrasDaMae) {
         const edit = editMap[rm.id];
-        if (!edit || edit.percentual === '') continue; // Pular se não preenchido
+        if (!edit) continue;
 
-        const percentual = Number(edit.percentual);
-        if (percentual > rm.percentualComissao) {
-          setErrorMsg(`"${rm.tabela} / ${rm.qtdParcelas}x": o % da filha (${percentual}%) não pode ser maior que o % da mãe (${rm.percentualComissao}%).`);
-          setSaving(false);
-          return;
+        const isAdesao = rm.tipoTabela === 'Adesão';
+
+        if (isAdesao) {
+          if (edit.percentualAdesao === '' && edit.percentualMensal === '') continue;
+          const pAdesao = Number(edit.percentualAdesao || 0);
+          const pMensal = Number(edit.percentualMensal || 0);
+
+          if (rm.percentualAdesao != null && pAdesao > rm.percentualAdesao) {
+            setErrorMsg(`"${rm.tabela} / ${rm.qtdParcelas}x": o % Adesão da filha (${pAdesao}%) não pode ser maior que o da mãe (${rm.percentualAdesao}%).`);
+            setSaving(false);
+            return;
+          }
+          if (rm.percentualMensal != null && pMensal > rm.percentualMensal) {
+            setErrorMsg(`"${rm.tabela} / ${rm.qtdParcelas}x": o % Mensal da filha (${pMensal}%) não pode ser maior que o da mãe (${rm.percentualMensal}%).`);
+            setSaving(false);
+            return;
+          }
+
+          const existente = regrasFilha.find(rf => rf.regraMasterId === rm.id);
+          const regra: RegraFilha = {
+            id: existente?.id || `rf_${empresaFilhaSelecionada}_${rm.id}_${Date.now()}`,
+            empresaFilhaId: empresaFilhaSelecionada,
+            regraMasterId: rm.id,
+            tipoTabela: 'Adesão',
+            percentualComissao: Number((pAdesao + pMensal).toFixed(2)),
+            percentualAdesao: pAdesao,
+            percentualMensal: pMensal,
+            percentualComissaoContemplacao: edit.percentualContempl !== '' ? Number(edit.percentualContempl) : undefined,
+          };
+          promises.push(salvarRegraFilhaSupabase(regra));
+        } else {
+          // Linear
+          if (edit.percentual === '') continue;
+          const percentual = Number(edit.percentual);
+          if (percentual > rm.percentualComissao) {
+            setErrorMsg(`"${rm.tabela} / ${rm.qtdParcelas}x": o % da filha (${percentual}%) não pode ser maior que o % da mãe (${rm.percentualComissao}%).`);
+            setSaving(false);
+            return;
+          }
+
+          const existente = regrasFilha.find(rf => rf.regraMasterId === rm.id);
+          const regra: RegraFilha = {
+            id: existente?.id || `rf_${empresaFilhaSelecionada}_${rm.id}_${Date.now()}`,
+            empresaFilhaId: empresaFilhaSelecionada,
+            regraMasterId: rm.id,
+            tipoTabela: 'Linear',
+            percentualComissao: percentual,
+            percentualComissaoContemplacao: edit.percentualContempl !== '' ? Number(edit.percentualContempl) : undefined,
+          };
+          promises.push(salvarRegraFilhaSupabase(regra));
         }
-
-        // Verificar se já existe uma regra filha para esta combinação
-        const existente = regrasFilha.find(rf => rf.regraMasterId === rm.id);
-        const regra: RegraFilha = {
-          id: existente?.id || `rf_${empresaFilhaSelecionada}_${rm.id}_${Date.now()}`,
-          empresaFilhaId: empresaFilhaSelecionada,
-          regraMasterId: rm.id,
-          percentualComissao: percentual,
-          percentualComissaoContemplacao: edit.percentualContempl !== '' ? Number(edit.percentualContempl) : undefined,
-        };
-        promises.push(salvarRegraFilhaSupabase(regra));
       }
 
       await Promise.all(promises);
@@ -164,16 +221,28 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
     }
   };
 
-  const getDiferenca = (rm: RegraMaster): number | null => {
+  const getDiferencaLinear = (rm: RegraMaster): number | null => {
     const edit = editMap[rm.id];
     if (!edit || edit.percentual === '') return null;
-    return rm.percentualComissao - Number(edit.percentual);
+    return Number((rm.percentualComissao - Number(edit.percentual)).toFixed(2));
+  };
+
+  const getDiferencaAdesao = (rm: RegraMaster): number | null => {
+    const edit = editMap[rm.id];
+    if (!edit || edit.percentualAdesao === '' || rm.percentualAdesao == null) return null;
+    return Number((rm.percentualAdesao - Number(edit.percentualAdesao)).toFixed(2));
+  };
+
+  const getDiferencaMensal = (rm: RegraMaster): number | null => {
+    const edit = editMap[rm.id];
+    if (!edit || edit.percentualMensal === '' || rm.percentualMensal == null) return null;
+    return Number((rm.percentualMensal - Number(edit.percentualMensal)).toFixed(2));
   };
 
   const getDiferencaContempl = (rm: RegraMaster): number | null => {
     const edit = editMap[rm.id];
     if (!rm.percentualComissaoContemplacao || !edit || edit.percentualContempl === '') return null;
-    return rm.percentualComissaoContemplacao - Number(edit.percentualContempl);
+    return Number((rm.percentualComissaoContemplacao - Number(edit.percentualContempl)).toFixed(2));
   };
 
   const cardBg = isDark ? '#1e293b' : '#ffffff';
@@ -212,7 +281,7 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
             Tabelas de Comissão por Empresa Filha
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-            Configure os percentuais das empresas filhas. A diferença entre o % da mãe e o % da filha gera parcelas de repasse automáticas para a empresa mãe.
+            Configure os percentuais das empresas filhas (Linear ou Adesão). A diferença para a tabela da mãe gera repasses automáticos de comissão.
           </Typography>
         </Box>
 
@@ -284,7 +353,7 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
       }}>
         <InfoOutlinedIcon sx={{ fontSize: 20, color: '#60a5fa', mt: 0.2, flexShrink: 0 }} />
         <Typography variant="body2" sx={{ color: isDark ? '#93c5fd' : '#1d4ed8', lineHeight: 1.6 }}>
-          <strong>Como funciona:</strong> quando uma venda é registrada pela empresa filha, o sistema gera automaticamente uma venda espelho para a empresa mãe com o <strong>percentual diferencial</strong> (% Mãe − % Filha). Assim, a mãe recebe o repasse pela diferença. As vendas espelho ficam visíveis apenas para o <em>super_master</em> e administradores da empresa mãe.
+          <strong>Como funciona:</strong> quando uma venda é registrada pela empresa filha, o sistema gera automaticamente uma venda espelho para a empresa mãe com o <strong>diferencial</strong> (% Mãe − % Filha). Na modalidade <strong>Adesão</strong>, o diferencial da 1ª parcela e das parcelas mensais são calculados separadamente.
         </Typography>
       </Box>
 
@@ -312,15 +381,16 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
             overflow: 'visible',
           }}
         >
-          <Table sx={{ minWidth: 750 }}>
+          <Table sx={{ minWidth: 850 }}>
             <TableHead sx={{ bgcolor: isDark ? '#0f172a' : '#f8fafc' }}>
               <TableRow>
                 <TableCell sx={hCellSx}>Segmento</TableCell>
                 <TableCell sx={hCellSx}>Tabela</TableCell>
+                <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>Tipo</TableCell>
                 <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>Parcelas</TableCell>
                 <TableCell sx={{ ...hCellSx, textAlign: 'right' }}>% Mãe (Base)</TableCell>
-                <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>% Filha</TableCell>
-                <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>Diferencial</TableCell>
+                <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>% Filha Configurado</TableCell>
+                <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>Diferencial (Mãe)</TableCell>
                 <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>% Contempl. Mãe</TableCell>
                 <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>% Contempl. Filha</TableCell>
                 <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>Dif. Contempl.</TableCell>
@@ -328,12 +398,24 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
             </TableHead>
             <TableBody>
               {regrasDaMae.map(rm => {
-                const diferenca = getDiferenca(rm);
-                const diferencaContempl = getDiferencaContempl(rm);
+                const isAdesao = rm.tipoTabela === 'Adesão';
                 const chipColor = SEGMENTO_COLORS[rm.segmento] || { bg: 'rgba(100,116,139,0.12)', text: '#94a3b8' };
-                const edit = editMap[rm.id] || { percentual: '', percentualContempl: '' };
-                const percentualFilhaNum = edit.percentual !== '' ? Number(edit.percentual) : null;
-                const isInvalido = percentualFilhaNum !== null && percentualFilhaNum > rm.percentualComissao;
+                const edit = editMap[rm.id] || { percentual: '', percentualAdesao: '', percentualMensal: '', percentualContempl: '' };
+                const diferencaContempl = getDiferencaContempl(rm);
+
+                // Validações
+                let isInvalido = false;
+                if (isAdesao) {
+                  const pA = edit.percentualAdesao !== '' ? Number(edit.percentualAdesao) : null;
+                  const pM = edit.percentualMensal !== '' ? Number(edit.percentualMensal) : null;
+                  if ((pA !== null && rm.percentualAdesao != null && pA > rm.percentualAdesao) ||
+                      (pM !== null && rm.percentualMensal != null && pM > rm.percentualMensal)) {
+                    isInvalido = true;
+                  }
+                } else {
+                  const pL = edit.percentual !== '' ? Number(edit.percentual) : null;
+                  if (pL !== null && pL > rm.percentualComissao) isInvalido = true;
+                }
 
                 return (
                   <TableRow key={rm.id} sx={{
@@ -353,59 +435,145 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
                     </TableCell>
                     {/* Tabela */}
                     <TableCell sx={{ fontWeight: 500 }}>{rm.tabela}</TableCell>
+                    {/* Tipo */}
+                    <TableCell align="center">
+                      <Chip
+                        label={rm.tipoTabela || 'Linear'}
+                        size="small"
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: '0.7rem',
+                          borderRadius: 1.5,
+                          bgcolor: isAdesao ? 'rgba(245,158,11,0.12)' : 'rgba(99,102,241,0.12)',
+                          color: isAdesao ? '#f59e0b' : '#818cf8',
+                        }}
+                      />
+                    </TableCell>
                     {/* Parcelas */}
                     <TableCell align="center">
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>{rm.qtdParcelas}x</Typography>
                     </TableCell>
                     {/* % Mãe */}
                     <TableCell align="right">
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>
-                        {rm.percentualComissao.toFixed(2).replace('.', ',')}%
-                      </Typography>
+                      {isAdesao ? (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.2 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#f59e0b' }}>
+                            Adesão: {Number(rm.percentualAdesao || 0).toFixed(2).replace('.', ',')}%
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                            Mensal: {Number(rm.percentualMensal || 0).toFixed(2).replace('.', ',')}%
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>
+                            Total: {Number(rm.percentualComissao || 0).toFixed(2).replace('.', ',')}%
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>
+                          {rm.percentualComissao.toFixed(2).replace('.', ',')}%
+                        </Typography>
+                      )}
                     </TableCell>
-                    {/* % Filha (editável) */}
-                    <TableCell align="center" sx={{ width: 130 }}>
-                      <TextField
-                        size="small"
-                        type="number"
-                        value={edit.percentual}
-                        onChange={e => handleChangePercentual(rm.id, e.target.value)}
-                        error={isInvalido}
-                        helperText={isInvalido ? `Máx: ${rm.percentualComissao}%` : ''}
-                        placeholder={`≤ ${rm.percentualComissao}`}
-                        sx={{ width: 110 }}
-                        slotProps={{
-                          input: {
-                            endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                          },
-                          htmlInput: { step: '0.01', min: '0', max: String(rm.percentualComissao) }
-                        }}
-                      />
+                    {/* % Filha Configurado */}
+                    <TableCell align="center" sx={{ minWidth: 160 }}>
+                      {isAdesao ? (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center' }}>
+                          <TextField
+                            size="small"
+                            type="number"
+                            label="Adesão"
+                            value={edit.percentualAdesao}
+                            onChange={e => handleChangeAdesao(rm.id, e.target.value)}
+                            placeholder={`≤ ${rm.percentualAdesao || 0}`}
+                            sx={{ width: 120 }}
+                            slotProps={{
+                              input: { endAdornment: <InputAdornment position="end">%</InputAdornment> },
+                              htmlInput: { step: '0.01', min: '0', max: String(rm.percentualAdesao || 100) }
+                            }}
+                          />
+                          <TextField
+                            size="small"
+                            type="number"
+                            label="Mensal"
+                            value={edit.percentualMensal}
+                            onChange={e => handleChangeMensal(rm.id, e.target.value)}
+                            placeholder={`≤ ${rm.percentualMensal || 0}`}
+                            sx={{ width: 120 }}
+                            slotProps={{
+                              input: { endAdornment: <InputAdornment position="end">%</InputAdornment> },
+                              htmlInput: { step: '0.01', min: '0', max: String(rm.percentualMensal || 100) }
+                            }}
+                          />
+                        </Box>
+                      ) : (
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={edit.percentual}
+                          onChange={e => handleChangePercentual(rm.id, e.target.value)}
+                          placeholder={`≤ ${rm.percentualComissao}`}
+                          sx={{ width: 120 }}
+                          slotProps={{
+                            input: { endAdornment: <InputAdornment position="end">%</InputAdornment> },
+                            htmlInput: { step: '0.01', min: '0', max: String(rm.percentualComissao) }
+                          }}
+                        />
+                      )}
                     </TableCell>
                     {/* Diferencial */}
                     <TableCell align="center">
-                      {diferenca !== null ? (
-                        <Chip
-                          label={`${diferenca >= 0 ? '+' : ''}${diferenca.toFixed(2).replace('.', ',')}%`}
-                          size="small"
-                          sx={{
-                            fontWeight: 800,
-                            fontSize: '0.8rem',
-                            borderRadius: 2,
-                            bgcolor: diferenca > 0
-                              ? 'rgba(16,185,129,0.15)'
-                              : diferenca === 0
-                                ? 'rgba(100,116,139,0.15)'
-                                : 'rgba(239,68,68,0.15)',
-                            color: diferenca > 0
-                              ? '#10b981'
-                              : diferenca === 0
-                                ? '#94a3b8'
-                                : '#ef4444',
-                          }}
-                        />
+                      {isAdesao ? (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'center' }}>
+                          {getDiferencaAdesao(rm) !== null && (
+                            <Chip
+                              label={`Dif. Adesão: +${getDiferencaAdesao(rm)!.toFixed(2).replace('.', ',')}%`}
+                              size="small"
+                              sx={{
+                                fontWeight: 700,
+                                fontSize: '0.7rem',
+                                borderRadius: 1.5,
+                                bgcolor: getDiferencaAdesao(rm)! > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(100,116,139,0.15)',
+                                color: getDiferencaAdesao(rm)! > 0 ? '#f59e0b' : '#94a3b8',
+                              }}
+                            />
+                          )}
+                          {getDiferencaMensal(rm) !== null && (
+                            <Chip
+                              label={`Dif. Mensal: +${getDiferencaMensal(rm)!.toFixed(2).replace('.', ',')}%`}
+                              size="small"
+                              sx={{
+                                fontWeight: 700,
+                                fontSize: '0.7rem',
+                                borderRadius: 1.5,
+                                bgcolor: getDiferencaMensal(rm)! > 0 ? 'rgba(16,185,129,0.15)' : 'rgba(100,116,139,0.15)',
+                                color: getDiferencaMensal(rm)! > 0 ? '#10b981' : '#94a3b8',
+                              }}
+                            />
+                          )}
+                        </Box>
                       ) : (
-                        <Typography variant="caption" sx={{ color: 'text.disabled' }}>—</Typography>
+                        getDiferencaLinear(rm) !== null ? (
+                          <Chip
+                            label={`${getDiferencaLinear(rm)! >= 0 ? '+' : ''}${getDiferencaLinear(rm)!.toFixed(2).replace('.', ',')}%`}
+                            size="small"
+                            sx={{
+                              fontWeight: 800,
+                              fontSize: '0.8rem',
+                              borderRadius: 2,
+                              bgcolor: getDiferencaLinear(rm)! > 0
+                                ? 'rgba(16,185,129,0.15)'
+                                : getDiferencaLinear(rm)! === 0
+                                  ? 'rgba(100,116,139,0.15)'
+                                  : 'rgba(239,68,68,0.15)',
+                              color: getDiferencaLinear(rm)! > 0
+                                ? '#10b981'
+                                : getDiferencaLinear(rm)! === 0
+                                  ? '#94a3b8'
+                                  : '#ef4444',
+                            }}
+                          />
+                        ) : (
+                          <Typography variant="caption" sx={{ color: 'text.disabled' }}>—</Typography>
+                        )
                       )}
                     </TableCell>
                     {/* % Contempl. Mãe */}
@@ -418,7 +586,7 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
                         <Typography variant="caption" sx={{ color: 'text.disabled' }}>—</Typography>
                       )}
                     </TableCell>
-                    {/* % Contempl. Filha (editável) */}
+                    {/* % Contempl. Filha */}
                     <TableCell align="center" sx={{ width: 130 }}>
                       {rm.percentualComissaoContemplacao != null ? (
                         <TextField
@@ -466,7 +634,7 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
       )}
 
       {regrasDaMae.length > 0 && (
-        <Tooltip title="Preencha o % Filha para cada regra desejada e clique em Salvar Tabela">
+        <Tooltip title="Preencha os percentuais para cada regra e clique em Salvar Tabela">
           <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Button
               variant="contained"

@@ -268,7 +268,10 @@ function App() {
       if (rFilha) {
         return {
           ...rm,
+          tipoTabela: rFilha.tipoTabela || rm.tipoTabela || 'Linear',
           percentualComissao: rFilha.percentualComissao,
+          percentualAdesao: rFilha.percentualAdesao ?? rm.percentualAdesao,
+          percentualMensal: rFilha.percentualMensal ?? rm.percentualMensal,
           percentualComissaoContemplacao: rFilha.percentualComissaoContemplacao ?? rm.percentualComissaoContemplacao,
         };
       }
@@ -545,40 +548,80 @@ function App() {
       );
 
       if (regraMae && regraFilhaCorrespondente) {
-        const percDif = regraMae.percentualComissao - regraFilhaCorrespondente.percentualComissao;
-        if (percDif > 0) {
-          // Recalcular projeção com o percentual diferencial
-          const projecaoEspelho = { ...novaVenda.projecaoMensal };
-          const percentualMensalDif = percDif / novaVenda.qtdParcelas;
-          Object.keys(projecaoEspelho).forEach(mesKey => {
-            const celula = projecaoEspelho[mesKey];
-            const comissaoDif = (celula.valorVenda || 0) * (percentualMensalDif / 100);
-            projecaoEspelho[mesKey] = {
-              ...celula,
-              comissaoGerada: Number(comissaoDif.toFixed(2))
+        const isAdesao = novaVenda.tipoTabela === 'Adesão' || regraMae.tipoTabela === 'Adesão';
+
+        if (isAdesao) {
+          const pAdesaoMae = regraMae.percentualAdesao ?? 0;
+          const pMensalMae = regraMae.percentualMensal ?? 0;
+          const pAdesaoFilha = regraFilhaCorrespondente.percentualAdesao ?? 0;
+          const pMensalFilha = regraFilhaCorrespondente.percentualMensal ?? 0;
+
+          const difAdesao = Number(Math.max(0, pAdesaoMae - pAdesaoFilha).toFixed(2));
+          const difMensal = Number(Math.max(0, pMensalMae - pMensalFilha).toFixed(2));
+          const percDifTotal = Number((difAdesao + difMensal).toFixed(2));
+
+          if (difAdesao > 0 || difMensal > 0) {
+            const projecaoEspelho = { ...novaVenda.projecaoMensal };
+            const { totalVendas: tvEsp, totalComissoes: tcEsp, projecaoAtualizada: projEsp } =
+              calcularTotaisLinha(
+                projecaoEspelho,
+                percDifTotal,
+                novaVenda.qtdParcelas,
+                'Adesão',
+                difAdesao,
+                difMensal
+              );
+
+            const vendaEspelho: LancamentoVenda = {
+              ...vendaComEmpresa,
+              id: `esp_${vendaComEmpresa.id}_${Date.now()}`,
+              empresaId: maeId,
+              vendedorId: undefined,
+              vendedorNome: undefined,
+              tipoTabela: 'Adesão',
+              percentualComissao: percDifTotal,
+              percentualAdesao: difAdesao,
+              percentualMensal: difMensal,
+              projecaoMensal: projEsp,
+              totalVendas: tvEsp,
+              totalComissoes: tcEsp,
+              isVendaEspelho: true,
+              vendaOrigemId: vendaComEmpresa.id,
+              empresaFilhaOrigemId: empId,
             };
-          });
 
-          const { totalVendas: tvEsp, totalComissoes: tcEsp, projecaoAtualizada: projEsp } =
-            calcularTotaisLinha(projecaoEspelho, percDif, novaVenda.qtdParcelas);
+            setVendas(prev => [...prev, vendaEspelho]);
+            salvarVendaSupabase(vendaEspelho).catch(err => console.error('Erro ao salvar venda espelho Adesão:', err));
+          }
+        } else {
+          // Linear
+          const percDif = Number((regraMae.percentualComissao - regraFilhaCorrespondente.percentualComissao).toFixed(2));
+          if (percDif > 0) {
+            const projecaoEspelho = { ...novaVenda.projecaoMensal };
+            const { totalVendas: tvEsp, totalComissoes: tcEsp, projecaoAtualizada: projEsp } =
+              calcularTotaisLinha(projecaoEspelho, percDif, novaVenda.qtdParcelas, 'Linear');
 
-          const vendaEspelho: LancamentoVenda = {
-            ...vendaComEmpresa,
-            id: `esp_${vendaComEmpresa.id}_${Date.now()}`,
-            empresaId: maeId,
-            vendedorId: undefined,
-            vendedorNome: undefined,
-            percentualComissao: percDif,
-            projecaoMensal: projEsp,
-            totalVendas: tvEsp,
-            totalComissoes: tcEsp,
-            isVendaEspelho: true,
-            vendaOrigemId: vendaComEmpresa.id,
-            empresaFilhaOrigemId: empId,
-          };
+            const vendaEspelho: LancamentoVenda = {
+              ...vendaComEmpresa,
+              id: `esp_${vendaComEmpresa.id}_${Date.now()}`,
+              empresaId: maeId,
+              vendedorId: undefined,
+              vendedorNome: undefined,
+              tipoTabela: 'Linear',
+              percentualComissao: percDif,
+              percentualAdesao: undefined,
+              percentualMensal: undefined,
+              projecaoMensal: projEsp,
+              totalVendas: tvEsp,
+              totalComissoes: tcEsp,
+              isVendaEspelho: true,
+              vendaOrigemId: vendaComEmpresa.id,
+              empresaFilhaOrigemId: empId,
+            };
 
-          setVendas(prev => [...prev, vendaEspelho]);
-          salvarVendaSupabase(vendaEspelho).catch(err => console.error('Erro ao salvar venda espelho:', err));
+            setVendas(prev => [...prev, vendaEspelho]);
+            salvarVendaSupabase(vendaEspelho).catch(err => console.error('Erro ao salvar venda espelho Linear:', err));
+          }
         }
 
         // Contemplação: também gera espelho se houver diferencial
@@ -589,8 +632,6 @@ function App() {
           const percDifContempl = regraMae.percentualComissaoContemplacao - regraFilhaCorrespondente.percentualComissaoContemplacao;
           if (percDifContempl > 0 && novaVenda.contemplado && novaVenda.comissaoContemplacao != null) {
             const comissaoContemplEspelho = (novaVenda.comissaoContemplacao / regraFilhaCorrespondente.percentualComissaoContemplacao) * percDifContempl;
-            // O valor de contemplação espelho é registrado na venda espelho existente ou como campo extra
-            // Por simplicidade, registramos no vendaEspelho acima se já criado, ou aqui se só há dif. de contempl.
             console.log('[ESPELHO] Diferencial de contemplação:', comissaoContemplEspelho);
           }
         }
@@ -604,20 +645,20 @@ function App() {
     );
     salvarVendaSupabase(vendaAtualizada).catch((err) => console.error('Erro Supabase Vendas (Edição):', err));
 
-    // Atualizar vendas espelho vinculadas (sincronizar dados do contrato, mantendo % diferencial)
+    // Atualizar vendas espelho vinculadas (sincronizar dados do contrato, mantendo modalidade e % diferencial)
     setVendas(prev => prev.map(v => {
       if (v.vendaOrigemId !== vendaAtualizada.id || !v.isVendaEspelho) return v;
-      // Recalcular a projeção espelho com o mesmo percentual diferencial
+      
       const projecaoEspelho = { ...vendaAtualizada.projecaoMensal };
-      const percDif = v.percentualComissao; // Mantém o diferencial original
-      const percentualMensalDif = percDif / vendaAtualizada.qtdParcelas;
-      Object.keys(projecaoEspelho).forEach(mesKey => {
-        const celula = projecaoEspelho[mesKey];
-        const comissaoDif = (celula.valorVenda || 0) * (percentualMensalDif / 100);
-        projecaoEspelho[mesKey] = { ...celula, comissaoGerada: Number(comissaoDif.toFixed(2)) };
-      });
       const { totalVendas: tvEsp, totalComissoes: tcEsp, projecaoAtualizada: projEsp } =
-        calcularTotaisLinha(projecaoEspelho, percDif, vendaAtualizada.qtdParcelas);
+        calcularTotaisLinha(
+          projecaoEspelho,
+          v.percentualComissao,
+          vendaAtualizada.qtdParcelas,
+          v.tipoTabela || 'Linear',
+          v.percentualAdesao,
+          v.percentualMensal
+        );
 
       const espelhoAtualizado: LancamentoVenda = {
         ...v,
@@ -626,6 +667,7 @@ function App() {
         segmento: vendaAtualizada.segmento,
         tabela: vendaAtualizada.tabela,
         qtdParcelas: vendaAtualizada.qtdParcelas,
+        tipoTabela: v.tipoTabela || 'Linear',
         valorVenda: vendaAtualizada.valorVenda,
         valorParcela: vendaAtualizada.valorParcela,
         dataVenda: vendaAtualizada.dataVenda,

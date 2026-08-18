@@ -1,4 +1,4 @@
-import { type RegraMaster, type LancamentoVenda, type ProjecaoMensalType, type StatusParcela, type MesesAno, type Vendedor, LISTA_MESES } from '../types';
+import { type RegraMaster, type LancamentoVenda, type ProjecaoMensalType, type StatusParcela, type MesesAno, type Vendedor, type TipoTabela, LISTA_MESES } from '../types';
 
 export const INITIAL_VENDEDORES: Vendedor[] = [
   { id: 'vend_1', nome: 'Carlos Silva', email: 'carlos.silva@consultoria.com', ativo: true, empresaId: 'emp_vertex' },
@@ -8,19 +8,19 @@ export const INITIAL_VENDEDORES: Vendedor[] = [
 
 export const INITIAL_REGRAS: RegraMaster[] = [
   // Imóveis
-  { id: 'r1', segmento: 'Imóveis', tabela: 'Tabela Padrão', qtdParcelas: 120, percentualComissao: 4.5 },
-  { id: 'r2', segmento: 'Imóveis', tabela: 'Tabela Platinum', qtdParcelas: 180, percentualComissao: 5.5 },
-  { id: 'r3', segmento: 'Imóveis', tabela: 'Tabela Gold', qtdParcelas: 240, percentualComissao: 6.0 },
+  { id: 'r1', segmento: 'Imóveis', tabela: 'Tabela Padrão', qtdParcelas: 120, tipoTabela: 'Linear', percentualComissao: 4.5 },
+  { id: 'r2', segmento: 'Imóveis', tabela: 'Tabela Platinum', qtdParcelas: 180, tipoTabela: 'Linear', percentualComissao: 5.5 },
+  { id: 'r3', segmento: 'Imóveis', tabela: 'Tabela Gold', qtdParcelas: 240, tipoTabela: 'Linear', percentualComissao: 6.0 },
   
   // Autos Leves
-  { id: 'r4', segmento: 'Autos Leves', tabela: 'Tabela Linear Flex', qtdParcelas: 36, percentualComissao: 8.0 },
-  { id: 'r5', segmento: 'Autos Leves', tabela: 'Tabela Linear Flex', qtdParcelas: 48, percentualComissao: 9.0 },
-  { id: 'r6', segmento: 'Autos Leves', tabela: 'Tabela Express', qtdParcelas: 60, percentualComissao: 10.0 },
+  { id: 'r4', segmento: 'Autos Leves', tabela: 'Tabela Linear Flex', qtdParcelas: 36, tipoTabela: 'Linear', percentualComissao: 8.0 },
+  { id: 'r5', segmento: 'Autos Leves', tabela: 'Tabela Linear Flex', qtdParcelas: 48, tipoTabela: 'Linear', percentualComissao: 9.0 },
+  { id: 'r6', segmento: 'Autos Leves', tabela: 'Tabela Express', qtdParcelas: 60, tipoTabela: 'Linear', percentualComissao: 10.0 },
 
   // Pesados
-  { id: 'r7', segmento: 'Pesados', tabela: 'Tabela Agro-Frota', qtdParcelas: 60, percentualComissao: 7.0 },
-  { id: 'r8', segmento: 'Pesados', tabela: 'Tabela Agro-Frota', qtdParcelas: 72, percentualComissao: 7.5 },
-  { id: 'r9', segmento: 'Pesados', tabela: 'Tabela Pesados Plus', qtdParcelas: 84, percentualComissao: 8.5 }
+  { id: 'r7', segmento: 'Pesados', tabela: 'Tabela Agro-Frota', qtdParcelas: 60, tipoTabela: 'Linear', percentualComissao: 7.0 },
+  { id: 'r8', segmento: 'Pesados', tabela: 'Tabela Agro-Frota', qtdParcelas: 72, tipoTabela: 'Linear', percentualComissao: 7.5 },
+  { id: 'r9', segmento: 'Pesados', tabela: 'Tabela Pesados Plus', qtdParcelas: 84, tipoTabela: 'Linear', percentualComissao: 8.5 }
 ];
 
 export const MAP_MES_NUMERO: Record<MesesAno, string> = {
@@ -67,21 +67,49 @@ export const gerarProjecaoVazia = (): ProjecaoMensalType => {
 export const calcularTotaisLinha = (
   projecao: ProjecaoMensalType,
   percentualComissao: number,
-  qtdParcelas: number
+  qtdParcelas: number,
+  tipoTabela: TipoTabela = 'Linear',
+  percentualAdesao?: number,
+  percentualMensalRestante?: number
 ): { totalVendas: number; totalComissoes: number; projecaoAtualizada: ProjecaoMensalType } => {
   let totalVendas = 0;
   let totalComissoes = 0;
   const projecaoAtualizada = { ...projecao };
 
-  const percentualMensal = percentualComissao / qtdParcelas;
-
   let parcelasAtivas = 0;
   let valorMaximoVenda = 0;
 
-  Object.keys(projecaoAtualizada).forEach((mesChave) => {
+  const chavesOrdenadas = Object.keys(projecaoAtualizada).sort();
+  
+  // Identifica os meses com valor > 0 para aplicar a regra de 1ª parcela (Adesão) e parcelas restantes
+  const mesesComVenda = chavesOrdenadas.filter(k => (projecaoAtualizada[k]?.valorVenda || 0) > 0);
+  const primeiraChaveComVenda = mesesComVenda.length > 0 ? mesesComVenda[0] : null;
+
+  const isAdesao = tipoTabela === 'Adesão';
+  const pAdesao = percentualAdesao ?? 0;
+  const pMensal = percentualMensalRestante ?? 0;
+  const parcelasRestantes = Math.max(1, qtdParcelas - 1);
+
+  chavesOrdenadas.forEach((mesChave) => {
     const celula = projecaoAtualizada[mesChave];
     const valor = celula.valorVenda || 0;
-    const comissao = valor * (percentualMensal / 100);
+    
+    let comissao = 0;
+    if (valor > 0) {
+      if (isAdesao) {
+        if (mesChave === primeiraChaveComVenda) {
+          // 1ª Parcela: recebe a comissão de Adesão
+          comissao = valor * (pAdesao / 100);
+        } else {
+          // Parcelas restantes (2..N): fracionadas
+          comissao = valor * ((pMensal / parcelasRestantes) / 100);
+        }
+      } else {
+        // Linear: percentual total dividido igualmente
+        const percentualMensalLinear = percentualComissao / qtdParcelas;
+        comissao = valor * (percentualMensalLinear / 100);
+      }
+    }
     
     projecaoAtualizada[mesChave] = {
       ...celula,

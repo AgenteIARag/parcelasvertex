@@ -38,7 +38,7 @@ import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import BusinessIcon from '@mui/icons-material/Business';
-import { type RegraMaster, type SegmentoType, type UserPermissions, type Empresa } from '../types';
+import { type RegraMaster, type SegmentoType, type UserPermissions, type Empresa, type TipoTabela } from '../types';
 
 interface RegrasMasterProps {
   regras: RegraMaster[];
@@ -72,7 +72,10 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
   const [segmento, setSegmento] = useState<SegmentoType>('Imóveis');
   const [tabela, setTabela] = useState('');
   const [qtdParcelas, setQtdParcelas] = useState<number | ''>('');
+  const [tipoTabela, setTipoTabela] = useState<TipoTabela>('Linear');
   const [percentualComissao, setPercentualComissao] = useState<number | ''>('');
+  const [percentualAdesao, setPercentualAdesao] = useState<number | ''>('');
+  const [percentualMensal, setPercentualMensal] = useState<number | ''>('');
   const [percentualComissaoContemplacao, setPercentualComissaoContemplacao] = useState<number | ''>('');
   const [empresaIdForm, setEmpresaIdForm] = useState<string>(empresaAtualId || '');
 
@@ -88,7 +91,10 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
       setSegmento(regra.segmento);
       setTabela(regra.tabela);
       setQtdParcelas(regra.qtdParcelas);
+      setTipoTabela(regra.tipoTabela || 'Linear');
       setPercentualComissao(regra.percentualComissao);
+      setPercentualAdesao(regra.percentualAdesao ?? '');
+      setPercentualMensal(regra.percentualMensal ?? '');
       setPercentualComissaoContemplacao(regra.percentualComissaoContemplacao ?? '');
       setEmpresaIdForm(regra.empresaId || empresaAtualId || '');
     } else {
@@ -97,7 +103,10 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
       setSegmento(abaSegmento !== 'Todos' ? abaSegmento : 'Imóveis');
       setTabela('');
       setQtdParcelas('');
+      setTipoTabela('Linear');
       setPercentualComissao('');
+      setPercentualAdesao('');
+      setPercentualMensal('');
       setPercentualComissaoContemplacao('');
       setEmpresaIdForm(empresaAtualId || '');
     }
@@ -115,8 +124,18 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
     if (!qtdParcelas || Number(qtdParcelas) <= 0) {
       tempErrors.qtdParcelas = 'Insira uma quantidade de parcelas válida (maior que 0).';
     }
-    if (percentualComissao === '' || Number(percentualComissao) < 0 || Number(percentualComissao) > 100) {
-      tempErrors.percentualComissao = 'Insira uma comissão válida entre 0% e 100%.';
+    if (tipoTabela === 'Linear') {
+      if (percentualComissao === '' || Number(percentualComissao) < 0 || Number(percentualComissao) > 100) {
+        tempErrors.percentualComissao = 'Insira uma comissão válida entre 0% e 100%.';
+      }
+    } else {
+      // Adesão
+      if (percentualAdesao === '' || Number(percentualAdesao) < 0 || Number(percentualAdesao) > 100) {
+        tempErrors.percentualAdesao = 'Insira o % de Adesão válido (0% a 100%).';
+      }
+      if (percentualMensal === '' || Number(percentualMensal) < 0 || Number(percentualMensal) > 100) {
+        tempErrors.percentualMensal = 'Insira o % Mensal válido (0% a 100%).';
+      }
     }
     setErrors(tempErrors);
     return Object.keys(tempErrors).length === 0;
@@ -125,11 +144,20 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
   const handleSalvar = () => {
     if (!validarFormulario()) return;
 
-    const dadosRegra = {
+    const pComissaoFinal = tipoTabela === 'Linear'
+      ? Number(percentualComissao)
+      : Number(percentualAdesao || 0) + Number(percentualMensal || 0);
+
+    const dadosRegra: Omit<RegraMaster, 'id'> = {
       segmento,
       tabela: tabela.trim(),
       qtdParcelas: Number(qtdParcelas),
-      percentualComissao: Number(percentualComissao),
+      tipoTabela,
+      percentualComissao: pComissaoFinal,
+      ...(tipoTabela === 'Adesão' && {
+        percentualAdesao: Number(percentualAdesao),
+        percentualMensal: Number(percentualMensal)
+      }),
       empresaId: empresaIdForm || undefined,
       ...(percentualComissaoContemplacao !== '' && { percentualComissaoContemplacao: Number(percentualComissaoContemplacao) })
     };
@@ -315,8 +343,9 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
             <TableRow>
               <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }}>Segmento</TableCell>
               <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }}>Tabela</TableCell>
+              <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="center">Tipo</TableCell>
               <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="right">Qtd. Parcelas</TableCell>
-              <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="right">% Comissão</TableCell>
+              <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="right">Comissionamento</TableCell>
               <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="right">% Contempl.</TableCell>
               {isSuperMaster && (
                 <TableCell sx={{ fontWeight: 650, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }} align="center">Empresa</TableCell>
@@ -329,7 +358,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
           <TableBody>
             {regrasFiltradas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={(permissoes?.cadastrarRegras ? 1 : 0) + (isSuperMaster ? 1 : 0) + 5} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={(permissoes?.cadastrarRegras ? 1 : 0) + (isSuperMaster ? 1 : 0) + 6} align="center" sx={{ py: 6 }}>
                   <Typography variant="body1" sx={{ color: theme.palette.mode === 'dark' ? '#64748b' : '#94a3b8' }}>
                     {abaSegmento === 'Todos' 
                       ? 'Nenhuma regra cadastrada.' 
@@ -340,6 +369,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
             ) : (
               regrasFiltradas.map((regra) => {
                 const chipEstilo = getCorChip(regra.segmento);
+                const isAdesao = regra.tipoTabela === 'Adesão';
                 return (
                   <TableRow
                     key={regra.id}
@@ -367,17 +397,40 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                     <TableCell sx={{ fontWeight: 500, color: theme.palette.mode === 'dark' ? '#f1f5f9' : '#1e293b' }}>
                       {regra.tabela}
                     </TableCell>
+                    <TableCell align="center">
+                      <Chip
+                        label={regra.tipoTabela || 'Linear'}
+                        size="small"
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: '0.7rem',
+                          borderRadius: 1.5,
+                          bgcolor: isAdesao ? 'rgba(245,158,11,0.12)' : 'rgba(99,102,241,0.12)',
+                          color: isAdesao ? '#f59e0b' : '#818cf8',
+                        }}
+                      />
+                    </TableCell>
                     <TableCell align="right" sx={{ color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#334155' }}>
                       {regra.qtdParcelas}x
                     </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{
-                        fontWeight: 600,
-                        color: theme.palette.success.main
-                      }}
-                    >
-                      {Number(regra.percentualComissao || 0).toFixed(2).replace('.', ',')}%
+                    <TableCell align="right">
+                      {isAdesao ? (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.2 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#f59e0b' }}>
+                            1ª Parcela (Adesão): {Number(regra.percentualAdesao || 0).toFixed(2).replace('.', ',')}%
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                            Mensal: {Number(regra.percentualMensal || 0).toFixed(2).replace('.', ',')}% (em {Math.max(1, regra.qtdParcelas - 1)}x)
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.success.main }}>
+                            Total: {Number(regra.percentualComissao || 0).toFixed(2).replace('.', ',')}%
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.success.main }}>
+                          {Number(regra.percentualComissao || 0).toFixed(2).replace('.', ',')}% Linear
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell
                       align="right"
@@ -527,6 +580,20 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth>
+                <InputLabel id="tipo-tabela-label">Tipo de Tabela</InputLabel>
+                <Select
+                  labelId="tipo-tabela-label"
+                  value={tipoTabela}
+                  label="Tipo de Tabela"
+                  onChange={(e) => setTipoTabela(e.target.value as TipoTabela)}
+                >
+                  <MenuItem value="Linear">Linear (Igual em todas as parcelas)</MenuItem>
+                  <MenuItem value="Adesão">Adesão (Entrada na 1ª + Mensal)</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Qtd. Parcelas"
@@ -546,31 +613,98 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                 }}
               />
             </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Comissão (%)"
-                type="number"
-                placeholder="Ex: 5.5"
-                value={percentualComissao}
-                onChange={(e) => {
-                  const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
-                  setPercentualComissao(val);
-                }}
-                error={!!errors.percentualComissao}
-                helperText={errors.percentualComissao}
-                slotProps={{
-                  input: {
-                    endAdornment: <InputAdornment position="end">%</InputAdornment>
-                  },
-                  htmlInput: {
-                    step: '0.1',
-                    min: '0',
-                    max: '100'
-                  }
-                }}
-              />
-            </Grid>
+
+            {tipoTabela === 'Linear' ? (
+              <Grid size={{ xs: 12 }}>
+                <TextField
+                  fullWidth
+                  label="Comissão Total (%)"
+                  type="number"
+                  placeholder="Ex: 5.5"
+                  value={percentualComissao}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
+                    setPercentualComissao(val);
+                  }}
+                  error={!!errors.percentualComissao}
+                  helperText={errors.percentualComissao || "Distribuída igualmente entre todas as parcelas"}
+                  slotProps={{
+                    input: {
+                      endAdornment: <InputAdornment position="end">%</InputAdornment>
+                    },
+                    htmlInput: {
+                      step: '0.1',
+                      min: '0',
+                      max: '100'
+                    }
+                  }}
+                />
+              </Grid>
+            ) : (
+              <>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="% Adesão (1ª Parcela)"
+                    type="number"
+                    placeholder="Ex: 2.0"
+                    value={percentualAdesao}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
+                      setPercentualAdesao(val);
+                    }}
+                    error={!!errors.percentualAdesao}
+                    helperText={errors.percentualAdesao || "Pago integralmente na 1ª parcela"}
+                    slotProps={{
+                      input: {
+                        endAdornment: <InputAdornment position="end">%</InputAdornment>
+                      },
+                      htmlInput: {
+                        step: '0.1',
+                        min: '0',
+                        max: '100'
+                      }
+                    }}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="% Mensal (Restantes)"
+                    type="number"
+                    placeholder="Ex: 3.0"
+                    value={percentualMensal}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
+                      setPercentualMensal(val);
+                    }}
+                    error={!!errors.percentualMensal}
+                    helperText={errors.percentualMensal || `Fracionado em ${Math.max(1, Number(qtdParcelas || 1) - 1)} parcelas`}
+                    slotProps={{
+                      input: {
+                        endAdornment: <InputAdornment position="end">%</InputAdornment>
+                      },
+                      htmlInput: {
+                        step: '0.1',
+                        min: '0',
+                        max: '100'
+                      }
+                    }}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12 }}>
+                  <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.06)', border: '1px dashed #f59e0b' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#f59e0b' }}>
+                      Total da Comissão: {(Number(percentualAdesao || 0) + Number(percentualMensal || 0)).toFixed(2).replace('.', ',')}%
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                      1ª Parcela recebe {Number(percentualAdesao || 0).toFixed(2).replace('.', ',')}%. Parcelas 2 a {qtdParcelas || 'N'} recebem {qtdParcelas && Number(qtdParcelas) > 1 ? (Number(percentualMensal || 0) / (Number(qtdParcelas) - 1)).toFixed(3).replace('.', ',') : '0'}% ao mês.
+                    </Typography>
+                  </Box>
+                </Grid>
+              </>
+            )}
+
             <Grid size={{ xs: 12 }}>
               <TextField
                 fullWidth
