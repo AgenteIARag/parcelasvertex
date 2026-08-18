@@ -40,6 +40,8 @@ import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import BusinessIcon from '@mui/icons-material/Business';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon from '@mui/icons-material/Clear';
 import { type RegraMaster, type SegmentoType, type UserPermissions, type Empresa, type TipoTabela } from '../types';
 
 interface RegrasMasterProps {
@@ -65,8 +67,9 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
 }) => {
   const theme = useTheme();
 
-  // Estado do filtro por segmento
+  // Estado do filtro por segmento e por texto de busca
   const [abaSegmento, setAbaSegmento] = useState<SegmentoType | 'Todos'>('Todos');
+  const [buscaTexto, setBuscaTexto] = useState('');
 
   // Estados do Dialog de formulário
   const [open, setOpen] = useState(false);
@@ -268,7 +271,20 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
   const countAutos = regrasVisiveis.filter(r => r.segmento === 'Autos Leves').length;
   const countPesados = regrasVisiveis.filter(r => r.segmento === 'Pesados').length;
 
-  const regrasFiltradas = regrasVisiveis.filter(r => abaSegmento === 'Todos' || r.segmento === abaSegmento);
+  const regrasFiltradas = regrasVisiveis.filter(r => {
+    const atendeSegmento = abaSegmento === 'Todos' || r.segmento === abaSegmento;
+    if (!atendeSegmento) return false;
+
+    if (!buscaTexto.trim()) return true;
+    const termo = buscaTexto.toLowerCase().trim();
+    const matchTabela = r.tabela.toLowerCase().includes(termo);
+    const matchSegmento = r.segmento.toLowerCase().includes(termo);
+    const matchParcelas = `${r.qtdParcelas}x`.includes(termo) || String(r.qtdParcelas).includes(termo);
+    const matchTipo = (r.tipoTabela || 'Linear').toLowerCase().includes(termo);
+    const matchComissao = String(r.percentualComissao).includes(termo);
+
+    return matchTabela || matchSegmento || matchParcelas || matchTipo || matchComissao;
+  });
 
   // Empresa mãe das empresas disponíveis (para o filtro do super_master)
   const empresasMae = empresas.filter(e => !e.empresaMaeId && e.ativo);
@@ -329,8 +345,18 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
         </Box>
       </Box>
 
-      {/* Seletor de Abas por Segmento */}
-      <Box sx={{ borderBottom: 1, borderColor: theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0', mb: 3 }}>
+      {/* Barra de Filtros: Abas por Segmento + Campo de Busca */}
+      <Box sx={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 2,
+        borderBottom: 1,
+        borderColor: theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0',
+        mb: 3,
+        pb: { xs: 1.5, md: 0 }
+      }}>
         <Tabs
           value={abaSegmento}
           onChange={(_, val) => setAbaSegmento(val)}
@@ -342,7 +368,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
               fontWeight: 600,
               fontSize: '0.875rem',
               textTransform: 'none',
-              minWidth: 120,
+              minWidth: 110,
               pb: 1.5,
               display: 'inline-flex',
               alignItems: 'center',
@@ -395,6 +421,38 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
             }
           />
         </Tabs>
+
+        {/* Campo de Busca Rápida */}
+        <TextField
+          size="small"
+          placeholder="Buscar tabela, parcelas (ex: 120x)..."
+          value={buscaTexto}
+          onChange={e => setBuscaTexto(e.target.value)}
+          sx={{
+            minWidth: { xs: '100%', sm: 280 },
+            mb: { xs: 1, md: 1 },
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 2.5,
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : '#ffffff',
+            }
+          }}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+              endAdornment: buscaTexto ? (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setBuscaTexto('')} edge="end">
+                    <ClearIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </InputAdornment>
+              ) : null
+            }
+          }}
+        />
       </Box>
 
       <TableContainer

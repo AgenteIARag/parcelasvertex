@@ -36,6 +36,8 @@ import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
+import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon from '@mui/icons-material/Clear';
 import type { Empresa, RegraMaster, RegraFilha, SegmentoType, TipoTabela } from '../types';
 import { obterRegrasFilhaSupabase, salvarRegraFilhaSupabase } from '../utils/supabase';
 
@@ -102,6 +104,7 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [buscaTexto, setBuscaTexto] = useState('');
 
   // Dialog de personalização de parcelas da filha
   const [modalGradeRegra, setModalGradeRegra] = useState<RegraMaster | null>(null);
@@ -116,6 +119,20 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
   const regrasDaMae = useMemo(() => {
     return regrasMaster.filter(r => !r.empresaId || r.empresaId === empresaMaeId);
   }, [regrasMaster, empresaMaeId]);
+
+  // Regras filtradas pelo termo de busca
+  const regrasExibidas = useMemo(() => {
+    if (!buscaTexto.trim()) return regrasDaMae;
+    const termo = buscaTexto.toLowerCase().trim();
+    return regrasDaMae.filter(r => {
+      const matchTabela = r.tabela.toLowerCase().includes(termo);
+      const matchSegmento = r.segmento.toLowerCase().includes(termo);
+      const matchParcelas = `${r.qtdParcelas}x`.includes(termo) || String(r.qtdParcelas).includes(termo);
+      const matchTipo = (r.tipoTabela || 'Linear').toLowerCase().includes(termo);
+      const matchComissao = String(r.percentualComissao).includes(termo);
+      return matchTabela || matchSegmento || matchParcelas || matchTipo || matchComissao;
+    });
+  }, [regrasDaMae, buscaTexto]);
 
   const carregarRegrasFilha = useCallback(async () => {
     if (!empresaFilhaSelecionada) return;
@@ -428,39 +445,72 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
       {successMsg && <Alert severity="success" onClose={() => setSuccessMsg(null)} sx={{ borderRadius: 2 }}>{successMsg}</Alert>}
       {errorMsg && <Alert severity="error" onClose={() => setErrorMsg(null)} sx={{ borderRadius: 2 }}>{errorMsg}</Alert>}
 
-      {/* Seletor de empresa filha */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-        <FormControl sx={{ minWidth: 260 }} size="small">
-          <InputLabel>Empresa Filha</InputLabel>
-          <Select
-            value={empresaFilhaSelecionada}
-            label="Empresa Filha"
-            onChange={e => setEmpresaFilhaSelecionada(e.target.value)}
-          >
-            {empresasFilhas.map(ef => (
-              <MenuItem key={ef.id} value={ef.id}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <AccountTreeIcon sx={{ fontSize: 16, color: '#f59e0b' }} />
-                  {ef.nome}
-                </Box>
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+      {/* Seletor de empresa filha + Campo de Busca */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+          <FormControl sx={{ minWidth: 260 }} size="small">
+            <InputLabel>Empresa Filha</InputLabel>
+            <Select
+              value={empresaFilhaSelecionada}
+              label="Empresa Filha"
+              onChange={e => setEmpresaFilhaSelecionada(e.target.value)}
+            >
+              {empresasFilhas.map(ef => (
+                <MenuItem key={ef.id} value={ef.id}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <AccountTreeIcon sx={{ fontSize: 16, color: '#f59e0b' }} />
+                    {ef.nome}
+                  </Box>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
-        {empresaMaeObj && (
-          <Chip
-            icon={<AccountTreeIcon sx={{ fontSize: 15 }} />}
-            label={`Empresa Mãe: ${empresaMaeObj.nome}`}
-            sx={{
-              fontWeight: 700,
-              bgcolor: 'rgba(99,102,241,0.12)',
-              color: '#818cf8',
-              borderRadius: 2,
-              fontSize: '0.8rem',
-            }}
-          />
-        )}
+          {empresaMaeObj && (
+            <Chip
+              icon={<AccountTreeIcon sx={{ fontSize: 15 }} />}
+              label={`Empresa Mãe: ${empresaMaeObj.nome}`}
+              sx={{
+                fontWeight: 700,
+                bgcolor: 'rgba(99,102,241,0.12)',
+                color: '#818cf8',
+                borderRadius: 2,
+                fontSize: '0.8rem',
+              }}
+            />
+          )}
+        </Box>
+
+        {/* Campo de Busca Rápida de Regras da Filha */}
+        <TextField
+          size="small"
+          placeholder="Buscar regra por tabela, parcelas..."
+          value={buscaTexto}
+          onChange={e => setBuscaTexto(e.target.value)}
+          sx={{
+            minWidth: { xs: '100%', sm: 280 },
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 2.5,
+              bgcolor: isDark ? 'rgba(30, 41, 59, 0.6)' : '#ffffff',
+            }
+          }}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+              endAdornment: buscaTexto ? (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setBuscaTexto('')} edge="end">
+                    <ClearIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </InputAdornment>
+              ) : null
+            }
+          }}
+        />
       </Box>
 
       {/* Info Box */}
@@ -492,6 +542,12 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
             A empresa mãe ainda não possui regras de comissão cadastradas.
           </Typography>
         </Box>
+      ) : regrasExibidas.length === 0 ? (
+        <Box sx={{ textAlign: 'center', py: 6 }}>
+          <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+            Nenhuma regra encontrada com o termo "{buscaTexto}".
+          </Typography>
+        </Box>
       ) : (
         <TableContainer
           component={Paper}
@@ -520,7 +576,7 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
               </TableRow>
             </TableHead>
             <TableBody>
-              {regrasDaMae.map(rm => {
+              {regrasExibidas.map(rm => {
                 const isAdesao = rm.tipoTabela === 'Adesão';
                 const chipColor = SEGMENTO_COLORS[rm.segmento] || { bg: 'rgba(100,116,139,0.12)', text: '#94a3b8' };
                 const edit = editMap[rm.id] || { percentual: '', percentualAdesao: '', percentualMensal: '', percentualContempl: '' };
