@@ -79,7 +79,28 @@ export const excluirVendedorSupabase = async (id: string): Promise<void> => {
 };
 
 // --- REGRAS MASTER ---
+export const obterRegrasLocais = (): RegraMaster[] => {
+  try {
+    const s = localStorage.getItem('apex_regras_master');
+    return s ? JSON.parse(s) : [];
+  } catch { return []; }
+};
+
+export const salvarRegraLocal = (regra: RegraMaster): void => {
+  const lista = obterRegrasLocais();
+  const idx = lista.findIndex(r => r.id === regra.id);
+  if (idx >= 0) lista[idx] = regra;
+  else lista.push(regra);
+  localStorage.setItem('apex_regras_master', JSON.stringify(lista));
+};
+
+export const excluirRegraLocal = (id: string): void => {
+  const lista = obterRegrasLocais().filter(r => r.id !== id);
+  localStorage.setItem('apex_regras_master', JSON.stringify(lista));
+};
+
 export const obterRegrasSupabase = async (): Promise<RegraMaster[]> => {
+  const regrasLocais = obterRegrasLocais();
   const { data, error } = await supabase
     .from('regras_master')
     .select('*')
@@ -87,27 +108,46 @@ export const obterRegrasSupabase = async (): Promise<RegraMaster[]> => {
     .order('tabela', { ascending: true });
 
   if (error) {
-    console.error('Erro ao buscar regras do Supabase:', error);
-    throw error;
+    console.warn('Erro ao buscar regras do Supabase, usando locais:', error.message);
+    return regrasLocais;
   }
-  return (data || []).map((r: any) => ({
-    id: r.id,
-    empresaId: r.empresa_id || undefined,
-    segmento: r.segmento,
-    tabela: r.tabela,
-    qtdParcelas: Number(r.qtd_parcelas ?? r.qtdParcelas ?? 0),
-    tipoTabela: (r.tipo_tabela as any) || 'Linear',
-    percentualComissao: Number(r.percentual_comissao ?? r.percentualComissao ?? 0),
-    percentualAdesao: r.percentual_adesao != null ? Number(r.percentual_adesao) : undefined,
-    percentualMensal: r.percentual_mensal != null ? Number(r.percentual_mensal) : undefined,
-    percentuaisParcelas: Array.isArray(r.percentuais_parcelas) ? r.percentuais_parcelas.map(Number) : undefined,
-    percentualComissaoContemplacao: r.percentual_comissao_contemplacao != null
-      ? Number(r.percentual_comissao_contemplacao)
-      : undefined
-  }));
+
+  const regrasRemotas = (data || []).map((r: any) => {
+    // Procura versão local para mesclar campos que o banco possa não ter persistido
+    const local = regrasLocais.find(rl => rl.id === r.id);
+
+    return {
+      id: r.id,
+      empresaId: r.empresa_id || local?.empresaId || undefined,
+      segmento: r.segmento,
+      tabela: r.tabela,
+      qtdParcelas: Number(r.qtd_parcelas ?? r.qtdParcelas ?? local?.qtdParcelas ?? 0),
+      tipoTabela: (r.tipo_tabela as any) || local?.tipoTabela || 'Linear',
+      percentualComissao: Number(r.percentual_comissao ?? r.percentualComissao ?? local?.percentualComissao ?? 0),
+      percentualAdesao: r.percentual_adesao != null ? Number(r.percentual_adesao) : local?.percentualAdesao,
+      percentualMensal: r.percentual_mensal != null ? Number(r.percentual_mensal) : local?.percentualMensal,
+      percentuaisParcelas: Array.isArray(r.percentuais_parcelas) 
+        ? r.percentuais_parcelas.map(Number) 
+        : local?.percentuaisParcelas,
+      percentualComissaoContemplacao: r.percentual_comissao_contemplacao != null
+        ? Number(r.percentual_comissao_contemplacao)
+        : local?.percentualComissaoContemplacao
+    };
+  });
+
+  // Se houver regras locais que não estão no Supabase, inclui elas
+  const idsRemotos = new Set(regrasRemotas.map(r => r.id));
+  const apenasLocais = regrasLocais.filter(r => !idsRemotos.has(r.id));
+  const todasRegras = [...regrasRemotas, ...apenasLocais];
+
+  localStorage.setItem('apex_regras_master', JSON.stringify(todasRegras));
+  return todasRegras;
 };
 
 export const salvarRegraSupabase = async (regra: RegraMaster): Promise<void> => {
+  // Salva no cache local imediatamente
+  salvarRegraLocal(regra);
+
   const payload: Record<string, unknown> = {
     id: regra.id,
     segmento: regra.segmento,
@@ -126,103 +166,39 @@ export const salvarRegraSupabase = async (regra: RegraMaster): Promise<void> => 
     payload.percentual_comissao_contemplacao = regra.percentualComissaoContemplacao;
   }
 
-  const { error } = await supabase.from('regras_master').upsert(payload);
-  if (error) {
-    // Tenta sem colunas novas caso não existam
-    if (error.code === '42703') {
-      const { error: e2 } = await supabase.from('regras_master').upsert({
+  try {
+    const { error } = await supabase.from('regras_master').upsert(payload);
+    if (error) {
+      console.warn('Tentando salvar regra com campos básicos por incompatibilidade de schema:', error.message);
+      // Fallback: salva apenas as colunas básicas
+      await supabase.from('regras_master').upsert({
         id: regra.id,
         segmento: regra.segmento,
         tabela: regra.tabela,
         qtd_parcelas: regra.qtdParcelas,
         percentual_comissao: regra.percentualComissao,
       });
-      if (e2) throw e2;
-    } else {
-      console.error('Erro ao salvar regra no Supabase:', error);
-      throw error;
     }
+  } catch (err) {
+    console.warn('Erro ao persistir no Supabase (dados seguros no cache local):', err);
   }
 };
 
 export const excluirRegraSupabase = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('regras_master')
-    .delete()
-    .eq('id', id);
+  excluirRegraLocal(id);
+  try {
+    const { error } = await supabase
+      .from('regras_master')
+      .delete()
+      .eq('id', id);
 
-  if (error) {
-    console.error('Erro ao excluir regra no Supabase:', error);
-    throw error;
+    if (error) console.warn('Aviso ao excluir regra remota:', error.message);
+  } catch (err) {
+    console.warn('Erro ao excluir regra remota:', err);
   }
 };
 
 // --- REGRAS FILHA ---
-export const obterRegrasFilhaSupabase = async (empresaFilhaId?: string): Promise<RegraFilha[]> => {
-  let query = supabase
-    .from('regras_filha')
-    .select('*')
-    .order('created_at', { ascending: true });
-
-  if (empresaFilhaId) {
-    query = query.eq('empresa_filha_id', empresaFilhaId);
-  }
-
-  const { data, error } = await query;
-  if (error) {
-    console.warn('Tabela regras_filha não encontrada ou erro:', error.message);
-    return [];
-  }
-  return (data || []).map((r: any) => ({
-    id: r.id,
-    empresaFilhaId: r.empresa_filha_id,
-    regraMasterId: r.regra_master_id,
-    tipoTabela: (r.tipo_tabela as any) || 'Linear',
-    percentualComissao: Number(r.percentual_comissao),
-    percentualAdesao: r.percentual_adesao != null ? Number(r.percentual_adesao) : undefined,
-    percentualMensal: r.percentual_mensal != null ? Number(r.percentual_mensal) : undefined,
-    percentuaisParcelas: Array.isArray(r.percentuais_parcelas) ? r.percentuais_parcelas.map(Number) : undefined,
-    percentualComissaoContemplacao: r.percentual_comissao_contemplacao != null
-      ? Number(r.percentual_comissao_contemplacao)
-      : undefined
-  }));
-};
-
-export const salvarRegraFilhaSupabase = async (regra: RegraFilha): Promise<void> => {
-  const payload: Record<string, unknown> = {
-    id: regra.id,
-    empresa_filha_id: regra.empresaFilhaId,
-    regra_master_id: regra.regraMasterId,
-    tipo_tabela: regra.tipoTabela || 'Linear',
-    percentual_comissao: regra.percentualComissao,
-  };
-  if (regra.percentualAdesao != null) payload.percentual_adesao = regra.percentualAdesao;
-  if (regra.percentualMensal != null) payload.percentual_mensal = regra.percentualMensal;
-  if (regra.percentuaisParcelas && Array.isArray(regra.percentuaisParcelas)) {
-    payload.percentuais_parcelas = regra.percentuaisParcelas;
-  }
-  if (regra.percentualComissaoContemplacao != null) {
-    payload.percentual_comissao_contemplacao = regra.percentualComissaoContemplacao;
-  }
-
-  const { error } = await supabase.from('regras_filha').upsert(payload);
-  if (error) {
-    console.error('Erro ao salvar regra filha no Supabase:', error);
-    // Salva localmente como fallback
-    salvarRegraFilhaLocal(regra);
-    throw error;
-  }
-};
-
-export const excluirRegraFilhaSupabase = async (id: string): Promise<void> => {
-  const { error } = await supabase.from('regras_filha').delete().eq('id', id);
-  if (error) {
-    console.error('Erro ao excluir regra filha no Supabase:', error);
-    throw error;
-  }
-};
-
-// Fallback local para regras filha
 export const obterRegrasFilhaLocal = (): RegraFilha[] => {
   try {
     const s = localStorage.getItem('apex_regras_filha');
@@ -241,6 +217,90 @@ export const salvarRegraFilhaLocal = (regra: RegraFilha): void => {
 export const excluirRegraFilhaLocal = (id: string): void => {
   const lista = obterRegrasFilhaLocal().filter(r => r.id !== id);
   localStorage.setItem('apex_regras_filha', JSON.stringify(lista));
+};
+
+export const obterRegrasFilhaSupabase = async (empresaFilhaId?: string): Promise<RegraFilha[]> => {
+  const locais = obterRegrasFilhaLocal();
+  try {
+    let query = supabase
+      .from('regras_filha')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (empresaFilhaId) {
+      query = query.eq('empresa_filha_id', empresaFilhaId);
+    }
+
+    const { data, error } = await query;
+    if (error || !data) {
+      return empresaFilhaId ? locais.filter(l => l.empresaFilhaId === empresaFilhaId) : locais;
+    }
+
+    const remotas = data.map((r: any) => {
+      const local = locais.find(l => l.id === r.id || (l.regraMasterId === r.regra_master_id && l.empresaFilhaId === r.empresa_filha_id));
+      return {
+        id: r.id,
+        empresaFilhaId: r.empresa_filha_id,
+        regraMasterId: r.regra_master_id,
+        tipoTabela: (r.tipo_tabela as any) || local?.tipoTabela || 'Linear',
+        percentualComissao: Number(r.percentual_comissao ?? local?.percentualComissao ?? 0),
+        percentualAdesao: r.percentual_adesao != null ? Number(r.percentual_adesao) : local?.percentualAdesao,
+        percentualMensal: r.percentual_mensal != null ? Number(r.percentual_mensal) : local?.percentualMensal,
+        percentuaisParcelas: Array.isArray(r.percentuais_parcelas) 
+          ? r.percentuais_parcelas.map(Number) 
+          : local?.percentuaisParcelas,
+        percentualComissaoContemplacao: r.percentual_comissao_contemplacao != null
+          ? Number(r.percentual_comissao_contemplacao)
+          : local?.percentualComissaoContemplacao
+      };
+    });
+
+    const idsRemotos = new Set(remotas.map(r => r.id));
+    const apenasLocais = locais.filter(l => !idsRemotos.has(l.id));
+    const todas = [...remotas, ...apenasLocais];
+    localStorage.setItem('apex_regras_filha', JSON.stringify(todas));
+
+    return empresaFilhaId ? todas.filter(t => t.empresaFilhaId === empresaFilhaId) : todas;
+  } catch {
+    return empresaFilhaId ? locais.filter(l => l.empresaFilhaId === empresaFilhaId) : locais;
+  }
+};
+
+export const salvarRegraFilhaSupabase = async (regra: RegraFilha): Promise<void> => {
+  // Salva no cache local imediatamente
+  salvarRegraFilhaLocal(regra);
+
+  const payload: Record<string, unknown> = {
+    id: regra.id,
+    empresa_filha_id: regra.empresaFilhaId,
+    regra_master_id: regra.regraMasterId,
+    tipo_tabela: regra.tipoTabela || 'Linear',
+    percentual_comissao: regra.percentualComissao,
+  };
+  if (regra.percentualAdesao != null) payload.percentual_adesao = regra.percentualAdesao;
+  if (regra.percentualMensal != null) payload.percentual_mensal = regra.percentualMensal;
+  if (regra.percentuaisParcelas && Array.isArray(regra.percentuaisParcelas)) {
+    payload.percentuais_parcelas = regra.percentuaisParcelas;
+  }
+  if (regra.percentualComissaoContemplacao != null) {
+    payload.percentual_comissao_contemplacao = regra.percentualComissaoContemplacao;
+  }
+
+  try {
+    const { error } = await supabase.from('regras_filha').upsert(payload);
+    if (error) {
+      console.warn('Aviso ao salvar regra_filha no Supabase (dados salvos localmente):', error.message);
+    }
+  } catch (err) {
+    console.warn('Erro de rede ao salvar regra filha (dados salvos localmente):', err);
+  }
+};
+
+export const excluirRegraFilhaSupabase = async (id: string): Promise<void> => {
+  excluirRegraFilhaLocal(id);
+  try {
+    await supabase.from('regras_filha').delete().eq('id', id);
+  } catch { /* silencioso */ }
 };
 
 // --- VENDAS ---

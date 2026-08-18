@@ -477,29 +477,24 @@ function App() {
           venda.tabela === regraEditada.tabela &&
           venda.qtdParcelas === regraEditada.qtdParcelas
         ) {
-          // Recalcular comissões com base na nova regra
-          const percentualMensal = regraEditada.percentualComissao / regraEditada.qtdParcelas;
-          const projecaoRecalculada = { ...venda.projecaoMensal };
-
-          Object.keys(projecaoRecalculada).forEach((mes) => {
-            const valor = projecaoRecalculada[mes].valorVenda || 0;
-            const comissao = valor * (percentualMensal / 100);
-            projecaoRecalculada[mes] = {
-              ...projecaoRecalculada[mes],
-              comissaoGerada: Number(comissao.toFixed(2))
-            };
-          });
-
-          // Reutiliza calcularTotaisLinha para consistência nos totais
+          // Reutiliza calcularTotaisLinha com a regra completa (Linear, Adesão ou Grade Customizada)
           const { totalVendas, totalComissoes, projecaoAtualizada } = calcularTotaisLinha(
-            projecaoRecalculada,
+            venda.projecaoMensal,
             regraEditada.percentualComissao,
-            regraEditada.qtdParcelas
+            regraEditada.qtdParcelas,
+            regraEditada.tipoTabela || 'Linear',
+            regraEditada.percentualAdesao,
+            regraEditada.percentualMensal,
+            regraEditada.percentuaisParcelas
           );
 
           const vendaAtualizada = {
             ...venda,
+            tipoTabela: regraEditada.tipoTabela || 'Linear',
             percentualComissao: regraEditada.percentualComissao,
+            percentualAdesao: regraEditada.percentualAdesao,
+            percentualMensal: regraEditada.percentualMensal,
+            percentuaisParcelas: regraEditada.percentuaisParcelas,
             projecaoMensal: projecaoAtualizada,
             totalVendas,
             totalComissoes
