@@ -18,6 +18,12 @@ import {
   Button,
   TextField,
   InputAdornment,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Stack,
+  Alert,
 } from '@mui/material';
 import Checkbox from '@mui/material/Checkbox';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
@@ -37,10 +43,13 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import EditIcon from '@mui/icons-material/Edit';
 import FlashOnIcon from '@mui/icons-material/FlashOn';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import ReceiptIcon from '@mui/icons-material/Receipt';
 import Snackbar from '@mui/material/Snackbar';
 import type { LancamentoVenda, Vendedor, RegraMaster, UserPermissions, StatusParcela } from '../types';
 import { EditarVendaDialog } from './SimuladorVendas';
 import { obterStatusEfetivo } from '../utils/formatters';
+
 
 // ──────────────────────────────────────────────────────────
 // Helpers
@@ -109,6 +118,11 @@ interface ParcelaLinha {
   qtdParcelas: number;
   numeroRelatorio?: string;   // Nº do relatório ADM da venda
   dataRelatorio?: string;     // Data do relatório ADM (YYYY-MM-DD)
+  // Campos de controle de pagamento e recebimento
+  dataPagamentoCliente?: string;       // Data em que o cliente pagou (YYYY-MM-DD)
+  numeroRelatorioRecebimento?: string; // Nº do relatório do recebimento da comissão
+  notaFiscalRecebimento?: string;      // NF relativa ao recebimento da comissão
+  dataRecebimentoComissao?: string;    // Data de recebimento da comissão (YYYY-MM-DD)
 }
 
 interface TotaisStatus {
@@ -414,6 +428,8 @@ const SubGrupoData = ({
   onToggleSelecionar,
   onToggleSelecionarData,
   onEditarVenda,
+  onMarcarPaga,
+  onMarcarRecebida,
   permissoes,
 }: {
   dataRecebimento: string;
@@ -425,6 +441,8 @@ const SubGrupoData = ({
   onToggleSelecionar: (id: string) => void;
   onToggleSelecionarData: (ids: string[], marcar: boolean) => void;
   onEditarVenda?: (vendaId: string) => void;
+  onMarcarPaga?: (item: ParcelaLinha) => void;
+  onMarcarRecebida?: (item: ParcelaLinha) => void;
   permissoes?: UserPermissions;
 }) => {
   const totaisStatus = calcularTotaisStatus(itens);
@@ -795,26 +813,72 @@ const SubGrupoData = ({
                         {formatarMoeda(item.comissao)}
                       </TableCell>
                       <TableCell sx={{ py: 0.8, textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        {permissoes?.editarVendas ? (
-                          <Tooltip title="Editar venda">
-                            <IconButton
-                              size="small"
-                              color="primary"
-                              onClick={() => onEditarVenda?.(item.vendaId)}
-                              sx={{ p: 0.5, '&:hover': { bgcolor: 'rgba(99,102,241,0.12)' } }}
-                            >
-                              <EditIcon sx={{ fontSize: 16 }} />
-                            </IconButton>
-                          </Tooltip>
-                        ) : (
-                          <Tooltip title="Sem permissão para editar vendas">
-                            <span>
-                              <IconButton size="small" disabled sx={{ p: 0.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.3 }}>
+                          {/* Botão: Registrar Pagamento do Cliente (→ Paga) */}
+                          {item.statusParcela !== 'Paga' && item.statusParcela !== 'Cancelada' && (
+                            <Tooltip title={`Registrar pagamento do cliente`}>
+                              <IconButton
+                                size="small"
+                                onClick={() => onMarcarPaga?.(item)}
+                                sx={{
+                                  p: 0.4,
+                                  color: '#10b981',
+                                  '&:hover': { bgcolor: 'rgba(16,185,129,0.12)' }
+                                }}
+                              >
+                                <AttachMoneyIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          {/* Indicador visual quando já está Paga mas não Recebida */}
+                          {item.statusParcela === 'Paga' && item.situacaoRecebimento !== 'Recebida' && (
+                            <Tooltip title={`Registrar recebimento da comissão`}>
+                              <IconButton
+                                size="small"
+                                onClick={() => onMarcarRecebida?.(item)}
+                                sx={{
+                                  p: 0.4,
+                                  color: '#0ea5e9',
+                                  '&:hover': { bgcolor: 'rgba(14,165,233,0.12)' }
+                                }}
+                              >
+                                <ReceiptIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          {/* Indicador visual quando Recebida */}
+                          {item.situacaoRecebimento === 'Recebida' && (
+                            <Tooltip title={`Comissão recebida${item.dataRecebimentoComissao ? ` em ${formatarData(item.dataRecebimentoComissao)}` : ''}${item.numeroRelatorioRecebimento ? ` · Rel: ${item.numeroRelatorioRecebimento}` : ''}${item.notaFiscalRecebimento ? ` · NF: ${item.notaFiscalRecebimento}` : ''}`}>
+                              <Box sx={{
+                                display: 'inline-flex', alignItems: 'center', px: 0.6, py: 0.2,
+                                borderRadius: 1, bgcolor: 'rgba(14,165,233,0.1)', color: '#0ea5e9'
+                              }}>
+                                <CheckCircleIcon sx={{ fontSize: 14 }} />
+                              </Box>
+                            </Tooltip>
+                          )}
+                          {/* Botão Editar Venda */}
+                          {permissoes?.editarVendas ? (
+                            <Tooltip title="Editar venda">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => onEditarVenda?.(item.vendaId)}
+                                sx={{ p: 0.4, '&:hover': { bgcolor: 'rgba(99,102,241,0.12)' } }}
+                              >
                                 <EditIcon sx={{ fontSize: 16 }} />
                               </IconButton>
-                            </span>
-                          </Tooltip>
-                        )}
+                            </Tooltip>
+                          ) : (
+                            <Tooltip title="Sem permissão para editar vendas">
+                              <span>
+                                <IconButton size="small" disabled sx={{ p: 0.4 }}>
+                                  <EditIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          )}
+                        </Box>
                       </TableCell>
                     </TableRow>
                   );
@@ -836,12 +900,16 @@ const GrupoRecebimento = ({
   isAtual,
   isPast,
   onEditarVenda,
+  onMarcarPaga,
+  onMarcarRecebida,
   permissoes,
 }: {
   grupo: GrupoPeriodo;
   isAtual: boolean;
   isPast: boolean;
   onEditarVenda?: (vendaId: string) => void;
+  onMarcarPaga?: (item: ParcelaLinha) => void;
+  onMarcarRecebida?: (item: ParcelaLinha) => void;
   permissoes?: UserPermissions;
 }) => {
   const theme = useTheme();
@@ -1143,6 +1211,8 @@ const GrupoRecebimento = ({
                 onToggleSelecionar={handleToggleSelecionar}
                 onToggleSelecionarData={handleToggleSelecionarData}
                 onEditarVenda={onEditarVenda}
+                onMarcarPaga={onMarcarPaga}
+                onMarcarRecebida={onMarcarRecebida}
                 permissoes={permissoes}
               />
             );
@@ -1189,6 +1259,84 @@ export const RelatorioRecebimentos = ({
   const [openEditDialog, setOpenEditDialog] = useState(false);
   const [vendaEmEdicao, setVendaEmEdicao] = useState<LancamentoVenda | null>(null);
   const [snackbarMsg, setSnackbarMsg] = useState('');
+
+  // ── Modal: Registrar Pagamento do Cliente ──
+  const [modalPaga, setModalPaga] = useState<{
+    open: boolean;
+    item: ParcelaLinha | null;
+    dataPagamento: string;
+  }>({ open: false, item: null, dataPagamento: new Date().toISOString().split('T')[0] });
+
+  // ── Modal: Registrar Recebimento da Comissão ──
+  const [modalRecebida, setModalRecebida] = useState<{
+    open: boolean;
+    item: ParcelaLinha | null;
+    dataRecebimento: string;
+    numeroRelatorio: string;
+    notaFiscal: string;
+  }>({ open: false, item: null, dataRecebimento: new Date().toISOString().split('T')[0], numeroRelatorio: '', notaFiscal: '' });
+
+  const handleAbrirModalPaga = (item: ParcelaLinha) => {
+    setModalPaga({ open: true, item, dataPagamento: new Date().toISOString().split('T')[0] });
+  };
+
+  const handleAbrirModalRecebida = (item: ParcelaLinha) => {
+    setModalRecebida({
+      open: true,
+      item,
+      dataRecebimento: new Date().toISOString().split('T')[0],
+      numeroRelatorio: '',
+      notaFiscal: '',
+    });
+  };
+
+  const handleConfirmarPaga = () => {
+    const { item, dataPagamento } = modalPaga;
+    if (!item || !dataPagamento || !onAtualizarVenda) return;
+    const venda = vendas.find((v) => v.id === item.vendaId);
+    if (!venda) return;
+    const celula = venda.projecaoMensal[item.mesReferencia];
+    if (!celula) return;
+    const vendaAtualizada: LancamentoVenda = {
+      ...venda,
+      projecaoMensal: {
+        ...venda.projecaoMensal,
+        [item.mesReferencia]: {
+          ...celula,
+          status: 'Paga',
+          dataPagamentoCliente: dataPagamento,
+        },
+      },
+    };
+    onAtualizarVenda(vendaAtualizada);
+    setModalPaga({ open: false, item: null, dataPagamento: '' });
+    setSnackbarMsg(`✅ Parcela de ${item.cliente} marcada como Paga em ${formatarData(dataPagamento)}`);
+  };
+
+  const handleConfirmarRecebida = () => {
+    const { item, dataRecebimento, numeroRelatorio, notaFiscal } = modalRecebida;
+    if (!item || !dataRecebimento || !numeroRelatorio || !onAtualizarVenda) return;
+    const venda = vendas.find((v) => v.id === item.vendaId);
+    if (!venda) return;
+    const celula = venda.projecaoMensal[item.mesReferencia];
+    if (!celula) return;
+    const vendaAtualizada: LancamentoVenda = {
+      ...venda,
+      projecaoMensal: {
+        ...venda.projecaoMensal,
+        [item.mesReferencia]: {
+          ...celula,
+          recebida: true,
+          dataRecebimento,
+          numeroRelatorioRecebimento: numeroRelatorio,
+          notaFiscalRecebimento: notaFiscal,
+        },
+      },
+    };
+    onAtualizarVenda(vendaAtualizada);
+    setModalRecebida({ open: false, item: null, dataRecebimento: '', numeroRelatorio: '', notaFiscal: '' });
+    setSnackbarMsg(`💰 Recebimento da comissão de ${item.cliente} registrado com sucesso!`);
+  };
 
   const handleEditarVenda = (vendaId: string) => {
     const v = vendas.find((item) => item.id === vendaId);
@@ -1282,6 +1430,10 @@ export const RelatorioRecebimentos = ({
           qtdParcelas: venda.qtdParcelas,
           numeroRelatorio: venda.numeroRelatorio,
           dataRelatorio: venda.dataRelatorio,
+          dataPagamentoCliente: celula.dataPagamentoCliente,
+          numeroRelatorioRecebimento: celula.numeroRelatorioRecebimento,
+          notaFiscalRecebimento: celula.notaFiscalRecebimento,
+          dataRecebimentoComissao: celula.dataRecebimento,
         });
       });
     });
@@ -1598,6 +1750,8 @@ export const RelatorioRecebimentos = ({
               isAtual={grupo.mesPeriodo === mesAtual}
               isPast={grupo.mesPeriodo < mesAtual}
               onEditarVenda={handleEditarVenda}
+              onMarcarPaga={handleAbrirModalPaga}
+              onMarcarRecebida={handleAbrirModalRecebida}
               permissoes={permissoes}
             />
           ))}
@@ -1744,11 +1898,160 @@ export const RelatorioRecebimentos = ({
         ciclos={ciclos}
       />
 
+      {/* ── Modal: Registrar Pagamento do Cliente ── */}
+      <Dialog
+        open={modalPaga.open}
+        onClose={() => setModalPaga((p) => ({ ...p, open: false }))}
+        maxWidth="xs"
+        fullWidth
+        sx={{ '& .MuiDialog-paper': { borderRadius: 3, overflow: 'hidden' } }}
+      >
+        <DialogTitle sx={{
+          fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1rem',
+          bgcolor: isDark ? '#111827' : '#f8fafc',
+          borderBottom: `1px solid ${isDark ? '#1f2937' : '#e5e7eb'}`,
+          display: 'flex', alignItems: 'center', gap: 1.2, py: 1.8
+        }}>
+          <Box sx={{ p: 0.7, borderRadius: 1.5, bgcolor: 'rgba(16,185,129,0.12)', color: '#10b981', display: 'flex' }}>
+            <AttachMoneyIcon sx={{ fontSize: 18 }} />
+          </Box>
+          Registrar Pagamento do Cliente
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2.5, pb: 1.5 }}>
+          {modalPaga.item && (
+            <Stack spacing={2}>
+              <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5, borderRadius: 2 }}>
+                <strong>{modalPaga.item.cliente}</strong> · Parcela {modalPaga.item.parcelaIndex}/{modalPaga.item.qtdParcelas} · Venc: {formatarData(modalPaga.item.dataVencimento)}
+              </Alert>
+              <TextField
+                label="Data do Pagamento pelo Cliente"
+                type="date"
+                fullWidth
+                size="small"
+                required
+                value={modalPaga.dataPagamento}
+                onChange={(e) => setModalPaga((p) => ({ ...p, dataPagamento: e.target.value }))}
+                slotProps={{ inputLabel: { shrink: true } }}
+                helperText="Data em que o cliente efetuou o pagamento da parcela"
+              />
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 2.5, py: 1.5, borderTop: `1px solid ${isDark ? '#1f2937' : '#e5e7eb'}`, gap: 1 }}>
+          <Button
+            onClick={() => setModalPaga((p) => ({ ...p, open: false }))}
+            variant="outlined"
+            size="small"
+            sx={{ textTransform: 'none', borderRadius: 2, fontWeight: 600 }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleConfirmarPaga}
+            variant="contained"
+            size="small"
+            disabled={!modalPaga.dataPagamento}
+            startIcon={<CheckCircleIcon />}
+            sx={{
+              textTransform: 'none', borderRadius: 2, fontWeight: 700,
+              bgcolor: '#10b981', '&:hover': { bgcolor: '#059669' }
+            }}
+          >
+            Confirmar Pagamento
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Modal: Registrar Recebimento da Comissão ── */}
+      <Dialog
+        open={modalRecebida.open}
+        onClose={() => setModalRecebida((p) => ({ ...p, open: false }))}
+        maxWidth="sm"
+        fullWidth
+        sx={{ '& .MuiDialog-paper': { borderRadius: 3, overflow: 'hidden' } }}
+      >
+        <DialogTitle sx={{
+          fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1rem',
+          bgcolor: isDark ? '#111827' : '#f8fafc',
+          borderBottom: `1px solid ${isDark ? '#1f2937' : '#e5e7eb'}`,
+          display: 'flex', alignItems: 'center', gap: 1.2, py: 1.8
+        }}>
+          <Box sx={{ p: 0.7, borderRadius: 1.5, bgcolor: 'rgba(14,165,233,0.12)', color: '#0ea5e9', display: 'flex' }}>
+            <ReceiptIcon sx={{ fontSize: 18 }} />
+          </Box>
+          Registrar Recebimento da Comissão
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2.5, pb: 1.5 }}>
+          {modalRecebida.item && (
+            <Stack spacing={2.5}>
+              <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5, borderRadius: 2 }}>
+                <strong>{modalRecebida.item.cliente}</strong> · Parcela {modalRecebida.item.parcelaIndex}/{modalRecebida.item.qtdParcelas} · Comissão: <strong>{formatarMoeda(modalRecebida.item.comissao)}</strong>
+              </Alert>
+              <TextField
+                label="Data de Recebimento da Comissão"
+                type="date"
+                fullWidth
+                size="small"
+                required
+                value={modalRecebida.dataRecebimento}
+                onChange={(e) => setModalRecebida((p) => ({ ...p, dataRecebimento: e.target.value }))}
+                slotProps={{ inputLabel: { shrink: true } }}
+                helperText="Data em que a comissão foi creditada/transferida"
+              />
+              <TextField
+                label="Nº do Relatório"
+                fullWidth
+                size="small"
+                required
+                placeholder="Ex: REL-2026-08-001"
+                value={modalRecebida.numeroRelatorio}
+                onChange={(e) => setModalRecebida((p) => ({ ...p, numeroRelatorio: e.target.value }))}
+                helperText="Número do relatório da administradora referente ao recebimento (obrigatório)"
+              />
+              <TextField
+                label="Nota Fiscal (opcional)"
+                fullWidth
+                size="small"
+                placeholder="Ex: NF 000123"
+                value={modalRecebida.notaFiscal}
+                onChange={(e) => setModalRecebida((p) => ({ ...p, notaFiscal: e.target.value }))}
+                helperText="Número ou código da Nota Fiscal relacionada ao recebimento (opcional)"
+              />
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 2.5, py: 1.5, borderTop: `1px solid ${isDark ? '#1f2937' : '#e5e7eb'}`, gap: 1 }}>
+          <Button
+            onClick={() => setModalRecebida((p) => ({ ...p, open: false }))}
+            variant="outlined"
+            size="small"
+            sx={{ textTransform: 'none', borderRadius: 2, fontWeight: 600 }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleConfirmarRecebida}
+            variant="contained"
+            size="small"
+            disabled={!modalRecebida.dataRecebimento || !modalRecebida.numeroRelatorio}
+            startIcon={<CheckCircleIcon />}
+            sx={{
+              textTransform: 'none', borderRadius: 2, fontWeight: 700,
+              bgcolor: '#0ea5e9', '&:hover': { bgcolor: '#0284c7' }
+            }}
+          >
+            Confirmar Recebimento
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Snackbar
         open={!!snackbarMsg}
-        autoHideDuration={3000}
+        autoHideDuration={3500}
         onClose={() => setSnackbarMsg('')}
         message={snackbarMsg}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        sx={{ '& .MuiSnackbarContent-root': { fontWeight: 700, borderRadius: 2 } }}
       />
     </Box>
   );
