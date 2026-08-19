@@ -164,18 +164,18 @@ const StatusValorRow = ({ totais }: { totais: TotaisStatus }) => {
 
   if (items.length === 0) return null;
   return (
-    <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap', alignItems: 'center' }}>
+    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'nowrap', alignItems: 'center' }}>
       {items.map((item) => (
         <Tooltip key={item.label} title={item.label}>
           <Box sx={{
             display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
-            px: 1, py: 0.3, borderRadius: 1.5,
-            bgcolor: item.bg, color: item.color,
+            px: 0.7, py: 0.2, borderRadius: 1.2,
+            bgcolor: item.bg, color: item.color, whiteSpace: 'nowrap'
           }}>
-            <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+            <Typography sx={{ fontSize: '0.54rem', fontWeight: 700, lineHeight: 1.1, textTransform: 'uppercase', letterSpacing: '0.2px' }}>
               {item.label}
             </Typography>
-            <Typography sx={{ fontSize: '0.72rem', fontWeight: 800, lineHeight: 1.2, fontFamily: 'Outfit, sans-serif' }}>
+            <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, lineHeight: 1.1, fontFamily: 'Outfit, sans-serif' }}>
               {formatarMoeda(item.value)}
             </Typography>
           </Box>
@@ -930,14 +930,16 @@ const GrupoRecebimento = ({
         sx={{
           display: 'flex',
           alignItems: 'center',
-          gap: 2,
-          px: 2.5,
-          py: 1.8,
+          gap: 1.5,
+          px: 2,
+          py: 1.2,
           cursor: 'pointer',
+          flexWrap: 'nowrap',
+          overflowX: 'auto',
           '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' },
         }}
       >
-        <IconButton size="small" sx={{ p: 0.25, color: 'text.secondary' }}>
+        <IconButton size="small" sx={{ p: 0.25, color: 'text.secondary', flexShrink: 0 }}>
           {open ? <KeyboardArrowDownIcon fontSize="small" /> : <KeyboardArrowRightIcon fontSize="small" />}
         </IconButton>
 
@@ -947,79 +949,79 @@ const GrupoRecebimento = ({
           indeterminate={grupo.itens.some(i => selecionados.includes(i.id)) && !grupo.itens.every(i => selecionados.includes(i.id))}
           onChange={(e) => handleToggleSelecionarTodosMes(e.target.checked)}
           onClick={(e) => e.stopPropagation()}
-          sx={{ mr: 1 }}
+          sx={{ mr: 0.5, p: 0.25, flexShrink: 0 }}
         />
 
         {/* Mês de recebimento */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 180 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 'auto', flexShrink: 0 }}>
           <Box sx={{
-            p: 0.8, borderRadius: 1.5,
+            p: 0.6, borderRadius: 1.5,
             background: isAtual ? 'linear-gradient(135deg,#6366f1,#4f46e5)' : (isDark ? '#1f2937' : '#f1f5f9'),
             color: isAtual ? '#fff' : 'text.secondary',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <CalendarMonthIcon sx={{ fontSize: 18 }} />
+            <CalendarMonthIcon sx={{ fontSize: 16 }} />
           </Box>
           <Box>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block', lineHeight: 1 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block', lineHeight: 1, whiteSpace: 'nowrap' }}>
               Mês de Vencimento
             </Typography>
-            <Typography variant="body1" sx={{ fontWeight: 800, color: isAtual ? theme.palette.primary.main : 'text.primary', fontFamily: 'Outfit, sans-serif', fontSize: '1rem' }}>
+            <Typography variant="body2" sx={{ fontWeight: 800, color: isAtual ? theme.palette.primary.main : 'text.primary', fontFamily: 'Outfit, sans-serif', fontSize: '0.92rem', whiteSpace: 'nowrap' }}>
               {formatarMesAno(grupo.mesPeriodo + '-01')}
             </Typography>
           </Box>
           {isAtual && (
             <Chip label="MÊS ATUAL" size="small" sx={{
-              ml: 0.5, height: 20, fontSize: '0.62rem', fontWeight: 800,
+              ml: 0.5, height: 18, fontSize: '0.58rem', fontWeight: 800,
               background: 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff',
-              letterSpacing: '0.5px'
+              letterSpacing: '0.4px', flexShrink: 0
             }} />
           )}
           {isPast && (
             <Chip label="Passado" size="small" sx={{
-              ml: 0.5, height: 20, fontSize: '0.62rem', fontWeight: 700,
-              bgcolor: isDark ? '#374151' : '#e5e7eb', color: 'text.secondary',
+              ml: 0.5, height: 18, fontSize: '0.58rem', fontWeight: 700,
+              bgcolor: isDark ? '#374151' : '#e5e7eb', color: 'text.secondary', flexShrink: 0
             }} />
           )}
         </Box>
 
         {/* Datas de recebimento do mês */}
-        <Box sx={{ display: { xs: 'none', md: 'flex' }, flexDirection: 'column', minWidth: 120 }}>
-          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.68rem' }}>
+        <Box sx={{ display: { xs: 'none', lg: 'flex' }, flexDirection: 'column', minWidth: 'auto', flexShrink: 0 }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
             Datas de Corte
           </Typography>
-          <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', fontSize: '0.75rem' }}>
+          <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
             {datasUnicas.map(formatarData).join(' · ')}
           </Typography>
         </Box>
 
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+        <Divider orientation="vertical" flexItem sx={{ mx: 0.2, flexShrink: 0 }} />
 
-        {/* Métricas resumidas com Vendas do Mês e Recorrência */}
-        <Box sx={{ display: 'flex', gap: { xs: 2, md: 3 }, flexGrow: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Box>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block' }}>
+        {/* Métricas resumidas com Vendas do Mês e Recorrência em 1 única linha */}
+        <Box sx={{ display: 'flex', gap: 1.8, flexGrow: 1, flexWrap: 'nowrap', alignItems: 'center' }}>
+          <Box sx={{ flexShrink: 0 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block', whiteSpace: 'nowrap' }}>
               Comissões a Receber
             </Typography>
-            <Typography variant="body1" sx={{ fontWeight: 800, color: '#10b981', fontFamily: 'Outfit, sans-serif' }}>
+            <Typography variant="body2" sx={{ fontWeight: 800, color: '#10b981', fontFamily: 'Outfit, sans-serif', fontSize: '0.92rem', whiteSpace: 'nowrap' }}>
               {formatarMoeda(grupo.totalComissoes)}
             </Typography>
           </Box>
 
-          <Box>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block' }}>
+          <Box sx={{ flexShrink: 0 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block', whiteSpace: 'nowrap' }}>
               Valor do Crédito
             </Typography>
-            <Typography variant="body1" sx={{ fontWeight: 800, color: 'text.primary', fontFamily: 'Outfit, sans-serif' }}>
+            <Typography variant="body2" sx={{ fontWeight: 800, color: 'text.primary', fontFamily: 'Outfit, sans-serif', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
               {formatarMoeda(grupo.totalParcelas)}
             </Typography>
           </Box>
 
-          <Box>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block' }}>
-              Qtd. Parcelas
+          <Box sx={{ flexShrink: 0 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block', whiteSpace: 'nowrap' }}>
+              Qtd.
             </Typography>
-            <Typography variant="body1" sx={{ fontWeight: 800, color: 'text.primary', fontFamily: 'Outfit, sans-serif' }}>
+            <Typography variant="body2" sx={{ fontWeight: 800, color: 'text.primary', fontFamily: 'Outfit, sans-serif', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
               {grupo.qtdParcelas}
             </Typography>
           </Box>
@@ -1029,18 +1031,19 @@ const GrupoRecebimento = ({
             <Box sx={{
               display: 'flex',
               flexDirection: 'column',
-              p: '5px 12px',
-              borderRadius: 2,
+              p: '3px 8px',
+              borderRadius: 1.5,
               bgcolor: isDark ? 'rgba(14, 165, 233, 0.12)' : 'rgba(14, 165, 233, 0.08)',
               border: `1px solid ${isDark ? 'rgba(14, 165, 233, 0.3)' : 'rgba(14, 165, 233, 0.25)'}`,
+              flexShrink: 0
             }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <FlashOnIcon sx={{ fontSize: 13, color: '#0ea5e9' }} />
-                <Typography variant="caption" sx={{ color: '#0ea5e9', fontWeight: 800, fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                <FlashOnIcon sx={{ fontSize: 12, color: '#0ea5e9' }} />
+                <Typography variant="caption" sx={{ color: '#0ea5e9', fontWeight: 800, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>
                   Vendas do Mês ({qtdNovasVendas})
                 </Typography>
               </Box>
-              <Typography variant="body2" sx={{ fontWeight: 800, color: '#0ea5e9', fontFamily: 'Outfit, sans-serif', fontSize: '0.88rem' }}>
+              <Typography variant="body2" sx={{ fontWeight: 800, color: '#0ea5e9', fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
                 {formatarMoeda(totalNovasVendasComissao)}
               </Typography>
             </Box>
@@ -1051,26 +1054,27 @@ const GrupoRecebimento = ({
             <Box sx={{
               display: 'flex',
               flexDirection: 'column',
-              p: '5px 12px',
-              borderRadius: 2,
+              p: '3px 8px',
+              borderRadius: 1.5,
               bgcolor: isDark ? 'rgba(168, 85, 247, 0.12)' : 'rgba(168, 85, 247, 0.08)',
               border: `1px solid ${isDark ? 'rgba(168, 85, 247, 0.3)' : 'rgba(168, 85, 247, 0.25)'}`,
+              flexShrink: 0
             }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <AutorenewIcon sx={{ fontSize: 13, color: '#a855f7' }} />
-                <Typography variant="caption" sx={{ color: '#a855f7', fontWeight: 800, fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                <AutorenewIcon sx={{ fontSize: 12, color: '#a855f7' }} />
+                <Typography variant="caption" sx={{ color: '#a855f7', fontWeight: 800, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>
                   Recorrência ({qtdRecorrencia})
                 </Typography>
               </Box>
-              <Typography variant="body2" sx={{ fontWeight: 800, color: '#a855f7', fontFamily: 'Outfit, sans-serif', fontSize: '0.88rem' }}>
+              <Typography variant="body2" sx={{ fontWeight: 800, color: '#a855f7', fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
                 {formatarMoeda(totalRecorrenciaComissao)}
               </Typography>
             </Box>
           </Tooltip>
 
           {/* Breakdown por status */}
-          <Box>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block', mb: 0.4 }}>
+          <Box sx={{ flexShrink: 0 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.62rem', display: 'block', mb: 0.2, whiteSpace: 'nowrap' }}>
               Por Status
             </Typography>
             <StatusValorRow totais={grupo.totaisStatus} />
