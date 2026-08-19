@@ -373,6 +373,8 @@ function obterValorOrdenacao(item: ParcelaLinha, campo: string) {
       return item.dataVenda || '';
     case 'dataVencimento':
       return item.dataVencimento || '';
+    case 'dataPagamentoCliente':
+      return item.dataPagamentoCliente || '';
     case 'numeroRelatorio':
       return item.numeroRelatorio || '';
     case 'dataRelatorio':
@@ -387,6 +389,8 @@ function obterValorOrdenacao(item: ParcelaLinha, campo: string) {
       return item.statusParcela || '';
     case 'situacaoRecebimento':
       return item.situacaoRecebimento || '';
+    case 'dataRecebimentoComissao':
+      return item.dataRecebimentoComissao || '';
     case 'parcelaIndex':
       return item.parcelaIndex || 0;
     case 'comissao':
@@ -468,15 +472,15 @@ const SubGrupoData = ({
     { label: 'Vendedor', field: 'vendedorNome' },
     { label: 'Data Venda', field: 'dataVenda' },
     { label: 'Vencimento', field: 'dataVencimento' },
-    { label: 'Dt. Pagamento', field: 'dataPagamentoCliente' },
-    { label: 'Nº Rel ADM', field: 'numeroRelatorio' },
+    { label: 'DT. PAG', field: 'dataPagamentoCliente' },
+    { label: 'Nº Rel', field: 'numeroRelatorio' },
     { label: 'Data Rel', field: 'dataRelatorio' },
     { label: 'Valor da Cota', field: 'valorVenda' },
     { label: 'Parcela', field: 'valorParcela' },
     { label: 'Tabela', field: 'tabela' },
-    { label: 'Status Parcela', field: 'statusParcela' },
+    { label: 'Status', field: 'statusParcela' },
     { label: 'Recebimento', field: 'situacaoRecebimento' },
-    { label: 'Dt. Recebimento', field: 'dataRecebimentoComissao' },
+    { label: 'DT. RECEB.', field: 'dataRecebimentoComissao' },
     { label: 'Parcela Nº', field: 'parcelaIndex' },
     { label: 'Comissão', field: 'comissao' },
     { label: 'Ações', field: 'acoes' },
@@ -485,6 +489,10 @@ const SubGrupoData = ({
   const itensOrdenados = useMemo(() => {
     return ordenarItens(itens, orderBy, order);
   }, [itens, orderBy, order]);
+
+  // Cores de fundo sólidas e 100% opacas para colunas congeladas
+  const stickyBgHeader = isDark ? '#0f172a' : '#f8fafc';
+  const stickyBgRow = isDark ? '#111827' : '#ffffff';
 
   return (
     <Box sx={{ borderBottom: `1px solid ${isDark ? '#1f2937' : '#f1f5f9'}`, '&:last-child': { borderBottom: 0 } }}>
@@ -589,18 +597,21 @@ const SubGrupoData = ({
                 <TableCell sx={{
                   position: 'sticky',
                   left: 0,
-                  zIndex: 10,
-                  width: 50,
-                  minWidth: 50,
-                  bgcolor: isDark ? '#0a0e18' : '#f8fafc',
+                  zIndex: 12,
+                  width: 36,
+                  minWidth: 36,
+                  maxWidth: 36,
+                  bgcolor: stickyBgHeader,
                   py: 0.8,
-                  pl: 2,
+                  px: 0.5,
+                  textAlign: 'center',
                 }}>
                   <Checkbox
                     size="small"
                     checked={itens.length > 0 && itens.every(i => selecionadas.includes(i.id))}
                     indeterminate={itens.some(i => selecionadas.includes(i.id)) && !itens.every(i => selecionadas.includes(i.id))}
                     onChange={(e) => onToggleSelecionarData(itens.map(i => i.id), e.target.checked)}
+                    sx={{ p: 0.2 }}
                   />
                 </TableCell>
                 {colunas.map((col, index) => {
@@ -608,30 +619,30 @@ const SubGrupoData = ({
                   if (index === 0) {
                     stickySx = {
                       position: 'sticky',
-                      left: 50,
-                      zIndex: 10,
-                      width: 220,
-                      minWidth: 220,
-                      bgcolor: isDark ? '#0a0e18' : '#f8fafc',
+                      left: 36,
+                      zIndex: 11,
+                      width: 210,
+                      minWidth: 210,
+                      bgcolor: stickyBgHeader,
                     };
                   } else if (index === 1) {
                     stickySx = {
                       position: 'sticky',
-                      left: 270,
-                      zIndex: 10,
+                      left: 246,
+                      zIndex: 11,
                       width: 120,
                       minWidth: 120,
-                      bgcolor: isDark ? '#0a0e18' : '#f8fafc',
+                      bgcolor: stickyBgHeader,
                     };
                   } else if (index === 2) {
                     stickySx = {
                       position: 'sticky',
-                      left: 390,
-                      zIndex: 10,
-                      width: 100,
-                      minWidth: 100,
-                      bgcolor: isDark ? '#0a0e18' : '#f8fafc',
-                      borderRight: `1px solid ${theme.palette.divider}`,
+                      left: 366,
+                      zIndex: 11,
+                      width: 95,
+                      minWidth: 95,
+                      bgcolor: stickyBgHeader,
+                      borderRight: `2px solid ${isDark ? '#334155' : '#cbd5e1'}`,
                     };
                   }
                   const isSortedActive = orderBy === col.field;
@@ -640,7 +651,7 @@ const SubGrupoData = ({
                       fontWeight: 700, fontSize: '0.68rem', color: 'text.secondary',
                       bgcolor: isDark ? '#0a0e18' : '#f8fafc', textTransform: 'uppercase',
                       letterSpacing: '0.4px', whiteSpace: 'nowrap', py: 0.8,
-                      pl: col.label === 'Cliente / PAC' ? 4 : undefined,
+                      pl: col.label === 'Cliente / PAC' ? 2 : undefined,
                       ...stickySx
                     }}>
                       <TableSortLabel
@@ -686,35 +697,38 @@ const SubGrupoData = ({
                         } : {}),
                       }}
                     >
-                      {/* Checkbox de Linha */}
+                      {/* Checkbox de Linha com Fundo Sólido Opaco */}
                       <TableCell sx={{
                         position: 'sticky',
                         left: 0,
-                        zIndex: 1,
-                        bgcolor: 'inherit',
-                        width: 50,
-                        minWidth: 50,
+                        zIndex: 3,
+                        bgcolor: stickyBgRow,
+                        width: 36,
+                        minWidth: 36,
+                        maxWidth: 36,
                         py: 0.8,
-                        pl: 2,
+                        px: 0.5,
+                        textAlign: 'center',
                       }}>
                         <Checkbox
                           size="small"
                           checked={selecionadas.includes(item.id)}
                           onChange={() => onToggleSelecionar(item.id)}
+                          sx={{ p: 0.2 }}
                         />
                       </TableCell>
-                      {/* Célula Cliente/PAC: sempre visível, mas mantendo a borda no topo do grupo */}
+                      {/* Célula Cliente/PAC com Fundo Sólido Opaco */}
                       <TableCell
                         sx={{
-                          py: 0.8, pl: 4,
+                          py: 0.8, pl: 2, pr: 1.5,
                           borderBottom: isLastOfGroup ? undefined : 'none',
                           verticalAlign: 'top',
                           position: 'sticky',
-                          left: 50,
-                          zIndex: 1,
-                          bgcolor: 'inherit',
-                          width: 220,
-                          minWidth: 220,
+                          left: 36,
+                          zIndex: 3,
+                          bgcolor: stickyBgRow,
+                          width: 210,
+                          minWidth: 210,
                         }}
                       >
                         <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.78rem' }}>{item.cliente}</Typography>
@@ -724,26 +738,28 @@ const SubGrupoData = ({
                           </Typography>
                         )}
                       </TableCell>
+                      {/* Célula Vendedor com Fundo Sólido Opaco */}
                       <TableCell sx={{
                         py: 0.8, fontSize: '0.75rem', color: 'text.secondary',
                         position: 'sticky',
-                        left: 270,
-                        zIndex: 1,
-                        bgcolor: 'inherit',
+                        left: 246,
+                        zIndex: 3,
+                        bgcolor: stickyBgRow,
                         width: 120,
                         minWidth: 120,
                       }}>
                         {item.vendedorNome || '—'}
                       </TableCell>
+                      {/* Célula Data Venda com Fundo Sólido Opaco */}
                       <TableCell sx={{
                         py: 0.8, fontSize: '0.75rem', whiteSpace: 'nowrap', color: 'text.secondary',
                         position: 'sticky',
-                        left: 390,
-                        zIndex: 1,
-                        bgcolor: 'inherit',
-                        width: 100,
-                        minWidth: 100,
-                        borderRight: `1px solid ${theme.palette.divider}`,
+                        left: 366,
+                        zIndex: 3,
+                        bgcolor: stickyBgRow,
+                        width: 95,
+                        minWidth: 95,
+                        borderRight: `2px solid ${isDark ? '#334155' : '#cbd5e1'}`,
                       }}>
                         {item.dataVenda ? formatarData(item.dataVenda) : '—'}
                       </TableCell>
