@@ -1445,8 +1445,6 @@ export const RelatorioRecebimentos = ({
   // 1. Monta lista de parcelas com datas de previsão
   const parcelas = useMemo<ParcelaLinha[]>(() => {
     const lista: ParcelaLinha[] = [];
-    const mesInicioChave = dataInicio.substring(0, 7);
-    const mesFimChave = dataFim.substring(0, 7);
 
     vendas.forEach((venda) => {
       if (venda.statusCliente === 'Cancelado') return;
@@ -1532,8 +1530,8 @@ export const RelatorioRecebimentos = ({
 
         // 1. Linha Original (Competência)
         let criarOriginal = true;
-        if (inicio && dtVenc < inicio) criarOriginal = false;
-        if (fim && dtVenc > fim) criarOriginal = false;
+        if (dataInicio && dtVenc < dataInicio) criarOriginal = false;
+        if (dataFim && dtVenc > dataFim) criarOriginal = false;
 
         if (criarOriginal) {
           lista.push({
@@ -1548,8 +1546,8 @@ export const RelatorioRecebimentos = ({
         // 2. Linha Espelho (Caixa)
         if (pagaForaCompetencia && dtPag) {
           let criarEspelho = true;
-          if (inicio && dtPag < inicio) criarEspelho = false;
-          if (fim && dtPag > fim) criarEspelho = false;
+          if (dataInicio && dtPag < dataInicio) criarEspelho = false;
+          if (dataFim && dtPag > dataFim) criarEspelho = false;
 
           if (criarEspelho) {
             lista.push({
@@ -1580,7 +1578,7 @@ export const RelatorioRecebimentos = ({
           totalParcelas: 0,
           qtdParcelas: 0,
           itens: [],
-          totaisStatus: { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, aReceber: 0 },
+          totaisStatus: { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, aReceber: 0, espelhoRecebido: 0, pagaForaMes: 0 },
         });
       }
       const g = mapa.get(key)!;
