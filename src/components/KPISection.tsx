@@ -4,6 +4,8 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import PeopleIcon from '@mui/icons-material/People';
 import CancelIcon from '@mui/icons-material/Cancel';
+import FlashOnIcon from '@mui/icons-material/FlashOn';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
 import type { LancamentoVenda } from '../types';
 import { formatarMoeda } from '../utils/formatters';
 
@@ -24,21 +26,42 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
   let volumeTotalVendas = 0;
   let receitaTotalComissoes = 0;
   let comissoesRecebidasNoPeriodo = 0;
+  let comissaoNovasVendas = 0;
+  let qtdNovasVendas = 0;
+  let comissaoRecorrencia = 0;
+  let qtdRecorrencia = 0;
   const clientesAtivosSet = new Set<string>();
   const clientesCanceladosSet = new Set<string>();
   let valorTotalCancelado = 0;
 
   vendas.forEach((v) => {
+    if (v.statusCliente === 'Cancelado') return;
+
+    const todasParcelasVenda = Object.keys(v.projecaoMensal)
+      .filter((m) => { const c = v.projecaoMensal[m]; return c && c.valorVenda > 0; })
+      .sort();
+
     // 1. Acumulador Mensal de Fluxo de Caixa (Comissões e Status no Período)
     Object.keys(v.projecaoMensal).forEach((mes) => {
       if (mes >= mesInicioChave && mes <= mesFimChave) {
         const celula = v.projecaoMensal[mes];
         if (celula) {
           if (celula.status !== 'Cancelada' && celula.valorVenda > 0) {
-            receitaTotalComissoes += celula.comissaoGerada || 0;
+            const comissao = celula.comissaoGerada || 0;
+            receitaTotalComissoes += comissao;
             clientesAtivosSet.add(v.cliente);
+
+            const parcelaIdx = todasParcelasVenda.indexOf(mes) + 1;
+            if (parcelaIdx === 1) {
+              comissaoNovasVendas += comissao;
+              qtdNovasVendas += 1;
+            } else {
+              comissaoRecorrencia += comissao;
+              qtdRecorrencia += 1;
+            }
+
             if (celula.recebida || (celula.status as string) === 'Recebida') {
-              comissoesRecebidasNoPeriodo += celula.comissaoGerada || 0;
+              comissoesRecebidasNoPeriodo += comissao;
             }
           } else if (celula.status === 'Cancelada') {
             clientesCanceladosSet.add(v.cliente);
@@ -51,9 +74,7 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
     // 2. Acumulador de Faturamento (VGV - Volume Geral de Vendas no momento do fechamento)
     const dataDaVenda = v.dataVenda || (v.mesInicio ? `${v.mesInicio}-01` : '');
     if (dataDaVenda && dataDaVenda >= dataInicio && dataDaVenda <= dataFim) {
-      if (v.statusCliente !== 'Cancelado') {
-        volumeTotalVendas += v.valorVenda; // Computa o valor de crédito APENAS 1 VEZ por venda
-      }
+      volumeTotalVendas += v.valorVenda; // Computa o valor de crédito APENAS 1 VEZ por venda
     }
   });
 
@@ -70,12 +91,28 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
       description: 'Total de faturamento ativo no período'
     },
     {
-      title: 'Receita Total de Comissões',
+      title: 'Receita de Comissões',
       value: formatarMoeda(receitaTotalComissoes),
       icon: <MonetizationOnIcon sx={{ fontSize: 20 }} />,
       color: theme.palette.success.main,
       gradient: `linear-gradient(135deg, ${theme.palette.success.dark} 0%, ${theme.palette.success.main} 100%)`,
       description: 'Total de comissões ativas no período'
+    },
+    {
+      title: 'Vendas do Mês (1ª Parc.)',
+      value: formatarMoeda(comissaoNovasVendas),
+      icon: <FlashOnIcon sx={{ fontSize: 20 }} />,
+      color: '#0ea5e9',
+      gradient: 'linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)',
+      description: `${qtdNovasVendas} contrato(s) novo(s) no período`
+    },
+    {
+      title: 'Recorrência Carteira',
+      value: formatarMoeda(comissaoRecorrencia),
+      icon: <AutorenewIcon sx={{ fontSize: 20 }} />,
+      color: '#a855f7',
+      gradient: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
+      description: `${qtdRecorrencia} parcela(s) recorrente(s) no período`
     },
     {
       title: 'Parcelas Recebidas',

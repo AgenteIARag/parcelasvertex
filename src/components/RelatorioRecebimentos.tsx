@@ -35,6 +35,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import CancelIcon from '@mui/icons-material/Cancel';
 import EditIcon from '@mui/icons-material/Edit';
+import FlashOnIcon from '@mui/icons-material/FlashOn';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
 import Snackbar from '@mui/material/Snackbar';
 import type { LancamentoVenda, Vendedor, RegraMaster, UserPermissions, StatusParcela } from '../types';
 import { EditarVendaDialog } from './SimuladorVendas';
@@ -754,7 +756,40 @@ const SubGrupoData = ({
                         <SituacaoRecebimentoBadge situacao={item.situacaoRecebimento} />
                       </TableCell>
                       <TableCell sx={{ py: 0.8, fontSize: '0.75rem', textAlign: 'center', color: 'text.secondary' }}>
-                        {item.parcelaIndex}/{item.qtdParcelas}
+                        <Box sx={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 0.3 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.primary' }}>
+                            {item.parcelaIndex}/{item.qtdParcelas}
+                          </Typography>
+                          {item.parcelaIndex === 1 ? (
+                            <Chip
+                              label="1ª Parcela"
+                              size="small"
+                              sx={{
+                                height: 17,
+                                fontSize: '0.58rem',
+                                fontWeight: 800,
+                                bgcolor: isDark ? 'rgba(14,165,233,0.15)' : 'rgba(14,165,233,0.1)',
+                                color: '#0ea5e9',
+                                border: '1px solid rgba(14,165,233,0.3)',
+                                px: 0.2
+                              }}
+                            />
+                          ) : (
+                            <Chip
+                              label="Recorrência"
+                              size="small"
+                              sx={{
+                                height: 17,
+                                fontSize: '0.58rem',
+                                fontWeight: 700,
+                                bgcolor: isDark ? 'rgba(168,85,247,0.12)' : 'rgba(168,85,247,0.08)',
+                                color: '#a855f7',
+                                border: '1px solid rgba(168,85,247,0.25)',
+                                px: 0.2
+                              }}
+                            />
+                          )}
+                        </Box>
                       </TableCell>
                       <TableCell sx={{ py: 0.8, fontWeight: 800, color: '#10b981', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                         {formatarMoeda(item.comissao)}
@@ -866,6 +901,17 @@ const GrupoRecebimento = ({
 
   const datasUnicas = [...new Set(grupo.itens.map((i) => i.dataPrevisaoRecebimento))].sort();
 
+  // Indicadores de Vendas Novas vs Recorrência do Mês
+  const itensNovasVendas = useMemo(() => grupo.itens.filter(i => i.parcelaIndex === 1), [grupo.itens]);
+  const totalNovasVendasComissao = useMemo(() => itensNovasVendas.reduce((acc, i) => acc + i.comissao, 0), [itensNovasVendas]);
+  const totalNovasVendasCredito = useMemo(() => itensNovasVendas.reduce((acc, i) => acc + i.valorVenda, 0), [itensNovasVendas]);
+  const qtdNovasVendas = itensNovasVendas.length;
+
+  const itensRecorrencia = useMemo(() => grupo.itens.filter(i => i.parcelaIndex > 1), [grupo.itens]);
+  const totalRecorrenciaComissao = useMemo(() => itensRecorrencia.reduce((acc, i) => acc + i.comissao, 0), [itensRecorrencia]);
+  const totalRecorrenciaCredito = useMemo(() => itensRecorrencia.reduce((acc, i) => acc + i.valorVenda, 0), [itensRecorrencia]);
+  const qtdRecorrencia = itensRecorrencia.length;
+
   return (
     <Paper
       elevation={0}
@@ -949,8 +995,8 @@ const GrupoRecebimento = ({
 
         <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 
-        {/* Métricas resumidas */}
-        <Box sx={{ display: 'flex', gap: 4, flexGrow: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Métricas resumidas com Vendas do Mês e Recorrência */}
+        <Box sx={{ display: 'flex', gap: { xs: 2, md: 3 }, flexGrow: 1, flexWrap: 'wrap', alignItems: 'center' }}>
           <Box>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block' }}>
               Comissões a Receber
@@ -959,6 +1005,7 @@ const GrupoRecebimento = ({
               {formatarMoeda(grupo.totalComissoes)}
             </Typography>
           </Box>
+
           <Box>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block' }}>
               Valor do Crédito
@@ -967,6 +1014,7 @@ const GrupoRecebimento = ({
               {formatarMoeda(grupo.totalParcelas)}
             </Typography>
           </Box>
+
           <Box>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block' }}>
               Qtd. Parcelas
@@ -975,6 +1023,51 @@ const GrupoRecebimento = ({
               {grupo.qtdParcelas}
             </Typography>
           </Box>
+
+          {/* Indicador: Vendas do Mês (1ª Parcela) */}
+          <Tooltip title={`Vendas do Mês: ${qtdNovasVendas} contrato(s) com crédito total de ${formatarMoeda(totalNovasVendasCredito)}`}>
+            <Box sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              p: '5px 12px',
+              borderRadius: 2,
+              bgcolor: isDark ? 'rgba(14, 165, 233, 0.12)' : 'rgba(14, 165, 233, 0.08)',
+              border: `1px solid ${isDark ? 'rgba(14, 165, 233, 0.3)' : 'rgba(14, 165, 233, 0.25)'}`,
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <FlashOnIcon sx={{ fontSize: 13, color: '#0ea5e9' }} />
+                <Typography variant="caption" sx={{ color: '#0ea5e9', fontWeight: 800, fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  Vendas do Mês ({qtdNovasVendas})
+                </Typography>
+              </Box>
+              <Typography variant="body2" sx={{ fontWeight: 800, color: '#0ea5e9', fontFamily: 'Outfit, sans-serif', fontSize: '0.88rem' }}>
+                {formatarMoeda(totalNovasVendasComissao)}
+              </Typography>
+            </Box>
+          </Tooltip>
+
+          {/* Indicador: Recorrência da Carteira (2ª Parcela em diante) */}
+          <Tooltip title={`Recorrência da Carteira: ${qtdRecorrencia} parcela(s) com crédito de ${formatarMoeda(totalRecorrenciaCredito)}`}>
+            <Box sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              p: '5px 12px',
+              borderRadius: 2,
+              bgcolor: isDark ? 'rgba(168, 85, 247, 0.12)' : 'rgba(168, 85, 247, 0.08)',
+              border: `1px solid ${isDark ? 'rgba(168, 85, 247, 0.3)' : 'rgba(168, 85, 247, 0.25)'}`,
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <AutorenewIcon sx={{ fontSize: 13, color: '#a855f7' }} />
+                <Typography variant="caption" sx={{ color: '#a855f7', fontWeight: 800, fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  Recorrência ({qtdRecorrencia})
+                </Typography>
+              </Box>
+              <Typography variant="body2" sx={{ fontWeight: 800, color: '#a855f7', fontFamily: 'Outfit, sans-serif', fontSize: '0.88rem' }}>
+                {formatarMoeda(totalRecorrenciaComissao)}
+              </Typography>
+            </Box>
+          </Tooltip>
+
           {/* Breakdown por status */}
           <Box>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block', mb: 0.4 }}>
@@ -1230,6 +1323,25 @@ export const RelatorioRecebimentos = ({
   const totalCredito = grupos.reduce((acc, g) => acc + g.totalParcelas, 0);
   const totalQtd = grupos.reduce((acc, g) => acc + g.qtdParcelas, 0);
 
+  // Totais consolidados de Vendas do Mês vs Recorrência no período filtrado
+  const totalNovasVendasGeral = useMemo(() => {
+    const itensNovos = parcelas.filter(p => p.parcelaIndex === 1);
+    return {
+      comissao: itensNovos.reduce((acc, p) => acc + p.comissao, 0),
+      credito: itensNovos.reduce((acc, p) => acc + p.valorVenda, 0),
+      qtd: itensNovos.length
+    };
+  }, [parcelas]);
+
+  const totalRecorrenciaGeral = useMemo(() => {
+    const itensRecorrentes = parcelas.filter(p => p.parcelaIndex > 1);
+    return {
+      comissao: itensRecorrentes.reduce((acc, p) => acc + p.comissao, 0),
+      credito: itensRecorrentes.reduce((acc, p) => acc + p.valorVenda, 0),
+      qtd: itensRecorrentes.length
+    };
+  }, [parcelas]);
+
   // 4. Próximo período com valor a receber
   const mesAtual = new Date().toISOString().substring(0, 7); // YYYY-MM
   const proximoPeriodo = grupos.find((g) => g.mesPeriodo >= mesAtual);
@@ -1302,18 +1414,36 @@ export const RelatorioRecebimentos = ({
       </Box>
 
       {/* ── KPIs ── */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }, gap: 2 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr', lg: 'repeat(6, 1fr)' }, gap: 2 }}>
         {[
           {
             label: 'Total a Receber',
             value: formatarMoeda(totalComissoes),
+            sub: `${totalQtd} parcela(s)`,
             icon: <AccountBalanceWalletIcon />,
             color: '#10b981',
             bg: 'rgba(16,185,129,0.12)',
           },
           {
+            label: 'Vendas do Mês',
+            value: formatarMoeda(totalNovasVendasGeral.comissao),
+            sub: `${totalNovasVendasGeral.qtd} venda(s) novas`,
+            icon: <FlashOnIcon />,
+            color: '#0ea5e9',
+            bg: 'rgba(14,165,233,0.12)',
+          },
+          {
+            label: 'Recorrência Carteira',
+            value: formatarMoeda(totalRecorrenciaGeral.comissao),
+            sub: `${totalRecorrenciaGeral.qtd} parcela(s) recorrentes`,
+            icon: <AutorenewIcon />,
+            color: '#a855f7',
+            bg: 'rgba(168,85,247,0.12)',
+          },
+          {
             label: 'Valor do Crédito',
             value: formatarMoeda(totalCredito),
+            sub: 'Volume total',
             icon: <TrendingUpIcon />,
             color: '#6366f1',
             bg: 'rgba(99,102,241,0.12)',
