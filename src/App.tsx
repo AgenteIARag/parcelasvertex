@@ -1170,7 +1170,7 @@ function App() {
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               {abaAtiva !== 'configuracoes' && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mr: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, mr: 1 }}>
                   <TextField
                     label="De"
                     type="date"
@@ -1178,7 +1178,13 @@ function App() {
                     value={tempDataInicio}
                     onChange={(e: any) => setTempDataInicio(e.target.value)}
                     slotProps={{ inputLabel: { shrink: true } }}
-                    sx={{ width: 135 }}
+                    sx={{
+                      width: 160,
+                      '& .MuiInputBase-input': {
+                        fontSize: '0.85rem',
+                        py: 1
+                      }
+                    }}
                   />
                   <TextField
                     label="Até"
@@ -1187,7 +1193,13 @@ function App() {
                     value={tempDataFim}
                     onChange={(e: any) => setTempDataFim(e.target.value)}
                     slotProps={{ inputLabel: { shrink: true } }}
-                    sx={{ width: 135 }}
+                    sx={{
+                      width: 160,
+                      '& .MuiInputBase-input': {
+                        fontSize: '0.85rem',
+                        py: 1
+                      }
+                    }}
                   />
                   <Button
                     variant="contained"
@@ -1240,60 +1252,62 @@ function App() {
                 </Box>
               )}
 
-              {/* Indicador de Sincronização Supabase */}
-              <Tooltip
-                title={
-                  statusSincronizacao === 'sincronizado'
-                    ? 'Conectado ao Supabase (Banco na Nuvem)'
-                    : statusSincronizacao === 'sincronizando'
-                    ? 'Sincronizando dados com a nuvem...'
-                    : 'Modo Offline (Usando Local Storage)'
-                }
-              >
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.5,
-                    bgcolor:
-                      statusSincronizacao === 'sincronizado'
-                        ? 'rgba(16, 185, 129, 0.1)'
-                        : statusSincronizacao === 'sincronizando'
-                        ? 'rgba(99, 102, 241, 0.1)'
-                        : 'rgba(239, 68, 68, 0.1)',
-                    color:
-                      statusSincronizacao === 'sincronizado'
-                        ? '#10b981'
-                        : statusSincronizacao === 'sincronizando'
-                        ? '#6366f1'
-                        : '#ef4444',
-                    borderRadius: 2,
-                    py: 0.5,
-                    px: 1.2,
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}
+              {/* Indicador de Sincronização Supabase — visível exclusivamente para Super Master */}
+              {isSuperMaster && (
+                <Tooltip
+                  title={
+                    statusSincronizacao === 'sincronizado'
+                      ? 'Conectado ao Supabase (Banco na Nuvem)'
+                      : statusSincronizacao === 'sincronizando'
+                      ? 'Sincronizando dados com a nuvem...'
+                      : 'Modo Offline (Usando Local Storage)'
+                  }
                 >
-                  {statusSincronizacao === 'sincronizado' ? (
-                    <>
-                      <CloudDoneIcon sx={{ fontSize: 14 }} />
-                      <span>Supabase</span>
-                    </>
-                  ) : statusSincronizacao === 'sincronizando' ? (
-                    <>
-                      <CloudQueueIcon sx={{ fontSize: 14 }} />
-                      <span>Conectando...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CloudOffIcon sx={{ fontSize: 14 }} />
-                      <span>Offline</span>
-                    </>
-                  )}
-                </Box>
-              </Tooltip>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      bgcolor:
+                        statusSincronizacao === 'sincronizado'
+                          ? 'rgba(16, 185, 129, 0.1)'
+                          : statusSincronizacao === 'sincronizando'
+                          ? 'rgba(99, 102, 241, 0.1)'
+                          : 'rgba(239, 68, 68, 0.1)',
+                      color:
+                        statusSincronizacao === 'sincronizado'
+                          ? '#10b981'
+                          : statusSincronizacao === 'sincronizando'
+                          ? '#6366f1'
+                          : '#ef4444',
+                      borderRadius: 2,
+                      py: 0.5,
+                      px: 1.2,
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}
+                  >
+                    {statusSincronizacao === 'sincronizado' ? (
+                      <>
+                        <CloudDoneIcon sx={{ fontSize: 14 }} />
+                        <span>Supabase</span>
+                      </>
+                    ) : statusSincronizacao === 'sincronizando' ? (
+                      <>
+                        <CloudQueueIcon sx={{ fontSize: 14 }} />
+                        <span>Conectando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CloudOffIcon sx={{ fontSize: 14 }} />
+                        <span>Offline</span>
+                      </>
+                    )}
+                  </Box>
+                </Tooltip>
+              )}
 
               <Button
                 variant="outlined"
