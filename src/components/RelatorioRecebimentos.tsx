@@ -123,6 +123,10 @@ interface ParcelaLinha {
   numeroRelatorioRecebimento?: string; // Nº do relatório do recebimento da comissão
   notaFiscalRecebimento?: string;      // NF relativa ao recebimento da comissão
   dataRecebimentoComissao?: string;    // Data de recebimento da comissão (YYYY-MM-DD)
+  // Espelhamento
+  grupoVisual: string;                 // Mês em que a linha será renderizada (YYYY-MM)
+  isEspelho: boolean;                  // True se for a linha de caixa (gerada no mês do pagamento)
+  pagaForaCompetencia: boolean;        // True se a parcela foi paga num mês diferente do vencimento
 }
 
 interface TotaisStatus {
@@ -132,6 +136,8 @@ interface TotaisStatus {
   recebida: number;
   cancelada: number;
   aReceber: number;   // = aVencer + vencida (ainda não liquidado)
+  espelhoRecebido: number; // Valor (comissão) espelhada que entrou neste mês vinda de meses anteriores
+  pagaForaMes: number;     // Valor (comissão) da competência original que foi paga apenas em meses futuros
 }
 
 interface GrupoPeriodo {
@@ -148,9 +154,21 @@ interface GrupoPeriodo {
 // ──────────────────────────────────────────────────────────
 
 const calcularTotaisStatus = (itens: ParcelaLinha[]): TotaisStatus => {
-  const t: TotaisStatus = { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, aReceber: 0 };
+  const t: TotaisStatus = { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, aReceber: 0, espelhoRecebido: 0, pagaForaMes: 0 };
   itens.forEach((i) => {
     const v = i.comissao;
+    
+    // Se for espelho, conta apenas no total de espelho recebido (Caixa de meses anteriores)
+    if (i.isEspelho) {
+      t.espelhoRecebido += v;
+      return;
+    }
+
+    // Se for original e foi paga fora do mês, soma no KPI de atraso/desvio
+    if (i.pagaForaCompetencia && i.statusParcela === 'Paga') {
+      t.pagaForaMes += v;
+    }
+
     if (i.statusParcela === 'Cancelada') t.cancelada += v;
     else if (i.statusParcela === 'Paga') t.paga += v;
     else if (i.statusParcela === 'Vencida') t.vencida += v;
@@ -174,12 +192,22 @@ const StatusValorRow = ({ totais }: { totais: TotaisStatus }) => {
     { label: 'Paga',      value: totais.paga,      color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
     { label: 'A receber', value: totais.aReceber,  color: '#f97316', bg: 'rgba(249,115,22,0.12)' },
     { label: 'Recebida',  value: totais.recebida,  color: '#0ea5e9', bg: 'rgba(14,165,233,0.12)' },
-  ].filter((item) => item.value > 0);
+  ];
 
-  if (items.length === 0) return null;
+  if (totais.pagaForaMes > 0) {
+    items.push({ label: 'Paga em Atraso (Outro Mês)', value: totais.pagaForaMes, color: '#eab308', bg: 'rgba(234,179,8,0.12)' });
+  }
+  if (totais.espelhoRecebido > 0) {
+    items.push({ label: 'Caixa Adicional (Meses Anteriores)', value: totais.espelhoRecebido, color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' });
+  }
+
+  const validItems = items.filter((item) => item.value > 0);
+
+  if (validItems.length === 0) return null;
+
   return (
     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'nowrap', alignItems: 'center' }}>
-      {items.map((item) => (
+      {validItems.map((item) => (
         <Tooltip key={item.label} title={item.label}>
           <Box sx={{
             display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
@@ -737,6 +765,11 @@ const SubGrupoData = ({
                             PAC: {item.pac}
                           </Typography>
                         )}
+                        {item.isEspelho && (
+                           <Box sx={{ display: 'block', mt: 0.5 }}>
+                             <Chip size="small" label={`Ref: ${item.dataVencimento.substring(5, 7)}/${item.dataVencimento.substring(0, 4)}`} sx={{ height: 16, fontSize: '0.55rem', bgcolor: 'rgba(139,92,246,0.12)', color: '#8b5cf6', fontWeight: 700 }} />
+                           </Box>
+                        )}
                       </TableCell>
                       {/* Célula Vendedor com Fundo Sólido Opaco */}
                       <TableCell sx={{
@@ -759,7 +792,7 @@ const SubGrupoData = ({
                         bgcolor: stickyBgRow,
                         width: 95,
                         minWidth: 95,
-                        borderRight: `2px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                        borderRight: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
                       }}>
                         {item.dataVenda ? formatarData(item.dataVenda) : '—'}
                       </TableCell>
@@ -801,7 +834,12 @@ const SubGrupoData = ({
                         {item.tabela}
                       </TableCell>
                       <TableCell sx={{ py: 0.8 }}>
-                        <StatusParcelaBadge status={item.statusParcela} />
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
+                          <StatusParcelaBadge status={item.statusParcela} />
+                          {!item.isEspelho && item.pagaForaCompetencia && item.statusParcela === 'Paga' && (
+                            <Chip size="small" label="Paga Atrasada" sx={{ height: 14, fontSize: '0.5rem', bgcolor: 'rgba(234,179,8,0.15)', color: '#eab308', fontWeight: 800 }} />
+                          )}
+                        </Box>
                       </TableCell>
                       <TableCell sx={{ py: 0.8 }}>
                         <SituacaoRecebimentoBadge situacao={item.situacaoRecebimento} />
@@ -1458,8 +1496,15 @@ export const RelatorioRecebimentos = ({
         const termoRel = buscaRelatorio.trim().toLowerCase();
         if (termoRel && !(venda.numeroRelatorio || '').toLowerCase().includes(termoRel)) return;
 
-        lista.push({
-          id: `${venda.id}_${mesChave}`,
+        const dtPag = statusParcela === 'Paga'
+          ? (celula.dataPagamentoCliente || celula.dataRecebimento || celula.dataVencimento)
+          : undefined;
+
+        const mesVencimento = dtVenc.substring(0, 7);
+        const mesPagamento = dtPag ? dtPag.substring(0, 7) : undefined;
+        const pagaForaCompetencia = !!mesPagamento && (mesPagamento !== mesVencimento);
+
+        const linhaBase: Omit<ParcelaLinha, 'id' | 'grupoVisual' | 'isEspelho' | 'pagaForaCompetencia'> = {
           vendaId: venda.id,
           cliente: venda.cliente,
           pac: venda.pac || '',
@@ -1478,27 +1523,57 @@ export const RelatorioRecebimentos = ({
           parcelaIndex,
           qtdParcelas: venda.qtdParcelas,
           numeroRelatorio: venda.numeroRelatorio,
-          dataPagamentoCliente: statusParcela === 'Paga'
-            ? (celula.dataPagamentoCliente || celula.dataRecebimento || celula.dataVencimento)
-            : undefined,
+          dataPagamentoCliente: dtPag,
           numeroRelatorioRecebimento: celula.numeroRelatorioRecebimento,
           notaFiscalRecebimento: celula.notaFiscalRecebimento,
           dataRecebimentoComissao: celula.recebida
             ? (celula.dataRecebimentoComissao || celula.dataRecebimento)
             : undefined,
-        });
+        };
+
+        // 1. Linha Original (Competência)
+        let criarOriginal = true;
+        if (inicio && dtVenc < inicio) criarOriginal = false;
+        if (fim && dtVenc > fim) criarOriginal = false;
+
+        if (criarOriginal) {
+          lista.push({
+            ...linhaBase,
+            id: `${venda.id}_${mesChave}`,
+            grupoVisual: mesVencimento,
+            isEspelho: false,
+            pagaForaCompetencia,
+          });
+        }
+
+        // 2. Linha Espelho (Caixa)
+        if (pagaForaCompetencia && dtPag) {
+          let criarEspelho = true;
+          if (inicio && dtPag < inicio) criarEspelho = false;
+          if (fim && dtPag > fim) criarEspelho = false;
+
+          if (criarEspelho) {
+            lista.push({
+              ...linhaBase,
+              id: `${venda.id}_${mesChave}_espelho`,
+              grupoVisual: mesPagamento,
+              isEspelho: true,
+              pagaForaCompetencia: true,
+            });
+          }
+        }
       });
     });
 
     return lista;
   }, [vendas, dataInicio, dataFim, ciclos, busca, buscaRelatorio, filtroStatus]);
 
-  // 2. Agrupa por mês de VENCIMENTO da parcela (mesReferencia = YYYY-MM)
+  // 2. Agrupa por grupoVisual (que é o Mês/Ano onde a linha deve aparecer)
   const grupos = useMemo<GrupoPeriodo[]>(() => {
     const mapa = new Map<string, GrupoPeriodo>();
 
     parcelas.forEach((p) => {
-      const key = p.mesReferencia; // Agrupamento por mês de vencimento da parcela
+      const key = p.grupoVisual; // Agrupamento por mês de visualização
       if (!mapa.has(key)) {
         mapa.set(key, {
           mesPeriodo: key,
@@ -1510,9 +1585,14 @@ export const RelatorioRecebimentos = ({
         });
       }
       const g = mapa.get(key)!;
-      g.totalComissoes += p.comissao;
-      g.totalParcelas += p.valorVenda;
-      g.qtdParcelas += 1;
+      
+      // Conforme Opção 1, espelhos não somam no total base daquele mês para evitar duplicação.
+      if (!p.isEspelho) {
+        g.totalComissoes += p.comissao;
+        g.totalParcelas += p.valorVenda;
+        g.qtdParcelas += 1;
+      }
+      
       g.itens.push(p);
     });
 
@@ -1533,7 +1613,7 @@ export const RelatorioRecebimentos = ({
 
   // Totais consolidados de Vendas do Mês vs Recorrência no período filtrado
   const totalNovasVendasGeral = useMemo(() => {
-    const itensNovos = parcelas.filter(p => p.parcelaIndex === 1);
+    const itensNovos = parcelas.filter(p => !p.isEspelho && p.parcelaIndex === 1);
     return {
       comissao: itensNovos.reduce((acc, p) => acc + p.comissao, 0),
       credito: itensNovos.reduce((acc, p) => acc + p.valorVenda, 0),
@@ -1542,7 +1622,7 @@ export const RelatorioRecebimentos = ({
   }, [parcelas]);
 
   const totalRecorrenciaGeral = useMemo(() => {
-    const itensRecorrentes = parcelas.filter(p => p.parcelaIndex > 1);
+    const itensRecorrentes = parcelas.filter(p => !p.isEspelho && p.parcelaIndex > 1);
     return {
       comissao: itensRecorrentes.reduce((acc, p) => acc + p.comissao, 0),
       credito: itensRecorrentes.reduce((acc, p) => acc + p.valorVenda, 0),
