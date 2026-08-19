@@ -22,6 +22,16 @@ export const formatarMoeda = (valor: number): string => {
 };
 
 /**
+ * Formata uma data ISO YYYY-MM-DD para DD/MM/YYYY
+ */
+export const formatarData = (iso: string): string => {
+  if (!iso || iso.includes('undefined')) return '—';
+  const [ano, mes, dia] = iso.split('-');
+  if (!ano || !mes || !dia) return iso;
+  return `${dia}/${mes}/${ano}`;
+};
+
+/**
  * Formata um número como moeda abreviada para eixos de gráficos
  * @example formatarMoedaEixo(1500000) => "R$ 1.5M"
  */

@@ -12,7 +12,8 @@ import {
   IconButton,
   Tooltip,
   TextField,
-  Divider
+  Divider,
+  Chip
 } from '@mui/material';
 import StorageIcon from '@mui/icons-material/Storage';
 import LightModeIcon from '@mui/icons-material/LightMode';
@@ -30,6 +31,7 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import { EmpresasCadastro } from './components/EmpresasCadastro';
 import { RegrasFilha } from './components/RegrasFilha';
 import { AdministradorasCadastro } from './components/AdministradorasCadastro';
+import { formatarData } from './utils/formatters';
 
 import { type RegraMaster, type RegraFilha, type LancamentoVenda, type Vendedor, type Usuario, type StatusComissao, type Empresa, type Administradora } from './types';
 import { INITIAL_REGRAS, INITIAL_VENDAS, INITIAL_VENDEDORES, calcularTotaisLinha } from './data/initialData';
@@ -340,9 +342,28 @@ function App() {
     return base;
   }, [vendedores, usuarioLogado, empresaFiltroMaster, isSuperMaster]);
 
-  // Filtro de data global compartilhado entre Dashboard, Painel de Vendas e Comissões
-  const [dataInicio, setDataInicio] = useState<string>('2026-01-01');
-  const [dataFim, setDataFim] = useState<string>('2026-12-31');
+  // Helper para formatar data ISO YYYY-MM-DD
+  const formatarDataISO = (d: Date) => {
+    const a = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dia = String(d.getDate()).padStart(2, '0');
+    return `${a}-${m}-${dia}`;
+  };
+
+  // Filtro de data global compartilhado e persistido no LocalStorage
+  const [dataInicio, setDataInicio] = useState<string>(() => {
+    const salvo = localStorage.getItem('apex_filtro_data_inicio');
+    if (salvo && salvo.length >= 10 && !salvo.includes('d')) return salvo;
+    const d = new Date();
+    return formatarDataISO(new Date(d.getFullYear(), d.getMonth(), 1));
+  });
+
+  const [dataFim, setDataFim] = useState<string>(() => {
+    const salvo = localStorage.getItem('apex_filtro_data_fim');
+    if (salvo && salvo.length >= 10 && !salvo.includes('d')) return salvo;
+    const d = new Date();
+    return formatarDataISO(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+  });
 
   // Ciclos de faturamento (mês a mês)
   const [ciclos, setCiclos] = useState<Record<string, [number, number]>>(() => {
@@ -353,33 +374,83 @@ function App() {
   });
 
   // Estados temporários para os inputs de data antes do clique no botão Filtrar
-  const [tempDataInicio, setTempDataInicio] = useState<string>('2026-01-01');
-  const [tempDataFim, setTempDataFim] = useState<string>('2026-12-31');
+  const [tempDataInicio, setTempDataInicio] = useState<string>(() => {
+    const salvo = localStorage.getItem('apex_filtro_data_inicio');
+    if (salvo && salvo.length >= 10 && !salvo.includes('d')) return salvo;
+    const d = new Date();
+    return formatarDataISO(new Date(d.getFullYear(), d.getMonth(), 1));
+  });
 
-  // Expande automaticamente a dataFim do filtro geral quando alguma parcela ativa ultrapassar o ano de 2026
-  useEffect(() => {
-    let dataMax = '2026-12-31';
-    vendas.forEach((venda) => {
-      Object.values(venda.projecaoMensal).forEach((mesObj) => {
-        if (mesObj.valorVenda > 0 && mesObj.status !== 'Cancelada' && mesObj.dataVencimento > dataMax) {
-          dataMax = mesObj.dataVencimento;
-        }
-      });
-    });
-
-    const [ano] = dataMax.split('-');
-    const novaDataFim = `${ano}-12-31`;
-    if (novaDataFim > dataFim) {
-      setDataFim(novaDataFim);
-      setTempDataFim(novaDataFim);
-    }
-  }, [vendas, dataFim]);
+  const [tempDataFim, setTempDataFim] = useState<string>(() => {
+    const salvo = localStorage.getItem('apex_filtro_data_fim');
+    if (salvo && salvo.length >= 10 && !salvo.includes('d')) return salvo;
+    const d = new Date();
+    return formatarDataISO(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+  });
 
   const handleFiltrar = () => {
-    const ini = (tempDataInicio && tempDataInicio.length >= 10 && !tempDataInicio.includes('d')) ? tempDataInicio : '2026-01-01';
-    const fim = (tempDataFim && tempDataFim.length >= 10 && !tempDataFim.includes('d')) ? tempDataFim : '2026-12-31';
+    const ini = (tempDataInicio && tempDataInicio.length >= 10 && !tempDataInicio.includes('d')) ? tempDataInicio : '2026-08-01';
+    const fim = (tempDataFim && tempDataFim.length >= 10 && !tempDataFim.includes('d')) ? tempDataFim : '2026-08-31';
     setDataInicio(ini);
     setDataFim(fim);
+    setTempDataInicio(ini);
+    setTempDataFim(fim);
+    localStorage.setItem('apex_filtro_data_inicio', ini);
+    localStorage.setItem('apex_filtro_data_fim', fim);
+  };
+
+  const aplicarAtalhoPeriodo = (tipo: 'mes_atual' | 'mes_passado' | 'proximo_mes' | 'ultimos_3_meses' | 'proximos_3_meses' | 'ano_atual' | 'tudo') => {
+    const hoje = new Date();
+    const anoAtual = hoje.getFullYear();
+    const mesAtual = hoje.getMonth();
+
+    let ini = '';
+    let fim = '';
+
+    switch (tipo) {
+      case 'mes_atual': {
+        ini = formatarDataISO(new Date(anoAtual, mesAtual, 1));
+        fim = formatarDataISO(new Date(anoAtual, mesAtual + 1, 0));
+        break;
+      }
+      case 'mes_passado': {
+        ini = formatarDataISO(new Date(anoAtual, mesAtual - 1, 1));
+        fim = formatarDataISO(new Date(anoAtual, mesAtual, 0));
+        break;
+      }
+      case 'proximo_mes': {
+        ini = formatarDataISO(new Date(anoAtual, mesAtual + 1, 1));
+        fim = formatarDataISO(new Date(anoAtual, mesAtual + 2, 0));
+        break;
+      }
+      case 'ultimos_3_meses': {
+        ini = formatarDataISO(new Date(anoAtual, mesAtual - 2, 1));
+        fim = formatarDataISO(new Date(anoAtual, mesAtual + 1, 0));
+        break;
+      }
+      case 'proximos_3_meses': {
+        ini = formatarDataISO(new Date(anoAtual, mesAtual, 1));
+        fim = formatarDataISO(new Date(anoAtual, mesAtual + 3, 0));
+        break;
+      }
+      case 'ano_atual': {
+        ini = `${anoAtual}-01-01`;
+        fim = `${anoAtual}-12-31`;
+        break;
+      }
+      case 'tudo': {
+        ini = `${anoAtual}-01-01`;
+        fim = `${anoAtual + 3}-12-31`;
+        break;
+      }
+    }
+
+    setTempDataInicio(ini);
+    setTempDataFim(fim);
+    setDataInicio(ini);
+    setDataFim(fim);
+    localStorage.setItem('apex_filtro_data_inicio', ini);
+    localStorage.setItem('apex_filtro_data_fim', fim);
   };
 
   // Estado de sincronização com o Supabase
@@ -1309,6 +1380,7 @@ function App() {
                 </Tooltip>
               )}
 
+              {/* Botão de Backup */}
               <Button
                 variant="outlined"
                 size="small"
@@ -1333,6 +1405,76 @@ function App() {
               </Button>
             </Box>
           </Box>
+
+          {/* Barra de Atalhos Rápidos de Período */}
+          {abaAtiva !== 'configuracoes' && (
+            <Box
+              sx={{
+                px: 4,
+                py: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 1.5,
+                bgcolor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.75)' : 'rgba(248, 250, 252, 0.9)',
+                borderBottom: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexWrap: 'wrap' }}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.4px', fontSize: '0.68rem', mr: 0.5 }}>
+                  Atalhos Rápidos:
+                </Typography>
+                {[
+                  { label: '⚡ Mês Atual', tipo: 'mes_atual' as const },
+                  { label: '⏪ Mês Passado', tipo: 'mes_passado' as const },
+                  { label: '⏩ Próximo Mês', tipo: 'proximo_mes' as const },
+                  { label: '📅 Últimos 3 Meses', tipo: 'ultimos_3_meses' as const },
+                  { label: '📈 Próximos 3 Meses', tipo: 'proximos_3_meses' as const },
+                  { label: '🗓️ Ano 2026', tipo: 'ano_atual' as const },
+                  { label: '🌐 Todo o Período', tipo: 'tudo' as const },
+                ].map((item) => (
+                  <Chip
+                    key={item.tipo}
+                    label={item.label}
+                    size="small"
+                    onClick={() => aplicarAtalhoPeriodo(item.tipo)}
+                    sx={{
+                      cursor: 'pointer',
+                      fontWeight: 750,
+                      fontSize: '0.72rem',
+                      fontFamily: 'Outfit, sans-serif',
+                      borderRadius: 1.5,
+                      height: 24,
+                      bgcolor: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
+                      border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                      color: 'text.primary',
+                      transition: 'all 0.15s ease-in-out',
+                      '&:hover': {
+                        bgcolor: theme.palette.primary.main,
+                        color: '#ffffff',
+                        borderColor: theme.palette.primary.main,
+                        transform: 'translateY(-1px)'
+                      }
+                    }}
+                  />
+                ))}
+              </Box>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.72rem' }}>
+                  Período Vigente:
+                </Typography>
+                <Chip
+                  label={`${formatarData(dataInicio)} até ${formatarData(dataFim)}`}
+                  size="small"
+                  color="primary"
+                  variant="outlined"
+                  sx={{ fontWeight: 800, fontFamily: 'Outfit, sans-serif', fontSize: '0.75rem', height: 24 }}
+                />
+              </Box>
+            </Box>
+          )}
 
           {/* Container de Informações e Views */}
           <Container maxWidth={false} sx={{ mt: 4, px: { xs: 2, md: 4 } }}>
