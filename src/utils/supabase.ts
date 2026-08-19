@@ -641,9 +641,9 @@ export const EMPRESAS_PADRAO: Empresa[] = [
 export const obterEmpresasLocais = (): Empresa[] => {
   try {
     const saved = localStorage.getItem('apex_empresas');
-    if (saved) {
+    if (saved !== null) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
     console.error('Erro ao ler apex_empresas:', e);
@@ -674,16 +674,13 @@ export const excluirEmpresaLocal = (id: string): Empresa[] => {
 };
 
 export const migrarTabelasHierarquia = async (): Promise<void> => {
-  // Tenta adicionar as colunas e tabelas necessárias para a hierarquia empresa mãe/filha e tipoTabela Linear/Adesão e percentuais_parcelas
   try {
-    // Adicionar empresa_mae_id nas empresas
     await supabase.rpc('exec_sql', {
       sql: `ALTER TABLE empresas ADD COLUMN IF NOT EXISTS empresa_mae_id TEXT REFERENCES empresas(id);`
     });
   } catch { /* silencioso */ }
 
   try {
-    // Adicionar empresa_id e colunas de Adesão e grade de parcelas nas regras_master
     await supabase.rpc('exec_sql', {
       sql: `ALTER TABLE regras_master ADD COLUMN IF NOT EXISTS empresa_id TEXT;
             ALTER TABLE regras_master ADD COLUMN IF NOT EXISTS tipo_tabela TEXT DEFAULT 'Linear';
@@ -695,7 +692,6 @@ export const migrarTabelasHierarquia = async (): Promise<void> => {
   } catch { /* silencioso */ }
 
   try {
-    // Criar tabela regras_filha
     await supabase.rpc('exec_sql', {
       sql: `
         CREATE TABLE IF NOT EXISTS regras_filha (
@@ -715,7 +711,6 @@ export const migrarTabelasHierarquia = async (): Promise<void> => {
   } catch { /* silencioso */ }
 
   try {
-    // Adicionar colunas de hierarquia e grade de parcelas nas vendas
     await supabase.rpc('exec_sql', {
       sql: `
         ALTER TABLE vendas ADD COLUMN IF NOT EXISTS venda_origem_id TEXT;
@@ -758,24 +753,22 @@ export const obterEmpresasSupabase = async (): Promise<Empresa[]> => {
       .select('*')
       .order('nome', { ascending: true });
 
-    if (error || !data) {
-      console.warn('Supabase empresas indisponível, usando localStorage:', error?.message);
+    if (error) {
+      console.warn('Supabase empresas indisponível, usando localStorage:', error.message);
       return obterEmpresasLocais();
     }
 
-    const remotas: Empresa[] = data.map((e: any) => ({
-      id: e.id,
-      nome: e.nome,
-      ativo: e.ativo,
-      empresaMaeId: e.empresa_mae_id || undefined,
-    }));
-
-    if (remotas.length === 0) {
-      return obterEmpresasLocais();
+    if (data) {
+      const remotas: Empresa[] = data.map((e: any) => ({
+        id: e.id,
+        nome: e.nome,
+        ativo: e.ativo,
+        empresaMaeId: e.empresa_mae_id || undefined,
+      }));
+      localStorage.setItem('apex_empresas', JSON.stringify(remotas));
+      return remotas;
     }
-
-    localStorage.setItem('apex_empresas', JSON.stringify(remotas));
-    return remotas;
+    return obterEmpresasLocais();
   } catch (err) {
     console.warn('Erro ao conectar Supabase empresas:', err);
     return obterEmpresasLocais();
@@ -819,19 +812,26 @@ export const excluirEmpresaSupabase = async (id: string): Promise<void> => {
 };
 
 export const inicializarEmpresasPadrao = async (): Promise<Empresa[]> => {
-  const locais = obterEmpresasLocais();
   try {
     await migrarTabelaEmpresas();
     await migrarTabelasHierarquia();
-    for (const emp of EMPRESAS_PADRAO) {
-      await supabase
-        .from('empresas')
-        .upsert({ id: emp.id, nome: emp.nome, ativo: emp.ativo });
+
+    const jaInicializado = localStorage.getItem('apex_empresas_seed_done') === 'true';
+    const { data, error } = await supabase.from('empresas').select('id');
+
+    // Apenas insere as padrão se o banco estiver 100% vazio e nunca tiver sido inicializado
+    if (!error && data && data.length === 0 && !jaInicializado) {
+      for (const emp of EMPRESAS_PADRAO) {
+        await supabase
+          .from('empresas')
+          .upsert({ id: emp.id, nome: emp.nome, ativo: emp.ativo });
+      }
+      localStorage.setItem('apex_empresas_seed_done', 'true');
     }
     return await obterEmpresasSupabase();
   } catch (err) {
-    console.warn('Falha ao inicializar empresas padrão no Supabase, usando locais:', err);
-    return locais;
+    console.warn('Falha ao inicializar empresas no Supabase, usando locais:', err);
+    return obterEmpresasLocais();
   }
 };
 
@@ -842,9 +842,9 @@ export const inicializarEmpresasPadrao = async (): Promise<Empresa[]> => {
 export const obterAdministradorasLocais = (): Administradora[] => {
   try {
     const saved = localStorage.getItem('apex_administradoras');
-    if (saved) {
+    if (saved !== null) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
     console.error('Erro ao ler apex_administradoras:', e);
@@ -881,24 +881,22 @@ export const obterAdministradorasSupabase = async (): Promise<Administradora[]> 
       .select('*')
       .order('nome', { ascending: true });
 
-    if (error || !data) {
-      console.warn('Supabase administradoras indisponível, usando localStorage:', error?.message);
+    if (error) {
+      console.warn('Supabase administradoras indisponível, usando localStorage:', error.message);
       return obterAdministradorasLocais();
     }
 
-    const remotas: Administradora[] = data.map((a: any) => ({
-      id: a.id,
-      nome: a.nome,
-      ativo: a.ativo !== false,
-      created_at: a.created_at
-    }));
-
-    if (remotas.length === 0) {
-      return obterAdministradorasLocais();
+    if (data) {
+      const remotas: Administradora[] = data.map((a: any) => ({
+        id: a.id,
+        nome: a.nome,
+        ativo: a.ativo !== false,
+        created_at: a.created_at
+      }));
+      localStorage.setItem('apex_administradoras', JSON.stringify(remotas));
+      return remotas;
     }
-
-    localStorage.setItem('apex_administradoras', JSON.stringify(remotas));
-    return remotas;
+    return obterAdministradorasLocais();
   } catch (err) {
     console.warn('Erro ao conectar Supabase administradoras:', err);
     return obterAdministradorasLocais();
@@ -941,17 +939,22 @@ export const excluirAdministradoraSupabase = async (id: string): Promise<void> =
 };
 
 export const inicializarAdministradorasPadrao = async (): Promise<Administradora[]> => {
-  const locais = obterAdministradorasLocais();
   try {
-    // Tenta inicializar as administradoras padrão no Supabase se não existirem
-    for (const adm of INITIAL_ADMINISTRADORAS) {
-      await supabase
-        .from('administradoras')
-        .upsert({ id: adm.id, nome: adm.nome, ativo: adm.ativo });
+    const jaInicializado = localStorage.getItem('apex_administradoras_seed_done') === 'true';
+    const { data, error } = await supabase.from('administradoras').select('id');
+
+    // Apenas insere as padrão se a tabela estiver 100% vazia e nunca tiver sido inicializada
+    if (!error && data && data.length === 0 && !jaInicializado) {
+      for (const adm of INITIAL_ADMINISTRADORAS) {
+        await supabase
+          .from('administradoras')
+          .upsert({ id: adm.id, nome: adm.nome, ativo: adm.ativo });
+      }
+      localStorage.setItem('apex_administradoras_seed_done', 'true');
     }
     return await obterAdministradorasSupabase();
   } catch (err) {
     console.warn('Falha ao inicializar administradoras no Supabase, usando locais:', err);
-    return locais;
+    return obterAdministradorasLocais();
   }
 };

@@ -1504,7 +1504,7 @@ function App() {
                   )}
 
                   {subAbaAtiva === 'empresas' && isSuperMaster && (
-                    <EmpresasCadastro />
+                    <EmpresasCadastro onEmpresasChange={(novas) => setEmpresas(novas)} />
                   )}
 
                   {/* Ciclos de Faturamento — oculto visualmente, lógica preservada */}

@@ -14,7 +14,11 @@ import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import type { Empresa } from "../types";
 import { obterEmpresasSupabase, salvarEmpresaSupabase, excluirEmpresaSupabase } from "../utils/supabase";
 
-export const EmpresasCadastro: React.FC = () => {
+interface EmpresasCadastroProps {
+  onEmpresasChange?: (empresas: Empresa[]) => void;
+}
+
+export const EmpresasCadastro: React.FC<EmpresasCadastroProps> = ({ onEmpresasChange }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -34,6 +38,7 @@ export const EmpresasCadastro: React.FC = () => {
     try {
       const data = await obterEmpresasSupabase();
       setEmpresas(data);
+      if (onEmpresasChange) onEmpresasChange(data);
     } catch {
       setDbError("Nao foi possivel carregar as empresas.");
     } finally {
@@ -41,10 +46,23 @@ export const EmpresasCadastro: React.FC = () => {
     }
   };
 
-  useEffect(() => { carregarEmpresas(); }, []);
+  useEffect(() => {
+    carregarEmpresas();
+  }, []);
 
-  const resetForm = () => { setNome(""); setAtivo(true); setEmpresaMaeId(""); setErrors({}); setEditId(null); };
-  const handleOpenNova = () => { resetForm(); setOpenDialog(true); };
+  const resetForm = () => {
+    setNome("");
+    setAtivo(true);
+    setEmpresaMaeId("");
+    setErrors({});
+    setEditId(null);
+  };
+
+  const handleOpenNova = () => {
+    resetForm();
+    setOpenDialog(true);
+  };
+
   const handleOpenEditar = (e: Empresa) => {
     setEditId(e.id);
     setNome(e.nome);
@@ -53,11 +71,23 @@ export const EmpresasCadastro: React.FC = () => {
     setErrors({});
     setOpenDialog(true);
   };
-  const handleClose = () => { setOpenDialog(false); resetForm(); };
+
+  const handleClose = () => {
+    setOpenDialog(false);
+    resetForm();
+  };
 
   const validar = (): boolean => {
     const e: Record<string, string> = {};
-    if (!nome.trim() || nome.trim().length < 2) e.nome = "Nome deve ter pelo menos 2 caracteres.";
+    if (!nome.trim() || nome.trim().length < 2) {
+      e.nome = "Nome da empresa deve ter pelo menos 2 caracteres.";
+    }
+    const jaExiste = empresas.some(
+      emp => emp.id !== editId && emp.nome.trim().toLowerCase() === nome.trim().toLowerCase()
+    );
+    if (jaExiste) {
+      e.nome = "Já existe uma empresa com este nome cadastrada.";
+    }
     // Uma empresa não pode ser mãe de si mesma
     if (empresaMaeId && editId && empresaMaeId === editId) {
       e.empresaMaeId = "Uma empresa não pode ser mãe de si mesma.";
@@ -90,7 +120,9 @@ export const EmpresasCadastro: React.FC = () => {
     setLoading(true);
     try {
       await excluirEmpresaSupabase(id);
-      setEmpresas(prev => prev.filter(e => e.id !== id));
+      const novas = empresas.filter(e => e.id !== id);
+      setEmpresas(novas);
+      if (onEmpresasChange) onEmpresasChange(novas);
     } catch {
       setDbError("Erro ao excluir empresa.");
     } finally {
