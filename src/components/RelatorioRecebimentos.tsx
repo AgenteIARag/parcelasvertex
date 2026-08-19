@@ -1402,9 +1402,10 @@ export const RelatorioRecebimentos = ({
       onAtualizarVenda(vendaAtualizada);
       setModalPaga({ open: false, item: null, dataPagamento: '' });
       setSnackbarMsg(`✅ Parcela de ${item.cliente} marcada como Paga em ${formatarData(dataPagamento)}`);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao salvar no Supabase:', err);
-      setSnackbarMsg(`❌ Erro ao salvar alteração. Tente novamente.`);
+      const msg = err?.message || err?.details || JSON.stringify(err);
+      setSnackbarMsg(`❌ Erro no banco: ${msg.substring(0, 100)}`);
     }
   };
 
@@ -1434,9 +1435,10 @@ export const RelatorioRecebimentos = ({
       onAtualizarVenda(vendaAtualizada);
       setModalRecebida({ open: false, item: null, dataRecebimento: '', numeroRelatorio: '', notaFiscal: '' });
       setSnackbarMsg(`💰 Recebimento da comissão de ${item.cliente} registrado com sucesso!`);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao salvar no Supabase:', err);
-      setSnackbarMsg(`❌ Erro ao registrar recebimento. Tente novamente.`);
+      const msg = err?.message || err?.details || JSON.stringify(err);
+      setSnackbarMsg(`❌ Erro no banco: ${msg.substring(0, 100)}`);
     }
   };
 
