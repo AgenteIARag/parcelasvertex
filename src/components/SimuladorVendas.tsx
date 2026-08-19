@@ -2776,6 +2776,18 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
   const [percentualMensalInput, setPercentualMensalInput] = useState<number>(0);
   const [percentuaisParcelasInput, setPercentuaisParcelasInput] = useState<number[] | undefined>(undefined);
 
+  const opcoesAdministradoras = useMemo(() => {
+    const lista = [...administradoras];
+    if (administradoraIdInput && !lista.some(a => a.id === administradoraIdInput)) {
+      lista.unshift({
+        id: administradoraIdInput,
+        nome: administradoraNomeInput || 'Âncora',
+        ativo: true
+      });
+    }
+    return lista;
+  }, [administradoras, administradoraIdInput, administradoraNomeInput]);
+
   useEffect(() => {
     if (segmento && tabela) {
       const parsFiltrado = regras
@@ -3162,7 +3174,7 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
                 }}
               >
                 <MenuItem value=""><em>Nenhuma / Não especificada</em></MenuItem>
-                {administradoras.filter(a => a.ativo || a.id === administradoraIdInput).map((a) => (
+                {opcoesAdministradoras.filter(a => a.ativo || a.id === administradoraIdInput).map((a) => (
                   <MenuItem key={a.id} value={a.id}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
                       <AccountBalanceIcon sx={{ fontSize: 15, color: '#818cf8' }} />
@@ -3335,13 +3347,31 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
   const [percentualMensalInput, setPercentualMensalInput] = useState<number>(0);
   const [percentuaisParcelasInput, setPercentuaisParcelasInput] = useState<number[] | undefined>(undefined);
 
+  const opcoesAdministradoras = useMemo(() => {
+    const lista = [...administradoras];
+    if (administradoraIdInput && !lista.some(a => a.id === administradoraIdInput)) {
+      lista.unshift({
+        id: administradoraIdInput,
+        nome: administradoraNomeInput || 'Âncora',
+        ativo: true
+      });
+    }
+    return lista;
+  }, [administradoras, administradoraIdInput, administradoraNomeInput]);
+
   useEffect(() => {
     if (venda) {
       setCliente(venda.cliente);
       setPac(venda.pac || '');
       setVendedorId(venda.vendedorId || '');
-      setAdministradoraIdInput(venda.administradoraId || '');
-      setAdministradoraNomeInput(venda.administradoraNome || '');
+      
+      const admEncontrada = administradoras.find(a => 
+        (venda.administradoraId && a.id === venda.administradoraId) ||
+        (venda.administradoraNome && a.nome.toLowerCase() === venda.administradoraNome.toLowerCase())
+      );
+      setAdministradoraIdInput(venda.administradoraId || admEncontrada?.id || '');
+      setAdministradoraNomeInput(venda.administradoraNome || admEncontrada?.nome || '');
+
       setSegmento(venda.segmento);
       setTabela(venda.tabela);
       setQtdParcelas(venda.qtdParcelas);
@@ -3371,7 +3401,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
         .map((r) => r.qtdParcelas);
       setParcelasDisponiveis(Array.from(new Set(pars)));
     }
-  }, [venda, regras]);
+  }, [venda, regras, administradoras]);
 
   const handleSegmentoChange = (seg: SegmentoType) => {
     setSegmento(seg);
@@ -3759,7 +3789,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
                 }}
               >
                 <MenuItem value=""><em>Nenhuma / Não especificada</em></MenuItem>
-                {administradoras.filter(a => a.ativo || a.id === administradoraIdInput).map((a) => (
+                {opcoesAdministradoras.filter(a => a.ativo || a.id === administradoraIdInput).map((a) => (
                   <MenuItem key={a.id} value={a.id}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
                       <AccountBalanceIcon sx={{ fontSize: 15, color: '#818cf8' }} />

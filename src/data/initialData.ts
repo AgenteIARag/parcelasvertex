@@ -1,6 +1,7 @@
 import { type RegraMaster, type LancamentoVenda, type ProjecaoMensalType, type StatusParcela, type MesesAno, type Vendedor, type TipoTabela, type Administradora, LISTA_MESES } from '../types';
 
 export const INITIAL_ADMINISTRADORAS: Administradora[] = [
+  { id: 'adm_âncora_1787152829001', nome: 'Âncora', ativo: true },
   { id: 'adm_porto', nome: 'Porto Seguro', ativo: true },
   { id: 'adm_embracon', nome: 'Embracon', ativo: true },
   { id: 'adm_rodobens', nome: 'Rodobens', ativo: true },

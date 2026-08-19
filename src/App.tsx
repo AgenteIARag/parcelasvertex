@@ -58,6 +58,7 @@ import {
   obterRegrasFilhaLocal,
   inicializarUsuarioMaster,
   inicializarEmpresasPadrao,
+  obterAdministradorasLocais,
   obterAdministradorasSupabase,
   inicializarAdministradorasPadrao
 } from './utils/supabase';
@@ -237,7 +238,9 @@ function App() {
   const [empresaFiltroMaster, setEmpresaFiltroMaster] = useState<string>(''); // '' = todas
 
   // Administradoras de Consórcio
-  const [administradoras, setAdministradoras] = useState<Administradora[]>([]);
+  const [administradoras, setAdministradoras] = useState<Administradora[]>(() => {
+    try { return obterAdministradorasLocais(); } catch { return []; }
+  });
 
   // Regras Filha (percentuais customizados das empresas filhas)
   const [regrasFilha, setRegrasFilha] = useState<RegraFilha[]>(() => {
