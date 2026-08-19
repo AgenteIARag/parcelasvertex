@@ -26,10 +26,12 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import GroupIcon from '@mui/icons-material/Group';
 import BusinessIcon from '@mui/icons-material/Business';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import { EmpresasCadastro } from './components/EmpresasCadastro';
 import { RegrasFilha } from './components/RegrasFilha';
+import { AdministradorasCadastro } from './components/AdministradorasCadastro';
 
-import { type RegraMaster, type RegraFilha, type LancamentoVenda, type Vendedor, type Usuario, type StatusComissao, type Empresa } from './types';
+import { type RegraMaster, type RegraFilha, type LancamentoVenda, type Vendedor, type Usuario, type StatusComissao, type Empresa, type Administradora } from './types';
 import { INITIAL_REGRAS, INITIAL_VENDAS, INITIAL_VENDEDORES, calcularTotaisLinha } from './data/initialData';
 import { KPISection } from './components/KPISection';
 import { SimuladorVendas } from './components/SimuladorVendas';
@@ -55,7 +57,9 @@ import {
   obterRegrasFilhaSupabase,
   obterRegrasFilhaLocal,
   inicializarUsuarioMaster,
-  inicializarEmpresasPadrao
+  inicializarEmpresasPadrao,
+  obterAdministradorasSupabase,
+  inicializarAdministradorasPadrao
 } from './utils/supabase';
 import CloudQueueIcon from '@mui/icons-material/CloudQueue';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
@@ -226,11 +230,14 @@ function App() {
   });
 
   const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'dashboard_vendedores' | 'vendas' | 'comissoes' | 'relatorio' | 'relatorio_comissoes' | 'configuracoes'>('dashboard');
-  const [subAbaAtiva, setSubAbaAtiva] = useState<'regras' | 'regras_filha' | 'vendedores' | 'acessos' | 'empresas'>('regras');
+  const [subAbaAtiva, setSubAbaAtiva] = useState<'regras' | 'regras_filha' | 'vendedores' | 'acessos' | 'empresas' | 'administradoras'>('regras');
 
   // Multi-tenant: empresas
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [empresaFiltroMaster, setEmpresaFiltroMaster] = useState<string>(''); // '' = todas
+
+  // Administradoras de Consórcio
+  const [administradoras, setAdministradoras] = useState<Administradora[]>([]);
 
   // Regras Filha (percentuais customizados das empresas filhas)
   const [regrasFilha, setRegrasFilha] = useState<RegraFilha[]>(() => {
@@ -386,6 +393,15 @@ function App() {
         // Inicializa as empresas padrão (Vertex, Winvest, Shazam)
         const emps = await inicializarEmpresasPadrao();
         setEmpresas(emps);
+
+        // Inicializa e carrega as administradoras de consórcio
+        try {
+          const adms = await inicializarAdministradorasPadrao();
+          setAdministradoras(adms);
+        } catch {
+          const admsLocais = await obterAdministradorasSupabase();
+          setAdministradoras(admsLocais);
+        }
 
         const [vend, reg, vendasData] = await Promise.all([
           obterVendedoresSupabase(),
@@ -1333,6 +1349,7 @@ function App() {
                   dataInicio={dataInicio}
                   dataFim={dataFim}
                   ciclos={ciclos}
+                  administradoras={administradoras}
                 />
               </Box>
             )}
@@ -1382,7 +1399,7 @@ function App() {
                       Configurações do Sistema
                     </Typography>
                     <Typography variant="body2" sx={{ color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b', mt: 0.5 }}>
-                      Gerencie tabelas de comissões, corretores de vendas e privilégios de acesso.
+                      Gerencie tabelas de comissões, administradoras, corretores de vendas e privilégios de acesso.
                     </Typography>
                   </Box>
 
@@ -1415,6 +1432,10 @@ function App() {
                       {(isSuperMaster || (usuarioLogado?.role === 'master' && !empresaAtualEhFilha)) && empresas.some(e => !!e.empresaMaeId) && (
                         <Tab value="regras_filha" icon={<AccountTreeIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Tabelas das Filhas" />
                       )}
+                      {/* Tab de Administradoras — visível para super_master */}
+                      {isSuperMaster && (
+                        <Tab value="administradoras" icon={<AccountBalanceIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Administradoras" />
+                      )}
                       {(isSuperMaster || usuarioLogado?.role === 'master') && (
                         <Tab value="acessos" icon={<AdminPanelSettingsIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Gestão de Acessos e Vendedores" />
                       )}
@@ -1435,6 +1456,7 @@ function App() {
                       empresas={empresas}
                       empresaAtualId={usuarioLogado?.empresaId}
                       isSuperMaster={isSuperMaster}
+                      administradoras={administradoras}
                     />
                   )}
 
@@ -1443,6 +1465,16 @@ function App() {
                     <RegrasFilha
                       empresas={empresas}
                       regrasMaster={regras}
+                      administradoras={administradoras}
+                    />
+                  )}
+
+                  {/* Módulo de Cadastro de Administradoras (Super Master) */}
+                  {subAbaAtiva === 'administradoras' && isSuperMaster && (
+                    <AdministradorasCadastro
+                      regras={regras}
+                      vendas={vendas}
+                      onAdministradorasChange={(novas) => setAdministradoras(novas)}
                     />
                   )}
 

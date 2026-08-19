@@ -42,7 +42,8 @@ import BusinessIcon from '@mui/icons-material/Business';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
-import { type RegraMaster, type SegmentoType, type UserPermissions, type Empresa, type TipoTabela } from '../types';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import { type RegraMaster, type SegmentoType, type UserPermissions, type Empresa, type TipoTabela, type Administradora } from '../types';
 
 interface RegrasMasterProps {
   regras: RegraMaster[];
@@ -53,6 +54,7 @@ interface RegrasMasterProps {
   empresas?: Empresa[];          // Lista de empresas disponíveis
   empresaAtualId?: string;       // Empresa do usuário logado
   isSuperMaster?: boolean;       // Super master pode editar regras de qualquer empresa
+  administradoras?: Administradora[]; // Lista de administradoras de consórcio
 }
 
 export const RegrasMaster: React.FC<RegrasMasterProps> = ({
@@ -64,12 +66,14 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
   empresas = [],
   empresaAtualId,
   isSuperMaster = false,
+  administradoras = [],
 }) => {
   const theme = useTheme();
 
-  // Estado do filtro por segmento e por texto de busca
+  // Estado do filtro por segmento, por texto de busca e por administradora
   const [abaSegmento, setAbaSegmento] = useState<SegmentoType | 'Todos'>('Todos');
   const [buscaTexto, setBuscaTexto] = useState('');
+  const [administradoraFiltro, setAdministradoraFiltro] = useState<string>('');
 
   // Estados do Dialog de formulário
   const [open, setOpen] = useState(false);
@@ -84,6 +88,8 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
   const [percentuaisParcelas, setPercentuaisParcelas] = useState<number[]>([]);
   const [percentualComissaoContemplacao, setPercentualComissaoContemplacao] = useState<number | ''>('');
   const [empresaIdForm, setEmpresaIdForm] = useState<string>(empresaAtualId || '');
+  const [administradoraIdForm, setAdministradoraIdForm] = useState<string>('');
+  const [administradoraNomeForm, setAdministradoraNomeForm] = useState<string>('');
 
   // Helper para recalcular a grade padrão de parcelas
   const recalcularGradePadrao = (
@@ -141,6 +147,8 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
       }
       setPercentualComissaoContemplacao(regra.percentualComissaoContemplacao ?? '');
       setEmpresaIdForm(regra.empresaId || empresaAtualId || '');
+      setAdministradoraIdForm(regra.administradoraId || '');
+      setAdministradoraNomeForm(regra.administradoraNome || '');
     } else {
       setEditId(null);
       setSegmento(abaSegmento !== 'Todos' ? abaSegmento : 'Imóveis');
@@ -153,6 +161,8 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
       setPercentuaisParcelas([]);
       setPercentualComissaoContemplacao('');
       setEmpresaIdForm(empresaAtualId || '');
+      setAdministradoraIdForm('');
+      setAdministradoraNomeForm('');
     }
     setErrors({});
     setOpen(true);
@@ -219,6 +229,9 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
       ? Number(gradeFinal.reduce((a, b) => a + Number(b), 0).toFixed(2))
       : (tipoTabela === 'Linear' ? Number(percentualComissao) : Number(percentualAdesao || 0) + Number(percentualMensal || 0));
 
+    const admEncontrada = administradoras.find(a => a.id === administradoraIdForm);
+    const admNomeFinal = admEncontrada?.nome || administradoraNomeForm || undefined;
+
     const dadosRegra: Omit<RegraMaster, 'id'> = {
       segmento,
       tabela: tabela.trim(),
@@ -231,6 +244,8 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
         percentualMensal: Number(percentualMensal)
       }),
       empresaId: empresaIdForm || undefined,
+      administradoraId: administradoraIdForm || undefined,
+      administradoraNome: admNomeFinal,
       ...(percentualComissaoContemplacao !== '' && { percentualComissaoContemplacao: Number(percentualComissaoContemplacao) })
     };
 
@@ -275,6 +290,11 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
     const atendeSegmento = abaSegmento === 'Todos' || r.segmento === abaSegmento;
     if (!atendeSegmento) return false;
 
+    if (administradoraFiltro) {
+      const matchAdm = r.administradoraId === administradoraFiltro || r.administradoraNome === administradoraFiltro;
+      if (!matchAdm) return false;
+    }
+
     if (!buscaTexto.trim()) return true;
     const termo = buscaTexto.toLowerCase().trim();
     const matchTabela = r.tabela.toLowerCase().includes(termo);
@@ -282,8 +302,9 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
     const matchParcelas = `${r.qtdParcelas}x`.includes(termo) || String(r.qtdParcelas).includes(termo);
     const matchTipo = (r.tipoTabela || 'Linear').toLowerCase().includes(termo);
     const matchComissao = String(r.percentualComissao).includes(termo);
+    const matchAdmNome = (r.administradoraNome || '').toLowerCase().includes(termo);
 
-    return matchTabela || matchSegmento || matchParcelas || matchTipo || matchComissao;
+    return matchTabela || matchSegmento || matchParcelas || matchTipo || matchComissao || matchAdmNome;
   });
 
   // Empresa mãe das empresas disponíveis (para o filtro do super_master)
@@ -300,10 +321,32 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
             Banco de Dados de Regras (BD Master)
           </Typography>
           <Typography variant="body2" sx={{ color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b' }}>
-            Gerencie as tabelas de comissionamento por segmento e número de parcelas
+            Gerencie as tabelas de comissionamento por segmento, administradora e número de parcelas
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Filtro por Administradora */}
+          {administradoras.length > 0 && (
+            <FormControl size="small" sx={{ minWidth: 190 }}>
+              <InputLabel>Administradora</InputLabel>
+              <Select
+                value={administradoraFiltro}
+                label="Administradora"
+                onChange={e => setAdministradoraFiltro(e.target.value)}
+              >
+                <MenuItem value=""><em>Todas as ADMs</em></MenuItem>
+                {administradoras.map(a => (
+                  <MenuItem key={a.id} value={a.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                      <AccountBalanceIcon sx={{ fontSize: 15, color: '#818cf8' }} />
+                      {a.nome}
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
           {/* Filtro de empresa para super_master */}
           {isSuperMaster && empresasMae.length > 0 && (
             <FormControl size="small" sx={{ minWidth: 180 }}>
@@ -522,7 +565,25 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                       />
                     </TableCell>
                     <TableCell sx={{ fontWeight: 500, color: theme.palette.mode === 'dark' ? '#f1f5f9' : '#1e293b' }}>
-                      {regra.tabela}
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
+                        <span>{regra.tabela}</span>
+                        {(regra.administradoraNome || regra.administradoraId) && (
+                          <Chip
+                            icon={<AccountBalanceIcon sx={{ fontSize: 13 }} />}
+                            label={regra.administradoraNome || administradoras.find(a => a.id === regra.administradoraId)?.nome || regra.administradoraId}
+                            size="small"
+                            sx={{
+                              width: 'fit-content',
+                              height: 20,
+                              fontSize: '0.68rem',
+                              fontWeight: 600,
+                              bgcolor: 'rgba(99, 102, 241, 0.08)',
+                              color: '#818cf8',
+                              borderRadius: 1.2
+                            }}
+                          />
+                        )}
+                      </Box>
                     </TableCell>
                     <TableCell align="center">
                       <Chip
@@ -758,10 +819,42 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                 </Select>
               </FormControl>
             </Grid>
+
+            {/* Administradora do Consórcio */}
+            <Grid size={{ xs: 12 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel id="administradora-regra-label">Administradora do Consórcio</InputLabel>
+                <Select
+                  labelId="administradora-regra-label"
+                  value={administradoraIdForm}
+                  label="Administradora do Consórcio"
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setAdministradoraIdForm(id);
+                    const adm = administradoras.find(a => a.id === id);
+                    setAdministradoraNomeForm(adm?.nome || '');
+                  }}
+                >
+                  <MenuItem value=""><em>Nenhuma / Não especificada</em></MenuItem>
+                  {administradoras.filter(a => a.ativo || a.id === administradoraIdForm).map(adm => (
+                    <MenuItem key={adm.id} value={adm.id}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <AccountBalanceIcon sx={{ fontSize: 16, color: '#818cf8' }} />
+                        {adm.nome}
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+                <FormHelperText sx={{ fontSize: '0.72rem' }}>
+                  Vincule a tabela à administradora parceira para filtros e relatórios unificados
+                </FormHelperText>
+              </FormControl>
+            </Grid>
+
             <Grid size={{ xs: 12 }}>
               <TextField
                 fullWidth
-                label="Nome da Tabela"
+                label="Nome da Tabela *"
                 placeholder="Ex: Tabela Platinum"
                 value={tabela}
                 onChange={(e) => setTabela(e.target.value)}

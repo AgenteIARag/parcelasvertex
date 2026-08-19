@@ -38,12 +38,14 @@ import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
-import type { Empresa, RegraMaster, RegraFilha, SegmentoType, TipoTabela } from '../types';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import type { Empresa, RegraMaster, RegraFilha, SegmentoType, TipoTabela, Administradora } from '../types';
 import { obterRegrasFilhaSupabase, salvarRegraFilhaSupabase } from '../utils/supabase';
 
 interface RegrasFilhaProps {
   empresas: Empresa[];
   regrasMaster: RegraMaster[]; // Regras da empresa mãe
+  administradoras?: Administradora[]; // Lista de administradoras de consórcio
 }
 
 /** Mapa local de edições (regraMasterId -> campos editados) */
@@ -88,7 +90,7 @@ const gerarGradePadrao = (
   }
 };
 
-export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster }) => {
+export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster, administradoras = [] }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
@@ -130,7 +132,8 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
       const matchParcelas = `${r.qtdParcelas}x`.includes(termo) || String(r.qtdParcelas).includes(termo);
       const matchTipo = (r.tipoTabela || 'Linear').toLowerCase().includes(termo);
       const matchComissao = String(r.percentualComissao).includes(termo);
-      return matchTabela || matchSegmento || matchParcelas || matchTipo || matchComissao;
+      const matchAdm = (r.administradoraNome || '').toLowerCase().includes(termo);
+      return matchTabela || matchSegmento || matchParcelas || matchTipo || matchComissao || matchAdm;
     });
   }, [regrasDaMae, buscaTexto]);
 
@@ -613,7 +616,27 @@ export const RegrasFilha: React.FC<RegrasFilhaProps> = ({ empresas, regrasMaster
                       />
                     </TableCell>
                     {/* Tabela */}
-                    <TableCell sx={{ fontWeight: 500 }}>{rm.tabela}</TableCell>
+                    <TableCell sx={{ fontWeight: 500 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
+                        <span>{rm.tabela}</span>
+                        {(rm.administradoraNome || rm.administradoraId) && (
+                          <Chip
+                            icon={<AccountBalanceIcon sx={{ fontSize: 12 }} />}
+                            label={rm.administradoraNome || administradoras.find(a => a.id === rm.administradoraId)?.nome || rm.administradoraId}
+                            size="small"
+                            sx={{
+                              width: 'fit-content',
+                              height: 19,
+                              fontSize: '0.65rem',
+                              fontWeight: 600,
+                              bgcolor: 'rgba(99, 102, 241, 0.08)',
+                              color: '#818cf8',
+                              borderRadius: 1.2
+                            }}
+                          />
+                        )}
+                      </Box>
+                    </TableCell>
                     {/* Tipo */}
                     <TableCell align="center">
                       <Chip

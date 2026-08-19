@@ -39,6 +39,7 @@ import BlockIcon from '@mui/icons-material/Block';
 import PercentIcon from '@mui/icons-material/Percent';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import ListAltIcon from '@mui/icons-material/ListAlt';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import {
   type LancamentoVenda,
   type RegraMaster,
@@ -48,7 +49,8 @@ import {
   type ProjecaoMensalType,
   type UserPermissions,
   type MesProjecao,
-  type TipoTabela
+  type TipoTabela,
+  type Administradora
 } from '../types';
 import { gerarProjecaoVazia, calcularTotaisLinha, getStatusInicial } from '../data/initialData';
 import { formatarMoeda, formatarChaveMesExibicao, obterStatusEfetivo } from '../utils/formatters';
@@ -58,45 +60,71 @@ const formatarMascaraDinheiro = (valor: string): string => {
   const apenasNumeros = valor.replace(/\D/g, '');
   if (!apenasNumeros) return '';
   const valorNumerico = parseFloat(apenasNumeros) / 100;
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2
-  }).format(valorNumerico);
-};
-
-const formatarMoedaInput = (valor: number): string => {
-  if (valor === undefined || valor === null || isNaN(valor)) return '';
-  return new Intl.NumberFormat('pt-BR', {
+  return valorNumerico.toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
-  }).format(valor);
+  });
+};
+
+const formatarMoedaInput = (valor: number): string => {
+  if (!valor || isNaN(valor)) return '';
+  return valor.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
 };
 
 const extrairValorCru = (valorFormatado: string): number => {
   if (!valorFormatado) return 0;
-  const apenasNumeros = valorFormatado.replace(/\D/g, '');
-  return parseFloat(apenasNumeros) / 100 || 0;
+  const limpo = valorFormatado
+    .replace(/[R$\s]/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+  return parseFloat(limpo) || 0;
 };
 
-const calcularDataPrevisaoRecebimento = (
-  dataVenc: string,
-  _ciclos?: Record<string, [number, number]>
-): string => {
-  if (!dataVenc || dataVenc.includes('undefined')) return '';
-  const dt = new Date(`${dataVenc}T00:00:00`);
-  if (isNaN(dt.getTime())) return '';
-  // Previsão = último dia do mês de vencimento da parcela
-  const ultimoDia = new Date(dt.getFullYear(), dt.getMonth() + 1, 0);
-  const ano = ultimoDia.getFullYear();
-  const mes = String(ultimoDia.getMonth() + 1).padStart(2, '0');
-  const dia = String(ultimoDia.getDate()).padStart(2, '0');
-  return `${ano}-${mes}-${dia}`;
+// Calcula a data de previsão de recebimento da comissão de acordo com os ciclos de fechamento/pagamento
+const calcularDataPrevisaoRecebimento = (dataVencimentoParcela: string, _ciclos?: Record<string, [number, number]>): string => {
+  if (!dataVencimentoParcela) return '';
+  const dt = new Date(dataVencimentoParcela + 'T00:00:00');
+  const dia = dt.getDate();
+  const mes = dt.getMonth(); // 0 a 11
+  const ano = dt.getFullYear();
+
+  let diaRecebimento = 15;
+  let mesesAdicionais = 1;
+
+  if (dia <= 5) {
+    diaRecebimento = 15;
+    mesesAdicionais = 1;
+  } else if (dia <= 10) {
+    diaRecebimento = 20;
+    mesesAdicionais = 1;
+  } else if (dia <= 15) {
+    diaRecebimento = 25;
+    mesesAdicionais = 1;
+  } else if (dia <= 20) {
+    diaRecebimento = 30;
+    mesesAdicionais = 1;
+  } else if (dia <= 25) {
+    diaRecebimento = 5;
+    mesesAdicionais = 2;
+  } else {
+    diaRecebimento = 10;
+    mesesAdicionais = 2;
+  }
+
+  const dtRecebimento = new Date(ano, mes + mesesAdicionais, diaRecebimento);
+  const anoReceb = dtRecebimento.getFullYear();
+  const mesReceb = String(dtRecebimento.getMonth() + 1).padStart(2, '0');
+  const diaReceb = String(dtRecebimento.getDate()).padStart(2, '0');
+
+  return `${anoReceb}-${mesReceb}-${diaReceb}`;
 };
-
-
 
 interface SimuladorVendasProps {
   vendas: LancamentoVenda[];
@@ -109,6 +137,7 @@ interface SimuladorVendasProps {
   dataInicio: string;
   dataFim: string;
   ciclos: Record<string, [number, number]>;
+  administradoras?: Administradora[];
 }
 
 export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
@@ -121,7 +150,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   permissoes,
   dataInicio,
   dataFim,
-  ciclos
+  ciclos,
+  administradoras = []
 }) => {
   const theme = useTheme();
 
@@ -139,6 +169,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   const [tipoFiltro, setTipoFiltro] = useState<'todos' | 'vendas' | 'recorrencia'>('todos');
   const [filtroStatus, setFiltroStatus] = useState<StatusParcela | 'Recebida' | 'Todos'>('Todos');
   const [filtroPac, setFiltroPac] = useState('');
+  const [filtroAdministradora, setFiltroAdministradora] = useState<string>('Todas');
 
   // Estado para guardar ID da venda selecionada para exclusão (confirmação necessária)
   const [vendaParaExcluir, setVendaParaExcluir] = useState<string | null>(null);
@@ -419,12 +450,17 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
   const vendasFiltradasPorPac = useMemo(() => {
     return vendas.filter((venda) => {
+      if (filtroAdministradora !== 'Todas') {
+        const matchAdm = venda.administradoraId === filtroAdministradora || venda.administradoraNome === filtroAdministradora;
+        if (!matchAdm) return false;
+      }
       if (!filtroPac.trim()) return true;
       const query = filtroPac.toLowerCase().trim();
       return (venda.pac || '').toLowerCase().includes(query) || 
-             (venda.cliente || '').toLowerCase().includes(query);
+             (venda.cliente || '').toLowerCase().includes(query) ||
+             (venda.administradoraNome || '').toLowerCase().includes(query);
     });
-  }, [vendas, filtroPac]);
+  }, [vendas, filtroPac, filtroAdministradora]);
 
   // Gera dinamicamente a lista de chaves "YYYY-MM" cobrindo TODOS os meses de recebimento de parcelas reais
   // A coluna é determinada pelo mês de dataRecebimento da parcela (não mais pelo mês-chave da projeção)
@@ -706,14 +742,37 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
             value={filtroPac}
             onChange={(e) => setFiltroPac(e.target.value)}
             sx={{
-              minWidth: 220,
+              minWidth: 200,
               '& .MuiOutlinedInput-root': {
                 borderRadius: 2
               }
             }}
           />
 
-          <FormControl size="small" sx={{ minWidth: 200 }}>
+          {administradoras.length > 0 && (
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel id="select-filtro-adm-vendas">Administradora</InputLabel>
+              <Select
+                labelId="select-filtro-adm-vendas"
+                value={filtroAdministradora}
+                label="Administradora"
+                onChange={(e) => setFiltroAdministradora(e.target.value)}
+                sx={{ borderRadius: 2 }}
+              >
+                <MenuItem value="Todas">Todas as ADMs</MenuItem>
+                {administradoras.map((a) => (
+                  <MenuItem key={a.id} value={a.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                      <AccountBalanceIcon sx={{ fontSize: 15, color: '#818cf8' }} />
+                      {a.nome}
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
+          <FormControl size="small" sx={{ minWidth: 180 }}>
             <InputLabel id="select-tipo-filtro-label">Tipo de Lançamento</InputLabel>
             <Select
               labelId="select-tipo-filtro-label"
@@ -1110,10 +1169,29 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                       borderRight: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`
                     }}
                   >
-                    {venda.tabela}
-                    <Typography variant="caption" sx={{ display: 'block', color: '#64748b' }}>
-                      {venda.qtdParcelas} parcelas
-                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.2 }}>
+                      <span style={{ fontWeight: 600 }}>{venda.tabela}</span>
+                      <Typography variant="caption" sx={{ display: 'block', color: '#64748b' }}>
+                        {venda.qtdParcelas} parcelas
+                      </Typography>
+                      {(venda.administradoraNome || venda.administradoraId) && (
+                        <Chip
+                          icon={<AccountBalanceIcon sx={{ fontSize: 12 }} />}
+                          label={venda.administradoraNome || administradoras.find(a => a.id === venda.administradoraId)?.nome || venda.administradoraId}
+                          size="small"
+                          sx={{
+                            width: 'fit-content',
+                            height: 18,
+                            fontSize: '0.65rem',
+                            fontWeight: 600,
+                            bgcolor: 'rgba(99, 102, 241, 0.08)',
+                            color: '#818cf8',
+                            borderRadius: 1.2,
+                            mt: 0.2
+                          }}
+                        />
+                      )}
+                    </Box>
                   </TableCell>
 
                   {/* Colunas mensais (Venda editável e Comissão calculada) */}
@@ -1932,9 +2010,26 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                         borderRight: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
                         py: 0.8
                       }}>
-                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.2 }}>
                           <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{venda.tabela}</span>
                           <span style={{ fontSize: '0.65rem', color: theme.palette.text.secondary }}>{venda.qtdParcelas}x de {formatarMoeda(venda.valorParcela)}</span>
+                          {(venda.administradoraNome || venda.administradoraId) && (
+                            <Chip
+                              icon={<AccountBalanceIcon sx={{ fontSize: 11 }} />}
+                              label={venda.administradoraNome || administradoras.find(a => a.id === venda.administradoraId)?.nome || venda.administradoraId}
+                              size="small"
+                              sx={{
+                                width: 'fit-content',
+                                height: 17,
+                                fontSize: '0.62rem',
+                                fontWeight: 600,
+                                bgcolor: 'rgba(99, 102, 241, 0.08)',
+                                color: '#818cf8',
+                                borderRadius: 1.2,
+                                mt: 0.2
+                              }}
+                            />
+                          )}
                         </Box>
                       </TableCell>
 
@@ -2356,6 +2451,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         vendedores={vendedores}
         regras={regras}
         ciclos={ciclos}
+        administradoras={administradoras}
       />
 
       {/* Dialog de Confirmação para Excluir Venda */}
@@ -2431,6 +2527,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         vendedores={vendedores}
         regras={regras}
         ciclos={ciclos}
+        administradoras={administradoras}
       />
 
       {/* Dialog de Edição Individual de Parcela */}
@@ -2625,6 +2722,7 @@ interface NovaVendaDialogProps {
   vendedores: Vendedor[];
   regras: RegraMaster[];
   ciclos: Record<string, [number, number]>;
+  administradoras?: Administradora[];
 }
 
 const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
@@ -2633,12 +2731,15 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
   onSave,
   vendedores,
   regras,
-  ciclos
+  ciclos,
+  administradoras = []
 }) => {
   const theme = useTheme();
   const [cliente, setCliente] = useState('');
   const [pac, setPac] = useState('');
   const [vendedorId, setVendedorId] = useState('');
+  const [administradoraIdInput, setAdministradoraIdInput] = useState('');
+  const [administradoraNomeInput, setAdministradoraNomeInput] = useState('');
   const [segmento, setSegmento] = useState<SegmentoType | ''>('');
   const [tabela, setTabela] = useState('');
   const [qtdParcelas, setQtdParcelas] = useState<number | ''>('');
@@ -2712,6 +2813,14 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
         setPercentualAdesaoInput(regra.percentualAdesao || 0);
         setPercentualMensalInput(regra.percentualMensal || 0);
         setPercentuaisParcelasInput(regra.percentuaisParcelas);
+        if (regra.administradoraId) {
+          setAdministradoraIdInput(regra.administradoraId);
+          setAdministradoraNomeInput(regra.administradoraNome || '');
+        } else if (regra.administradoraNome) {
+          setAdministradoraNomeInput(regra.administradoraNome);
+          const adm = administradoras.find(a => a.nome.toLowerCase() === regra.administradoraNome?.toLowerCase());
+          if (adm) setAdministradoraIdInput(adm.id);
+        }
       } else {
         setPercentualComissao(0);
         setTipoTabelaInput('Linear');
@@ -2726,7 +2835,7 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
       setPercentualMensalInput(0);
       setPercentuaisParcelasInput(undefined);
     }
-  }, [qtdParcelas, tabela, segmento, regras]);
+  }, [qtdParcelas, tabela, segmento, regras, administradoras]);
 
   const handleSalvarVenda = () => {
     const tempErrors: Record<string, string> = {};
@@ -2835,6 +2944,8 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
     const novaVenda: LancamentoVenda = {
       id: `v_${Date.now()}`,
       cliente: cliente.trim(),
+      administradoraId: administradoraIdInput || undefined,
+      administradoraNome: administradoraNomeInput || undefined,
       pac: pac.trim(),
       vendedorId,
       vendedorNome: vendedorSelecionado?.nome || '',
@@ -2863,6 +2974,8 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
     setCliente('');
     setPac('');
     setVendedorId('');
+    setAdministradoraIdInput('');
+    setAdministradoraNomeInput('');
     setSegmento('');
     setTabela('');
     setQtdParcelas('');
@@ -3013,7 +3126,7 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
               helperText={errors.dataAssembleiaInput}
             />
           </Grid>
-          <Grid size={{ xs: 12, sm: 3 }}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <FormControl fullWidth error={!!errors.segmento}>
               <InputLabel id="seg-venda-label">Segmento</InputLabel>
               <Select
@@ -3033,6 +3146,34 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
               )}
             </FormControl>
           </Grid>
+
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <FormControl fullWidth>
+              <InputLabel id="adm-venda-label">Administradora</InputLabel>
+              <Select
+                labelId="adm-venda-label"
+                value={administradoraIdInput}
+                label="Administradora"
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setAdministradoraIdInput(id);
+                  const adm = administradoras.find(a => a.id === id);
+                  setAdministradoraNomeInput(adm?.nome || '');
+                }}
+              >
+                <MenuItem value=""><em>Nenhuma / Não especificada</em></MenuItem>
+                {administradoras.filter(a => a.ativo || a.id === administradoraIdInput).map((a) => (
+                  <MenuItem key={a.id} value={a.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                      <AccountBalanceIcon sx={{ fontSize: 15, color: '#818cf8' }} />
+                      {a.nome}
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               fullWidth
@@ -3045,7 +3186,7 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
             />
           </Grid>
 
-          <Grid size={{ xs: 12, sm: 4 }}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth error={!!errors.tabela} disabled={!segmento}>
               <InputLabel id="tab-venda-label">Tabela</InputLabel>
               <Select
@@ -3067,7 +3208,7 @@ const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
               )}
             </FormControl>
           </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth error={!!errors.qtdParcelas} disabled={!tabela}>
               <InputLabel id="parc-venda-label">Prazo (Parcelas)</InputLabel>
               <Select
@@ -3153,6 +3294,7 @@ export interface EditarVendaDialogProps {
   vendedores: Vendedor[];
   regras: RegraMaster[];
   ciclos: Record<string, [number, number]>;
+  administradoras?: Administradora[];
 }
 
 export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
@@ -3162,12 +3304,15 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
   venda,
   vendedores,
   regras,
-  ciclos
+  ciclos,
+  administradoras = []
 }) => {
   const theme = useTheme();
   const [cliente, setCliente] = useState('');
   const [pac, setPac] = useState('');
   const [vendedorId, setVendedorId] = useState('');
+  const [administradoraIdInput, setAdministradoraIdInput] = useState('');
+  const [administradoraNomeInput, setAdministradoraNomeInput] = useState('');
   const [segmento, setSegmento] = useState<SegmentoType | ''>('');
   const [tabela, setTabela] = useState('');
   const [qtdParcelas, setQtdParcelas] = useState<number | ''>('');
@@ -3195,6 +3340,8 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       setCliente(venda.cliente);
       setPac(venda.pac || '');
       setVendedorId(venda.vendedorId || '');
+      setAdministradoraIdInput(venda.administradoraId || '');
+      setAdministradoraNomeInput(venda.administradoraNome || '');
       setSegmento(venda.segmento);
       setTabela(venda.tabela);
       setQtdParcelas(venda.qtdParcelas);
@@ -3270,6 +3417,14 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       setPercentualAdesaoInput(regra.percentualAdesao || 0);
       setPercentualMensalInput(regra.percentualMensal || 0);
       setPercentuaisParcelasInput(regra.percentuaisParcelas);
+      if (regra.administradoraId) {
+        setAdministradoraIdInput(regra.administradoraId);
+        setAdministradoraNomeInput(regra.administradoraNome || '');
+      } else if (regra.administradoraNome) {
+        setAdministradoraNomeInput(regra.administradoraNome);
+        const adm = administradoras.find(a => a.nome.toLowerCase() === regra.administradoraNome?.toLowerCase());
+        if (adm) setAdministradoraIdInput(adm.id);
+      }
     } else {
       setPercentualComissao(0);
       setTipoTabelaInput('Linear');
@@ -3397,6 +3552,8 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
     const vendaAtualizada: LancamentoVenda = {
       ...venda,
       cliente: cliente.trim(),
+      administradoraId: administradoraIdInput || undefined,
+      administradoraNome: administradoraNomeInput || undefined,
       pac: pac.trim(),
       vendedorId,
       vendedorNome: vendedorSelecionado?.nome || '',
@@ -3566,7 +3723,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
               helperText={errors.dataAssembleiaInput}
             />
           </Grid>
-          <Grid size={{ xs: 12, sm: 3 }}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <FormControl fullWidth error={!!errors.segmento}>
               <InputLabel id="edit-seg-venda-label">Segmento</InputLabel>
               <Select
@@ -3586,7 +3743,47 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
               )}
             </FormControl>
           </Grid>
+
           <Grid size={{ xs: 12, sm: 4 }}>
+            <FormControl fullWidth>
+              <InputLabel id="edit-adm-venda-label">Administradora</InputLabel>
+              <Select
+                labelId="edit-adm-venda-label"
+                value={administradoraIdInput}
+                label="Administradora"
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setAdministradoraIdInput(id);
+                  const adm = administradoras.find(a => a.id === id);
+                  setAdministradoraNomeInput(adm?.nome || '');
+                }}
+              >
+                <MenuItem value=""><em>Nenhuma / Não especificada</em></MenuItem>
+                {administradoras.filter(a => a.ativo || a.id === administradoraIdInput).map((a) => (
+                  <MenuItem key={a.id} value={a.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                      <AccountBalanceIcon sx={{ fontSize: 15, color: '#818cf8' }} />
+                      {a.nome}
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <TextField
+              fullWidth
+              label="PAC (Contrato)"
+              placeholder="Número do Contrato"
+              value={pac}
+              onChange={(e) => setPac(e.target.value)}
+              error={!!errors.pac}
+              helperText={errors.pac}
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth error={!!errors.tabela}>
               <InputLabel id="edit-tab-venda-label">Tabela</InputLabel>
               <Select
@@ -3610,7 +3807,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
             </FormControl>
           </Grid>
 
-          <Grid size={{ xs: 12, sm: 4 }}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth error={!!errors.qtdParcelas}>
               <InputLabel id="edit-parc-venda-label">Quantidade de Parcelas</InputLabel>
               <Select

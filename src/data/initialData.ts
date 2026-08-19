@@ -1,4 +1,13 @@
-import { type RegraMaster, type LancamentoVenda, type ProjecaoMensalType, type StatusParcela, type MesesAno, type Vendedor, type TipoTabela, LISTA_MESES } from '../types';
+import { type RegraMaster, type LancamentoVenda, type ProjecaoMensalType, type StatusParcela, type MesesAno, type Vendedor, type TipoTabela, type Administradora, LISTA_MESES } from '../types';
+
+export const INITIAL_ADMINISTRADORAS: Administradora[] = [
+  { id: 'adm_porto', nome: 'Porto Seguro', ativo: true },
+  { id: 'adm_embracon', nome: 'Embracon', ativo: true },
+  { id: 'adm_rodobens', nome: 'Rodobens', ativo: true },
+  { id: 'adm_ademicon', nome: 'Ademicon', ativo: true },
+  { id: 'adm_itau', nome: 'Itaú Consórcios', ativo: true },
+  { id: 'adm_santander', nome: 'Santander Consórcios', ativo: true },
+];
 
 export const INITIAL_VENDEDORES: Vendedor[] = [
   { id: 'vend_1', nome: 'Carlos Silva', email: 'carlos.silva@consultoria.com', ativo: true, empresaId: 'emp_vertex' },

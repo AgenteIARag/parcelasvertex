@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import type { LancamentoVenda, RegraMaster, RegraFilha, Vendedor, Usuario, Empresa } from '../types';
+import type { LancamentoVenda, RegraMaster, RegraFilha, Vendedor, Usuario, Empresa, Administradora } from '../types';
+import { INITIAL_ADMINISTRADORAS } from '../data/initialData';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://fisnjgoggqvnvkyyyrwo.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpc25qZ29nZ3F2bnZreXl5cndvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTQ0ODUsImV4cCI6MjA5OTI3MDQ4NX0.MUn5eAm0JMIaTftSjGL4kVWByZqfWhspnyIVmBhYst4';
@@ -119,6 +120,8 @@ export const obterRegrasSupabase = async (): Promise<RegraMaster[]> => {
     return {
       id: r.id,
       empresaId: r.empresa_id || local?.empresaId || undefined,
+      administradoraId: r.administradora_id || local?.administradoraId || undefined,
+      administradoraNome: r.administradora_nome || local?.administradoraNome || undefined,
       segmento: r.segmento,
       tabela: r.tabela,
       qtdParcelas: Number(r.qtd_parcelas ?? r.qtdParcelas ?? local?.qtdParcelas ?? 0),
@@ -157,6 +160,8 @@ export const salvarRegraSupabase = async (regra: RegraMaster): Promise<void> => 
     percentual_comissao: regra.percentualComissao,
   };
   if (regra.empresaId) payload.empresa_id = regra.empresaId;
+  if (regra.administradoraId) payload.administradora_id = regra.administradoraId;
+  if (regra.administradoraNome) payload.administradora_nome = regra.administradoraNome;
   if (regra.percentualAdesao != null) payload.percentual_adesao = regra.percentualAdesao;
   if (regra.percentualMensal != null) payload.percentual_mensal = regra.percentualMensal;
   if (regra.percentuaisParcelas && Array.isArray(regra.percentuaisParcelas)) {
@@ -242,6 +247,8 @@ export const obterRegrasFilhaSupabase = async (empresaFilhaId?: string): Promise
         id: r.id,
         empresaFilhaId: r.empresa_filha_id,
         regraMasterId: r.regra_master_id,
+        administradoraId: r.administradora_id || local?.administradoraId || undefined,
+        administradoraNome: r.administradora_nome || local?.administradoraNome || undefined,
         tipoTabela: (r.tipo_tabela as any) || local?.tipoTabela || 'Linear',
         percentualComissao: Number(r.percentual_comissao ?? local?.percentualComissao ?? 0),
         percentualAdesao: r.percentual_adesao != null ? Number(r.percentual_adesao) : local?.percentualAdesao,
@@ -277,6 +284,8 @@ export const salvarRegraFilhaSupabase = async (regra: RegraFilha): Promise<void>
     tipo_tabela: regra.tipoTabela || 'Linear',
     percentual_comissao: regra.percentualComissao,
   };
+  if (regra.administradoraId) payload.administradora_id = regra.administradoraId;
+  if (regra.administradoraNome) payload.administradora_nome = regra.administradoraNome;
   if (regra.percentualAdesao != null) payload.percentual_adesao = regra.percentualAdesao;
   if (regra.percentualMensal != null) payload.percentual_mensal = regra.percentualMensal;
   if (regra.percentuaisParcelas && Array.isArray(regra.percentuaisParcelas)) {
@@ -321,15 +330,21 @@ export const obterVendasSupabase = async (): Promise<LancamentoVenda[]> => {
     const pac = proj.__pac || '';
     const dataVencimentoCliente = proj.__dataVencimentoCliente || '';
     const dataAssembleia = proj.__dataAssembleia || '';
+    const administradoraId = v.administradora_id || proj.__administradoraId || undefined;
+    const administradoraNome = v.administradora_nome || proj.__administradoraNome || undefined;
 
     // Remove as propriedades especiais de metadados da projeção
     delete proj.__pac;
     delete proj.__dataVencimentoCliente;
     delete proj.__dataAssembleia;
+    delete proj.__administradoraId;
+    delete proj.__administradoraNome;
 
     return {
       id: v.id,
       cliente: v.cliente,
+      administradoraId,
+      administradoraNome,
       pac,
       vendedorId: v.vendedor_id,
       vendedorNome: v.vendedor_name || v.vendedor_nome,
@@ -366,12 +381,16 @@ export const salvarVendaSupabase = async (venda: LancamentoVenda): Promise<void>
     ...(venda.projecaoMensal || {}),
     __pac: venda.pac,
     __dataVencimentoCliente: venda.dataVencimentoCliente,
-    __dataAssembleia: venda.dataAssembleia
+    __dataAssembleia: venda.dataAssembleia,
+    __administradoraId: venda.administradoraId,
+    __administradoraNome: venda.administradoraNome
   };
 
   const payload: Record<string, unknown> = {
     id: venda.id,
     cliente: venda.cliente,
+    administradora_id: venda.administradoraId || null,
+    administradora_nome: venda.administradoraNome || null,
     vendedor_id: venda.vendedorId,
     vendedor_nome: venda.vendedorNome,
     data_venda: venda.dataVenda,
@@ -812,6 +831,127 @@ export const inicializarEmpresasPadrao = async (): Promise<Empresa[]> => {
     return await obterEmpresasSupabase();
   } catch (err) {
     console.warn('Falha ao inicializar empresas padrão no Supabase, usando locais:', err);
+    return locais;
+  }
+};
+
+// ==========================================
+// ADMINISTRADORAS DE CONSÓRCIO
+// ==========================================
+
+export const obterAdministradorasLocais = (): Administradora[] => {
+  try {
+    const saved = localStorage.getItem('apex_administradoras');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {
+    console.error('Erro ao ler apex_administradoras:', e);
+  }
+  localStorage.setItem('apex_administradoras', JSON.stringify(INITIAL_ADMINISTRADORAS));
+  return INITIAL_ADMINISTRADORAS;
+};
+
+export const salvarAdministradoraLocal = (adm: Administradora): Administradora[] => {
+  const atuais = obterAdministradorasLocais();
+  const index = atuais.findIndex(a => a.id === adm.id);
+  let novas: Administradora[];
+  if (index >= 0) {
+    novas = [...atuais];
+    novas[index] = adm;
+  } else {
+    novas = [...atuais, adm];
+  }
+  localStorage.setItem('apex_administradoras', JSON.stringify(novas));
+  return novas;
+};
+
+export const excluirAdministradoraLocal = (id: string): Administradora[] => {
+  const atuais = obterAdministradorasLocais();
+  const novas = atuais.filter(a => a.id !== id);
+  localStorage.setItem('apex_administradoras', JSON.stringify(novas));
+  return novas;
+};
+
+export const obterAdministradorasSupabase = async (): Promise<Administradora[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('administradoras')
+      .select('*')
+      .order('nome', { ascending: true });
+
+    if (error || !data) {
+      console.warn('Supabase administradoras indisponível, usando localStorage:', error?.message);
+      return obterAdministradorasLocais();
+    }
+
+    const remotas: Administradora[] = data.map((a: any) => ({
+      id: a.id,
+      nome: a.nome,
+      ativo: a.ativo !== false,
+      created_at: a.created_at
+    }));
+
+    if (remotas.length === 0) {
+      return obterAdministradorasLocais();
+    }
+
+    localStorage.setItem('apex_administradoras', JSON.stringify(remotas));
+    return remotas;
+  } catch (err) {
+    console.warn('Erro ao conectar Supabase administradoras:', err);
+    return obterAdministradorasLocais();
+  }
+};
+
+export const salvarAdministradoraSupabase = async (adm: Administradora): Promise<void> => {
+  salvarAdministradoraLocal(adm);
+  try {
+    const { error } = await supabase
+      .from('administradoras')
+      .upsert({
+        id: adm.id,
+        nome: adm.nome,
+        ativo: adm.ativo,
+      });
+
+    if (error) {
+      console.warn('Aviso ao salvar administradora no Supabase (salvo localmente):', error.message);
+    }
+  } catch (err) {
+    console.warn('Erro Supabase administradoras (salvo localmente):', err);
+  }
+};
+
+export const excluirAdministradoraSupabase = async (id: string): Promise<void> => {
+  excluirAdministradoraLocal(id);
+  try {
+    const { error } = await supabase
+      .from('administradoras')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.warn('Aviso ao excluir administradora no Supabase (removido localmente):', error.message);
+    }
+  } catch (err) {
+    console.warn('Erro Supabase excluir administradora (removido localmente):', err);
+  }
+};
+
+export const inicializarAdministradorasPadrao = async (): Promise<Administradora[]> => {
+  const locais = obterAdministradorasLocais();
+  try {
+    // Tenta inicializar as administradoras padrão no Supabase se não existirem
+    for (const adm of INITIAL_ADMINISTRADORAS) {
+      await supabase
+        .from('administradoras')
+        .upsert({ id: adm.id, nome: adm.nome, ativo: adm.ativo });
+    }
+    return await obterAdministradorasSupabase();
+  } catch (err) {
+    console.warn('Falha ao inicializar administradoras no Supabase, usando locais:', err);
     return locais;
   }
 };

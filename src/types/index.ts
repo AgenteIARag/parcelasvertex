@@ -7,11 +7,20 @@ export interface Empresa {
   empresaMaeId?: string; // Se preenchido, esta é uma empresa filha
 }
 
+export interface Administradora {
+  id: string;
+  nome: string;
+  ativo: boolean;
+  created_at?: string;
+}
+
 export type TipoTabela = 'Linear' | 'Adesão';
 
 export interface RegraMaster {
   id: string;
   empresaId?: string; // ID da empresa proprietária da regra (empresa mãe)
+  administradoraId?: string; // ID da administradora do consórcio
+  administradoraNome?: string; // Nome da administradora do consórcio
   segmento: SegmentoType;
   tabela: string;
   qtdParcelas: number;
@@ -32,6 +41,8 @@ export interface RegraFilha {
   id: string;
   empresaFilhaId: string;
   regraMasterId: string;      // Referência à regra da mãe
+  administradoraId?: string;  // ID da administradora do consórcio
+  administradoraNome?: string; // Nome da administradora do consórcio
   tipoTabela?: TipoTabela;    // 'Linear' ou 'Adesão'
   percentualComissao: number; // % da filha (deve ser ≤ % da mãe)
   percentualAdesao?: number;  // % adesão da filha
@@ -87,6 +98,8 @@ export interface Vendedor {
 export interface LancamentoVenda {
   id: string;
   cliente: string;
+  administradoraId?: string; // ID da administradora do consórcio
+  administradoraNome?: string; // Nome da administradora do consórcio
   vendedorId?: string;
   vendedorNome?: string;
   dataVenda?: string; // Data da venda (YYYY-MM-DD)
