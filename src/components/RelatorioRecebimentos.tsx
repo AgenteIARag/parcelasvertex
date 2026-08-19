@@ -49,6 +49,7 @@ import Snackbar from '@mui/material/Snackbar';
 import type { LancamentoVenda, Vendedor, RegraMaster, UserPermissions, StatusParcela } from '../types';
 import { EditarVendaDialog } from './SimuladorVendas';
 import { obterStatusEfetivo } from '../utils/formatters';
+import { salvarVendaSupabase } from '../utils/supabase';
 
 
 // ──────────────────────────────────────────────────────────
@@ -1376,7 +1377,7 @@ export const RelatorioRecebimentos = ({
     });
   };
 
-  const handleConfirmarPaga = () => {
+  const handleConfirmarPaga = async () => {
     const { item, dataPagamento } = modalPaga;
     if (!item || !dataPagamento || !onAtualizarVenda) return;
     const venda = vendas.find((v) => v.id === item.vendaId);
@@ -1395,12 +1396,19 @@ export const RelatorioRecebimentos = ({
         },
       },
     };
-    onAtualizarVenda(vendaAtualizada);
-    setModalPaga({ open: false, item: null, dataPagamento: '' });
-    setSnackbarMsg(`✅ Parcela de ${item.cliente} marcada como Paga em ${formatarData(dataPagamento)}`);
+    
+    try {
+      await salvarVendaSupabase(vendaAtualizada);
+      onAtualizarVenda(vendaAtualizada);
+      setModalPaga({ open: false, item: null, dataPagamento: '' });
+      setSnackbarMsg(`✅ Parcela de ${item.cliente} marcada como Paga em ${formatarData(dataPagamento)}`);
+    } catch (err) {
+      console.error('Erro ao salvar no Supabase:', err);
+      setSnackbarMsg(`❌ Erro ao salvar alteração. Tente novamente.`);
+    }
   };
 
-  const handleConfirmarRecebida = () => {
+  const handleConfirmarRecebida = async () => {
     const { item, dataRecebimento, numeroRelatorio, notaFiscal } = modalRecebida;
     if (!item || !dataRecebimento || !numeroRelatorio || !onAtualizarVenda) return;
     const venda = vendas.find((v) => v.id === item.vendaId);
@@ -1420,9 +1428,16 @@ export const RelatorioRecebimentos = ({
         },
       },
     };
-    onAtualizarVenda(vendaAtualizada);
-    setModalRecebida({ open: false, item: null, dataRecebimento: '', numeroRelatorio: '', notaFiscal: '' });
-    setSnackbarMsg(`💰 Recebimento da comissão de ${item.cliente} registrado com sucesso!`);
+
+    try {
+      await salvarVendaSupabase(vendaAtualizada);
+      onAtualizarVenda(vendaAtualizada);
+      setModalRecebida({ open: false, item: null, dataRecebimento: '', numeroRelatorio: '', notaFiscal: '' });
+      setSnackbarMsg(`💰 Recebimento da comissão de ${item.cliente} registrado com sucesso!`);
+    } catch (err) {
+      console.error('Erro ao salvar no Supabase:', err);
+      setSnackbarMsg(`❌ Erro ao registrar recebimento. Tente novamente.`);
+    }
   };
 
   const handleEditarVenda = (vendaId: string) => {
