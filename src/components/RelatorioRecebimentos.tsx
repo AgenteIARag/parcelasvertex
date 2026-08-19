@@ -1353,6 +1353,7 @@ export const RelatorioRecebimentos = ({
           ...celula,
           status: 'Paga',
           dataPagamentoCliente: dataPagamento,
+          dataRecebimento: dataPagamento,
         },
       },
     };
@@ -1375,7 +1376,7 @@ export const RelatorioRecebimentos = ({
         [item.mesReferencia]: {
           ...celula,
           recebida: true,
-          dataRecebimento,
+          dataRecebimentoComissao: dataRecebimento,
           numeroRelatorioRecebimento: numeroRelatorio,
           notaFiscalRecebimento: notaFiscal,
         },
@@ -1477,11 +1478,14 @@ export const RelatorioRecebimentos = ({
           parcelaIndex,
           qtdParcelas: venda.qtdParcelas,
           numeroRelatorio: venda.numeroRelatorio,
-          dataRelatorio: venda.dataRelatorio,
-          dataPagamentoCliente: celula.dataPagamentoCliente,
+          dataPagamentoCliente: statusParcela === 'Paga'
+            ? (celula.dataPagamentoCliente || celula.dataRecebimento || celula.dataVencimento)
+            : undefined,
           numeroRelatorioRecebimento: celula.numeroRelatorioRecebimento,
           notaFiscalRecebimento: celula.notaFiscalRecebimento,
-          dataRecebimentoComissao: celula.dataRecebimento,
+          dataRecebimentoComissao: celula.recebida
+            ? (celula.dataRecebimentoComissao || celula.dataRecebimento)
+            : undefined,
         });
       });
     });
