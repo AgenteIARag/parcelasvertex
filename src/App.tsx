@@ -727,46 +727,50 @@ function App() {
   };
 
   const handleAtualizarVenda = (vendaAtualizada: LancamentoVenda) => {
-    setVendas((prev) =>
-      prev.map((v) => (v.id === vendaAtualizada.id ? vendaAtualizada : v))
-    );
-    salvarVendaSupabase(vendaAtualizada).catch((err) => console.error('Erro Supabase Vendas (Edição):', err));
-
-    // Atualizar vendas espelho vinculadas (sincronizar dados do contrato, mantendo modalidade e % diferencial)
-    setVendas(prev => prev.map(v => {
-      if (v.vendaOrigemId !== vendaAtualizada.id || !v.isVendaEspelho) return v;
+    setVendas((prev) => {
+      // 1. Atualiza a venda principal
+      let nextVendas = prev.map((v) => (v.id === vendaAtualizada.id ? vendaAtualizada : v));
       
-      const projecaoEspelho = { ...vendaAtualizada.projecaoMensal };
-      const { totalVendas: tvEsp, totalComissoes: tcEsp, projecaoAtualizada: projEsp } =
-        calcularTotaisLinha(
-          projecaoEspelho,
-          v.percentualComissao,
-          vendaAtualizada.qtdParcelas,
-          v.tipoTabela || 'Linear',
-          v.percentualAdesao,
-          v.percentualMensal,
-          v.percentuaisParcelas
-        );
+      // 2. Atualiza as vendas espelho
+      nextVendas = nextVendas.map((v) => {
+        if (v.vendaOrigemId !== vendaAtualizada.id || !v.isVendaEspelho) return v;
+        
+        const projecaoEspelho = { ...vendaAtualizada.projecaoMensal };
+        const { totalVendas: tvEsp, totalComissoes: tcEsp, projecaoAtualizada: projEsp } =
+          calcularTotaisLinha(
+            projecaoEspelho,
+            v.percentualComissao,
+            vendaAtualizada.qtdParcelas,
+            v.tipoTabela || 'Linear',
+            v.percentualAdesao,
+            v.percentualMensal,
+            v.percentuaisParcelas
+          );
 
-      const espelhoAtualizado: LancamentoVenda = {
-        ...v,
-        cliente: vendaAtualizada.cliente,
-        pac: vendaAtualizada.pac,
-        segmento: vendaAtualizada.segmento,
-        tabela: vendaAtualizada.tabela,
-        qtdParcelas: vendaAtualizada.qtdParcelas,
-        tipoTabela: v.tipoTabela || 'Linear',
-        valorVenda: vendaAtualizada.valorVenda,
-        valorParcela: vendaAtualizada.valorParcela,
-        dataVenda: vendaAtualizada.dataVenda,
-        statusCliente: vendaAtualizada.statusCliente,
-        projecaoMensal: projEsp,
-        totalVendas: tvEsp,
-        totalComissoes: tcEsp,
-      };
-      salvarVendaSupabase(espelhoAtualizado).catch(err => console.error('Erro ao atualizar espelho:', err));
-      return espelhoAtualizado;
-    }));
+        const espelhoAtualizado: LancamentoVenda = {
+          ...v,
+          cliente: vendaAtualizada.cliente,
+          pac: vendaAtualizada.pac,
+          segmento: vendaAtualizada.segmento,
+          tabela: vendaAtualizada.tabela,
+          qtdParcelas: vendaAtualizada.qtdParcelas,
+          tipoTabela: v.tipoTabela || 'Linear',
+          valorVenda: vendaAtualizada.valorVenda,
+          valorParcela: vendaAtualizada.valorParcela,
+          dataVenda: vendaAtualizada.dataVenda,
+          statusCliente: vendaAtualizada.statusCliente,
+          projecaoMensal: projEsp,
+          totalVendas: tvEsp,
+          totalComissoes: tcEsp,
+        };
+        salvarVendaSupabase(espelhoAtualizado).catch(err => console.error('Erro ao atualizar espelho:', err));
+        return espelhoAtualizado;
+      });
+      
+      return nextVendas;
+    });
+
+    salvarVendaSupabase(vendaAtualizada).catch((err) => console.error('Erro Supabase Vendas (Edição):', err));
   };
 
   const handleExcluirVenda = (vendaId: string) => {
