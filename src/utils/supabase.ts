@@ -419,6 +419,27 @@ export const salvarVendaSupabase = async (venda: LancamentoVenda): Promise<void>
   const { error } = await supabase.from('vendas').upsert(payload);
 
   if (error) {
+    // 42703: Undefined Column
+    if (error.code === '42703') {
+      console.warn('Alguma coluna nova não existe no Supabase. Fazendo fallback removendo colunas recentes...', error.message);
+      
+      const safePayload = { ...payload };
+      delete safePayload.percentual_adesao;
+      delete safePayload.percentual_mensal;
+      delete safePayload.percentuais_parcelas;
+      delete safePayload.tipo_tabela;
+      delete safePayload.venda_origem_id;
+      delete safePayload.is_venda_espelho;
+      delete safePayload.empresa_filha_origem_id;
+
+      const { error: fallbackError } = await supabase.from('vendas').upsert(safePayload);
+      if (fallbackError) {
+        console.error('Erro mesmo no fallback de salvar venda:', fallbackError);
+        throw fallbackError;
+      }
+      return;
+    }
+    
     console.error('Erro ao salvar venda no Supabase:', error);
     throw error;
   }
