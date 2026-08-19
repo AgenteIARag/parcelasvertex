@@ -8,9 +8,9 @@ import AutorenewIcon from '@mui/icons-material/Autorenew';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import type { LancamentoVenda } from '../types';
-import { formatarMoeda, formatarData } from '../utils/formatters';
+import { formatarMoeda, formatarData, obterStatusEfetivo } from '../utils/formatters';
 
 interface KPISectionProps {
   vendas: LancamentoVenda[];
@@ -36,7 +36,10 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
   let qtdNovasVendas = 0;
   let comissaoRecorrencia = 0;
   let qtdRecorrencia = 0;
-  let qtdAReceber = 0;
+  let comissaoAReceberPagas = 0;
+  let qtdAReceberPagas = 0;
+  let comissaoVencidas = 0;
+  let qtdVencidas = 0;
   const clientesAtivosSet = new Set<string>();
   const clientesCanceladosSet = new Set<string>();
   let valorTotalCancelado = 0;
@@ -68,7 +71,10 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
       if (mes >= mesInicioChave && mes <= mesFimChave) {
         const celula = v.projecaoMensal[mes];
         if (celula) {
-          if (celula.status !== 'Cancelada' && celula.valorVenda > 0) {
+          const statusEfetivo = obterStatusEfetivo(celula.status, celula.dataVencimento || `${mes}-15`);
+          const isRecebida = celula.recebida || (celula.status as string) === 'Recebida';
+
+          if (statusEfetivo !== 'Cancelada' && celula.valorVenda > 0) {
             const comissao = celula.comissaoGerada || 0;
             receitaTotalComissoes += comissao;
             clientesAtivosSet.add(v.cliente);
@@ -83,13 +89,19 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
               qtdRecorrencia += 1;
             }
 
-            if (celula.recebida || (celula.status as string) === 'Recebida') {
+            if (isRecebida) {
               comissoesRecebidasNoPeriodo += comissao;
               qtdRecebidas += 1;
-            } else {
-              qtdAReceber += 1;
+            } else if (statusEfetivo === 'Paga') {
+              // A Receber: Considera apenas parcelas PAGAS pelo cliente aguardando repasse
+              comissaoAReceberPagas += comissao;
+              qtdAReceberPagas += 1;
+            } else if (statusEfetivo === 'Vencida') {
+              // Parcelas Vencidas
+              comissaoVencidas += comissao;
+              qtdVencidas += 1;
             }
-          } else if (celula.status === 'Cancelada') {
+          } else if (statusEfetivo === 'Cancelada') {
             clientesCanceladosSet.add(v.cliente);
             valorTotalCancelado += celula.valorParcela || v.valorParcela || 0;
             qtdCancelados += 1;
@@ -100,7 +112,6 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
   });
 
   const totalClientesAtivos = clientesAtivosSet.size;
-  const comissaoPendente = Math.max(0, receitaTotalComissoes - comissoesRecebidasNoPeriodo);
 
   const kpis = [
     {
@@ -125,31 +136,31 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
       icon: <CheckCircleIcon sx={{ fontSize: 20 }} />,
       color: '#10b981',
       gradient: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
-      description: `${qtdRecebidas} parcela(s) recebida(s) no período`
+      description: `${qtdRecebidas} parcela(s) liquidada(s) no período`
     },
     {
-      title: 'A Receber (Pendente)',
-      value: formatarMoeda(comissaoPendente),
+      title: 'A Receber (Pagas)',
+      value: formatarMoeda(comissaoAReceberPagas),
       icon: <HourglassEmptyIcon sx={{ fontSize: 20 }} />,
       color: '#f97316',
       gradient: 'linear-gradient(135deg, #ea580c 0%, #f97316 100%)',
-      description: `${qtdAReceber} parcela(s) pendente(s) de liquidação`
+      description: `${qtdAReceberPagas} parcela(s) pagas aguardando repasse`
+    },
+    {
+      title: 'Parcelas Vencidas',
+      value: formatarMoeda(comissaoVencidas),
+      icon: <WarningAmberIcon sx={{ fontSize: 20 }} />,
+      color: '#f43f5e',
+      gradient: 'linear-gradient(135deg, #e11d48 0%, #f43f5e 100%)',
+      description: `${qtdVencidas} parcela(s) vencida(s) no período`
     },
     {
       title: 'Cancelados do Mês',
       value: `${qtdCancelados} (${formatarMoeda(valorTotalCancelado)})`,
       icon: <CancelIcon sx={{ fontSize: 20 }} />,
-      color: '#ef4444',
-      gradient: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+      color: '#dc2626',
+      gradient: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)',
       description: 'Contratos ou parcelas canceladas no período'
-    },
-    {
-      title: 'Receita Total Comissões',
-      value: formatarMoeda(receitaTotalComissoes),
-      icon: <AccountBalanceWalletIcon sx={{ fontSize: 20 }} />,
-      color: '#10b981',
-      gradient: 'linear-gradient(135deg, #047857 0%, #10b981 100%)',
-      description: 'Total de novas vendas + recorrência ativa'
     },
     {
       title: 'Volume Geral de Vendas',
