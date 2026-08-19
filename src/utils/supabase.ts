@@ -491,9 +491,22 @@ export const obterUsuariosSupabase = async (): Promise<Usuario[]> => {
     }));
 
     const mapa = new Map<string, Usuario>();
-    remotos.forEach(u => mapa.set(u.email, u));
+    remotos.forEach(u => mapa.set(u.email.toLowerCase(), u));
+    
+    // Mescla usuários locais e sincroniza para o Supabase caso faltem lá
     locais.forEach(u => {
-      if (!mapa.has(u.email)) mapa.set(u.email, u);
+      const emailLower = u.email.toLowerCase();
+      if (!mapa.has(emailLower)) {
+        mapa.set(emailLower, u);
+        // Sincroniza usuário local pendente para o Supabase
+        salvarUsuarioSupabase(u).catch(() => {});
+      } else {
+        // Se no Supabase a senha estiver vazia ou faltar empresaId, preserva do local
+        const remoto = mapa.get(emailLower)!;
+        if (!remoto.senha && u.senha) remoto.senha = u.senha;
+        if (!remoto.empresaId && u.empresaId) remoto.empresaId = u.empresaId;
+        if (!remoto.vendedorId && u.vendedorId) remoto.vendedorId = u.vendedorId;
+      }
     });
 
     const listaFinal = Array.from(mapa.values());
@@ -507,22 +520,36 @@ export const obterUsuariosSupabase = async (): Promise<Usuario[]> => {
 
 export const salvarUsuarioSupabase = async (usuario: Usuario): Promise<void> => {
   salvarUsuarioLocal(usuario);
+
+  const payload: Record<string, unknown> = {
+    id: usuario.id,
+    nome: usuario.nome,
+    email: usuario.email.trim().toLowerCase(),
+    senha: usuario.senha,
+    role: usuario.role,
+    permissoes: usuario.permissoes,
+  };
+  if (usuario.empresaId) payload.empresa_id = usuario.empresaId;
+  if (usuario.vendedorId) payload.vendedor_id = usuario.vendedorId;
+
   try {
     const { error } = await supabase
       .from('usuarios')
-      .upsert({
-        id: usuario.id,
-        nome: usuario.nome,
-        email: usuario.email,
-        senha: usuario.senha,
-        role: usuario.role,
-        permissoes: usuario.permissoes,
-        empresa_id: usuario.empresaId || null,
-        vendedor_id: usuario.vendedorId || null
-      });
+      .upsert(payload);
 
     if (error) {
-      console.warn('Aviso ao salvar usuário no Supabase (salvo localmente):', error.message);
+      console.warn('Tentando salvar usuário com campos básicos por incompatibilidade de schema:', error.message);
+      // Fallback sem empresa_id / vendedor_id
+      await supabase
+        .from('usuarios')
+        .upsert({
+          id: usuario.id,
+          nome: usuario.nome,
+          email: usuario.email.trim().toLowerCase(),
+          senha: usuario.senha,
+          role: usuario.role,
+          permissoes: usuario.permissoes,
+        });
     }
   } catch (err) {
     console.warn('Erro Supabase salvar usuário (salvo localmente):', err);
