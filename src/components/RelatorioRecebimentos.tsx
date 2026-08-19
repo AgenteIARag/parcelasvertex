@@ -1457,7 +1457,6 @@ export const RelatorioRecebimentos = ({
 
       Object.entries(venda.projecaoMensal).forEach(([mesChave, celula]) => {
         if (!celula || !celula.valorVenda || celula.valorVenda <= 0) return;
-        if (mesChave < mesInicioChave || mesChave > mesFimChave) return;
 
         const statusParcela = obterStatusEfetivo(celula.status, celula.dataVencimento || `${mesChave}-15`);
         const situacaoRecebimento: 'A receber' | 'Recebida' = celula.recebida ? 'Recebida' : 'A receber';
