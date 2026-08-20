@@ -717,17 +717,17 @@ const SubGrupoData = ({
                   
                   const baseRowBg = bgCard && bgCard !== 'transparent' ? bgCard : (isDark ? '#111827' : '#ffffff');
                   
-                  // Cores opacas sólidas para as sticky columns (aumentando a intensidade para ficar bem visível)
+                  // Cores opacas sólidas para as sticky columns e para todas as células da linha
                   const rowBg = isLaranja 
-                    ? (isDark ? '#472A20' : '#FCE1CB') 
+                    ? (isDark ? '#563020' : '#FCE1CB') 
                     : isAmarelo 
-                      ? (isDark ? '#423C1F' : '#FDF1C2') 
+                      ? (isDark ? '#4D4519' : '#FDF1C2') 
                       : baseRowBg;
 
                   const rowHoverBg = isLaranja 
-                    ? (isDark ? '#5C3629' : '#FBD1AE') 
+                    ? (isDark ? '#6B3C28' : '#FBD1AE') 
                     : isAmarelo 
-                      ? (isDark ? '#544D28' : '#FCEB9C') 
+                      ? (isDark ? '#61561E' : '#FCEB9C') 
                       : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)');
 
                   return (
@@ -735,10 +735,15 @@ const SubGrupoData = ({
                       key={item.id}
                       hover
                       sx={{
-                        bgcolor: rowBg,
+                        bgcolor: `${rowBg} !important`,
+                        '& > td': { 
+                          bgcolor: `${rowBg} !important`, 
+                          borderBottom: isLastOfGroup ? undefined : 'none' 
+                        },
                         '&:last-child td': { border: 0 },
                         '&:hover': {
                           bgcolor: `${rowHoverBg} !important`,
+                          '& > td': { bgcolor: `${rowHoverBg} !important` }
                         },
                         ...(isFirstOfGroup && idx > 0 ? {
                           '& td': { borderTop: `2px solid ${isDark ? '#1f2937' : '#e5e7eb'} !important` },
