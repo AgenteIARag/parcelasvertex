@@ -45,6 +45,7 @@ import FlashOnIcon from '@mui/icons-material/FlashOn';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import ReceiptIcon from '@mui/icons-material/Receipt';
+import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 import Snackbar from '@mui/material/Snackbar';
 import type { LancamentoVenda, Vendedor, RegraMaster, UserPermissions, StatusParcela } from '../types';
 import { EditarVendaDialog } from './SimuladorVendas';
@@ -925,7 +926,7 @@ const SubGrupoData = ({
                       <TableCell sx={{ py: 0.8, textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.3 }}>
                           {/* Botão: Registrar Pagamento do Cliente (→ Paga) */}
-                          {item.statusParcela !== 'Paga' && item.statusParcela !== 'Cancelada' && (
+                          {item.statusParcela !== 'Paga' && item.statusParcela !== 'Cancelada' && !item.isEspelho && (
                             <Tooltip title={`Registrar pagamento do cliente`}>
                               <IconButton
                                 size="small"
@@ -940,8 +941,24 @@ const SubGrupoData = ({
                               </IconButton>
                             </Tooltip>
                           )}
+                          {/* Desfazer Pagamento (Master) */}
+                          {item.statusParcela === 'Paga' && !item.isEspelho && isMaster && (
+                            <Tooltip title="Desfazer pagamento">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDesfazerPaga(item)}
+                                sx={{
+                                  p: 0.4,
+                                  color: '#f43f5e',
+                                  '&:hover': { bgcolor: 'rgba(244,63,94,0.12)' }
+                                }}
+                              >
+                                <RemoveCircleOutlineIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
                           {/* Indicador visual quando já está Paga mas não Recebida */}
-                          {item.statusParcela === 'Paga' && item.situacaoRecebimento !== 'Recebida' && (
+                          {item.statusParcela === 'Paga' && item.situacaoRecebimento !== 'Recebida' && !item.isEspelho && (
                             <Tooltip title={`Registrar recebimento da comissão`}>
                               <IconButton
                                 size="small"
@@ -965,6 +982,22 @@ const SubGrupoData = ({
                               }}>
                                 <CheckCircleIcon sx={{ fontSize: 14 }} />
                               </Box>
+                            </Tooltip>
+                          )}
+                          {/* Desfazer Recebimento (Master) */}
+                          {item.situacaoRecebimento === 'Recebida' && !item.isEspelho && isMaster && (
+                            <Tooltip title="Desfazer recebimento">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDesfazerRecebida(item)}
+                                sx={{
+                                  p: 0.4,
+                                  color: '#f43f5e',
+                                  '&:hover': { bgcolor: 'rgba(244,63,94,0.12)' }
+                                }}
+                              >
+                                <RemoveCircleOutlineIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
                             </Tooltip>
                           )}
                           {/* Botão Editar Venda */}
@@ -1346,6 +1379,7 @@ interface RelatorioRecebimentosProps {
   ciclos: Record<string, [number, number]>;
   onAtualizarVenda?: (venda: LancamentoVenda) => void;
   permissoes?: UserPermissions;
+  isMaster?: boolean;
 }
 
 export const RelatorioRecebimentos = ({
@@ -1357,6 +1391,7 @@ export const RelatorioRecebimentos = ({
   ciclos,
   onAtualizarVenda,
   permissoes,
+  isMaster,
 }: RelatorioRecebimentosProps) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -1460,6 +1495,70 @@ export const RelatorioRecebimentos = ({
       setSnackbarMsg(`💰 Recebimento da comissão de ${item.cliente} registrado com sucesso!`);
     } catch (err: any) {
       console.error('Erro ao salvar no Supabase:', err);
+      const msg = err?.message || err?.details || JSON.stringify(err);
+      setSnackbarMsg(`❌ Erro no banco: ${msg.substring(0, 100)}`);
+    }
+  };
+
+  const handleDesfazerPaga = async (item: ParcelaLinha) => {
+    if (!window.confirm(`Deseja desfazer o pagamento da parcela ${item.parcelaIndex}/${item.qtdParcelas} de ${item.cliente}?`)) return;
+    if (!onAtualizarVenda) return;
+    const venda = vendas.find((v) => v.id === item.vendaId);
+    if (!venda) return;
+    const celula = venda.projecaoMensal[item.mesReferencia];
+    if (!celula) return;
+
+    const novaCelula = { ...celula, status: 'A vencer' as StatusParcela };
+    delete novaCelula.dataPagamentoCliente;
+    delete novaCelula.dataRecebimento; // Volta a usar default
+
+    const vendaAtualizada: LancamentoVenda = {
+      ...venda,
+      projecaoMensal: {
+        ...venda.projecaoMensal,
+        [item.mesReferencia]: novaCelula,
+      },
+    };
+
+    try {
+      await salvarVendaSupabase(vendaAtualizada);
+      onAtualizarVenda(vendaAtualizada);
+      setSnackbarMsg(`✅ Pagamento desfeito para ${item.cliente}`);
+    } catch (err: any) {
+      console.error('Erro ao desfazer pagamento no Supabase:', err);
+      const msg = err?.message || err?.details || JSON.stringify(err);
+      setSnackbarMsg(`❌ Erro no banco: ${msg.substring(0, 100)}`);
+    }
+  };
+
+  const handleDesfazerRecebida = async (item: ParcelaLinha) => {
+    if (!window.confirm(`Deseja desfazer o recebimento da comissão da parcela ${item.parcelaIndex}/${item.qtdParcelas} de ${item.cliente}?`)) return;
+    if (!onAtualizarVenda) return;
+    const venda = vendas.find((v) => v.id === item.vendaId);
+    if (!venda) return;
+    const celula = venda.projecaoMensal[item.mesReferencia];
+    if (!celula) return;
+
+    const novaCelula = { ...celula };
+    delete novaCelula.recebida;
+    delete novaCelula.dataRecebimentoComissao;
+    delete novaCelula.numeroRelatorioRecebimento;
+    delete novaCelula.notaFiscalRecebimento;
+
+    const vendaAtualizada: LancamentoVenda = {
+      ...venda,
+      projecaoMensal: {
+        ...venda.projecaoMensal,
+        [item.mesReferencia]: novaCelula,
+      },
+    };
+
+    try {
+      await salvarVendaSupabase(vendaAtualizada);
+      onAtualizarVenda(vendaAtualizada);
+      setSnackbarMsg(`✅ Recebimento desfeito para ${item.cliente}`);
+    } catch (err: any) {
+      console.error('Erro ao desfazer recebimento no Supabase:', err);
       const msg = err?.message || err?.details || JSON.stringify(err);
       setSnackbarMsg(`❌ Erro no banco: ${msg.substring(0, 100)}`);
     }

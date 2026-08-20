@@ -1531,6 +1531,7 @@ function App() {
                 ciclos={ciclos}
                 onAtualizarVenda={handleAtualizarVenda}
                 permissoes={usuarioLogado?.permissoes}
+                isMaster={isSuperMaster || usuarioLogado?.role === 'master'}
               />
             )}
 
