@@ -821,11 +821,11 @@ const SubGrupoData = ({
                       }}>
                         {item.dataVenda ? formatarData(item.dataVenda) : '—'}
                       </TableCell>
-                      <TableCell sx={{ py: 0.8, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                      <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                         {formatarData(item.dataVencimento)}
                       </TableCell>
                       {/* Dt. Pagamento pelo Cliente */}
-                      <TableCell sx={{ py: 0.8, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
+                      <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
                         {item.dataPagamentoCliente ? (
                           <Box sx={{
                             display: 'inline-flex', alignItems: 'center', gap: 0.4,
@@ -839,26 +839,26 @@ const SubGrupoData = ({
                           <Typography sx={{ color: 'text.disabled', fontSize: '0.72rem' }}>—</Typography>
                         )}
                       </TableCell>
-                      <TableCell sx={{ py: 0.8, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
+                      <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
                         {item.numeroRelatorio ? (
                           <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, px: 0.8, py: 0.2, borderRadius: 1, bgcolor: 'rgba(99,102,241,0.1)', color: '#6366f1', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.7rem' }}>
                             {item.numeroRelatorio}
                           </Box>
                         ) : '—'}
                       </TableCell>
-                      <TableCell sx={{ py: 0.8, fontSize: '0.72rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                      <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.72rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
                         {item.dataRelatorio ? formatarData(item.dataRelatorio) : '—'}
                       </TableCell>
-                      <TableCell sx={{ py: 0.8, fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap', color: 'text.primary' }}>
+                      <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap', color: 'text.primary' }}>
                         {formatarMoeda(item.valorVenda)}
                       </TableCell>
-                      <TableCell sx={{ py: 0.8, fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                      <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
                         {formatarMoeda(item.valorParcela)}
                       </TableCell>
-                      <TableCell sx={{ py: 0.8, fontSize: '0.68rem', color: 'text.secondary' }}>
+                      <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.68rem', color: 'text.secondary' }}>
                         {item.tabela}
                       </TableCell>
-                      <TableCell sx={{ py: 0.8 }}>
+                      <TableCell sx={{ bgcolor: rowBg, py: 0.8 }}>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
                           <StatusParcelaBadge status={item.statusParcela} />
                           {!item.isEspelho && item.pagaForaCompetencia && item.statusParcela === 'Paga' && (
@@ -866,11 +866,11 @@ const SubGrupoData = ({
                           )}
                         </Box>
                       </TableCell>
-                      <TableCell sx={{ py: 0.8 }}>
+                      <TableCell sx={{ bgcolor: rowBg, py: 0.8 }}>
                         <SituacaoRecebimentoBadge situacao={item.situacaoRecebimento} />
                       </TableCell>
                       {/* Dt. Recebimento da Comissão */}
-                      <TableCell sx={{ py: 0.8, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
+                      <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
                         {item.dataRecebimentoComissao ? (
                           <Box sx={{
                             display: 'inline-flex', alignItems: 'center', gap: 0.4,
@@ -884,7 +884,7 @@ const SubGrupoData = ({
                           <Typography sx={{ color: 'text.disabled', fontSize: '0.72rem' }}>—</Typography>
                         )}
                       </TableCell>
-                      <TableCell sx={{ py: 0.8, fontSize: '0.75rem', textAlign: 'center', color: 'text.secondary' }}>
+                      <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.75rem', textAlign: 'center', color: 'text.secondary' }}>
                         <Box sx={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 0.3 }}>
                           <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.75rem', color: 'text.primary' }}>
                             {item.parcelaIndex}/{item.qtdParcelas}
