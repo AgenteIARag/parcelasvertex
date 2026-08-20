@@ -464,7 +464,10 @@ const SubGrupoData = ({
   onEditarVenda,
   onMarcarPaga,
   onMarcarRecebida,
+  onDesfazerPaga,
+  onDesfazerRecebida,
   permissoes,
+  isMaster,
 }: {
   dataRecebimento: string;
   itens: ParcelaLinha[];
@@ -477,7 +480,10 @@ const SubGrupoData = ({
   onEditarVenda?: (vendaId: string) => void;
   onMarcarPaga?: (item: ParcelaLinha) => void;
   onMarcarRecebida?: (item: ParcelaLinha) => void;
+  onDesfazerPaga?: (item: ParcelaLinha) => void;
+  onDesfazerRecebida?: (item: ParcelaLinha) => void;
   permissoes?: UserPermissions;
+  isMaster?: boolean;
 }) => {
   const totaisStatus = calcularTotaisStatus(itens);
   const theme = useTheme();
@@ -946,7 +952,7 @@ const SubGrupoData = ({
                             <Tooltip title="Desfazer pagamento">
                               <IconButton
                                 size="small"
-                                onClick={() => handleDesfazerPaga(item)}
+                                onClick={() => onDesfazerPaga?.(item)}
                                 sx={{
                                   p: 0.4,
                                   color: '#f43f5e',
@@ -989,7 +995,7 @@ const SubGrupoData = ({
                             <Tooltip title="Desfazer recebimento">
                               <IconButton
                                 size="small"
-                                onClick={() => handleDesfazerRecebida(item)}
+                                onClick={() => onDesfazerRecebida?.(item)}
                                 sx={{
                                   p: 0.4,
                                   color: '#f43f5e',
@@ -1045,7 +1051,10 @@ const GrupoRecebimento = ({
   onEditarVenda,
   onMarcarPaga,
   onMarcarRecebida,
+  onDesfazerPaga,
+  onDesfazerRecebida,
   permissoes,
+  isMaster,
 }: {
   grupo: GrupoPeriodo;
   isAtual: boolean;
@@ -1053,7 +1062,10 @@ const GrupoRecebimento = ({
   onEditarVenda?: (vendaId: string) => void;
   onMarcarPaga?: (item: ParcelaLinha) => void;
   onMarcarRecebida?: (item: ParcelaLinha) => void;
+  onDesfazerPaga?: (item: ParcelaLinha) => void;
+  onDesfazerRecebida?: (item: ParcelaLinha) => void;
   permissoes?: UserPermissions;
+  isMaster?: boolean;
 }) => {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
@@ -1356,7 +1368,10 @@ const GrupoRecebimento = ({
                 onEditarVenda={onEditarVenda}
                 onMarcarPaga={onMarcarPaga}
                 onMarcarRecebida={onMarcarRecebida}
+                onDesfazerPaga={onDesfazerPaga}
+                onDesfazerRecebida={onDesfazerRecebida}
                 permissoes={permissoes}
+                isMaster={isMaster}
               />
             );
           })}
@@ -2020,7 +2035,10 @@ export const RelatorioRecebimentos = ({
               onEditarVenda={handleEditarVenda}
               onMarcarPaga={handleAbrirModalPaga}
               onMarcarRecebida={handleAbrirModalRecebida}
+              onDesfazerPaga={handleDesfazerPaga}
+              onDesfazerRecebida={handleDesfazerRecebida}
               permissoes={permissoes}
+              isMaster={isMaster}
             />
           ))}
         </Box>
