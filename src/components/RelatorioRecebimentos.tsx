@@ -717,17 +717,17 @@ const SubGrupoData = ({
                   
                   const baseRowBg = bgCard && bgCard !== 'transparent' ? bgCard : (isDark ? '#111827' : '#ffffff');
                   
-                  // Cores opacas sólidas para as sticky columns
+                  // Cores opacas sólidas para as sticky columns (aumentando a intensidade para ficar bem visível)
                   const rowBg = isLaranja 
-                    ? (isDark ? '#2a1a12' : '#fff3eb') 
+                    ? (isDark ? '#472A20' : '#FCE1CB') 
                     : isAmarelo 
-                      ? (isDark ? '#242211' : '#fdf8eb') 
+                      ? (isDark ? '#423C1F' : '#FDF1C2') 
                       : baseRowBg;
 
                   const rowHoverBg = isLaranja 
-                    ? (isDark ? '#362117' : '#fee0cd') 
+                    ? (isDark ? '#5C3629' : '#FBD1AE') 
                     : isAmarelo 
-                      ? (isDark ? '#302d17' : '#fcf0cd') 
+                      ? (isDark ? '#544D28' : '#FCEB9C') 
                       : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)');
 
                   return (
