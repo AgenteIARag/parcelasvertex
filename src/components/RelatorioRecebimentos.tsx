@@ -521,7 +521,6 @@ const SubGrupoData = ({
 
   // Cores de fundo sólidas e 100% opacas para colunas congeladas
   const stickyBgHeader = isDark ? '#0f172a' : '#f8fafc';
-  const stickyBgRow = isDark ? '#111827' : '#ffffff';
 
   return (
     <Box sx={{ borderBottom: `1px solid ${isDark ? '#1f2937' : '#f1f5f9'}`, '&:last-child': { borderBottom: 0 } }}>
