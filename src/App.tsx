@@ -1513,6 +1513,7 @@ function App() {
                   dataFim={dataFim}
                   ciclos={ciclos}
                   administradoras={administradoras}
+                  isMaster={isSuperMaster || usuarioLogado?.role === 'master'}
                 />
               </Box>
             )}

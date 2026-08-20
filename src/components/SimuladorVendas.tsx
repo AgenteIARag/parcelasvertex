@@ -138,6 +138,7 @@ interface SimuladorVendasProps {
   dataFim: string;
   ciclos: Record<string, [number, number]>;
   administradoras?: Administradora[];
+  isMaster?: boolean;
 }
 
 export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
@@ -151,7 +152,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   dataInicio,
   dataFim,
   ciclos,
-  administradoras = []
+  administradoras = [],
+  isMaster,
 }) => {
   const theme = useTheme();
 
@@ -1104,20 +1106,22 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                               </svg>
                             </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => setVendaParaExcluir(venda.id)}
-                              sx={{
-                                p: 0.4,
-                                color: '#ef4444',
-                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.07)',
-                                borderRadius: 1.5,
-                                '&:hover': { bgcolor: 'rgba(239,68,68,0.22)' }
-                              }}
-                              title="Excluir venda"
-                            >
-                              <DeleteIcon sx={{ fontSize: '0.9rem' }} />
-                            </IconButton>
+                            {isMaster && (
+                              <IconButton
+                                size="small"
+                                onClick={() => setVendaParaExcluir(venda.id)}
+                                sx={{
+                                  p: 0.4,
+                                  color: '#ef4444',
+                                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.07)',
+                                  borderRadius: 1.5,
+                                  '&:hover': { bgcolor: 'rgba(239,68,68,0.22)' }
+                                }}
+                                title="Excluir venda"
+                              >
+                                <DeleteIcon sx={{ fontSize: '0.9rem' }} />
+                              </IconButton>
+                            )}
                           </Box>
                         )}
                       </Box>
@@ -2138,20 +2142,22 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                               </svg>
                             </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => setVendaParaExcluir(venda.id)}
-                              sx={{
-                                p: 0.5,
-                                color: '#ef4444',
-                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.07)',
-                                borderRadius: 1.5,
-                                '&:hover': { bgcolor: 'rgba(239,68,68,0.22)' }
-                              }}
-                              title="Excluir venda"
-                            >
-                              <DeleteIcon sx={{ fontSize: '0.85rem' }} />
-                            </IconButton>
+                            {isMaster && (
+                              <IconButton
+                                size="small"
+                                onClick={() => setVendaParaExcluir(venda.id)}
+                                sx={{
+                                  p: 0.5,
+                                  color: '#ef4444',
+                                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.07)',
+                                  borderRadius: 1.5,
+                                  '&:hover': { bgcolor: 'rgba(239,68,68,0.22)' }
+                                }}
+                                title="Excluir venda"
+                              >
+                                <DeleteIcon sx={{ fontSize: '0.85rem' }} />
+                              </IconButton>
+                            )}
                           </Box>
                         </TableCell>
                       )}
