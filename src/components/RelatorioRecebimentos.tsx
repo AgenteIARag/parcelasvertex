@@ -711,15 +711,34 @@ const SubGrupoData = ({
                 .map((item, idx, arr) => {
                   const isFirstOfGroup = idx === 0 || item.cliente !== arr[idx - 1].cliente;
                   const isLastOfGroup  = idx === arr.length - 1 || item.cliente !== arr[idx + 1].cliente;
+                  
+                  const isLaranja = item.isEspelho;
+                  const isAmarelo = !item.isEspelho && item.pagaForaCompetencia && item.statusParcela === 'Paga';
+                  
+                  const baseRowBg = bgCard && bgCard !== 'transparent' ? bgCard : (isDark ? '#111827' : '#ffffff');
+                  
+                  // Cores opacas sólidas para as sticky columns
+                  const rowBg = isLaranja 
+                    ? (isDark ? '#2a1a12' : '#fff3eb') 
+                    : isAmarelo 
+                      ? (isDark ? '#242211' : '#fdf8eb') 
+                      : baseRowBg;
+
+                  const rowHoverBg = isLaranja 
+                    ? (isDark ? '#362117' : '#fee0cd') 
+                    : isAmarelo 
+                      ? (isDark ? '#302d17' : '#fcf0cd') 
+                      : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)');
+
                   return (
                     <TableRow
                       key={item.id}
                       hover
                       sx={{
-                        bgcolor: bgCard && bgCard !== 'transparent' ? bgCard : (isDark ? '#111827' : '#ffffff'),
+                        bgcolor: rowBg,
                         '&:last-child td': { border: 0 },
                         '&:hover': {
-                          bgcolor: isDark ? 'rgba(255, 255, 255, 0.08) !important' : 'rgba(0, 0, 0, 0.04) !important',
+                          bgcolor: `${rowHoverBg} !important`,
                         },
                         ...(isFirstOfGroup && idx > 0 ? {
                           '& td': { borderTop: `2px solid ${isDark ? '#1f2937' : '#e5e7eb'} !important` },
@@ -731,7 +750,7 @@ const SubGrupoData = ({
                         position: 'sticky',
                         left: 0,
                         zIndex: 3,
-                        bgcolor: stickyBgRow,
+                        bgcolor: rowBg,
                         width: 36,
                         minWidth: 36,
                         maxWidth: 36,
@@ -755,7 +774,7 @@ const SubGrupoData = ({
                           position: 'sticky',
                           left: 36,
                           zIndex: 3,
-                          bgcolor: stickyBgRow,
+                          bgcolor: rowBg,
                           width: 210,
                           minWidth: 210,
                         }}
@@ -778,7 +797,7 @@ const SubGrupoData = ({
                         position: 'sticky',
                         left: 246,
                         zIndex: 3,
-                        bgcolor: stickyBgRow,
+                        bgcolor: rowBg,
                         width: 120,
                         minWidth: 120,
                       }}>
@@ -790,7 +809,7 @@ const SubGrupoData = ({
                         position: 'sticky',
                         left: 366,
                         zIndex: 3,
-                        bgcolor: stickyBgRow,
+                        bgcolor: rowBg,
                         width: 95,
                         minWidth: 95,
                         borderRight: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
