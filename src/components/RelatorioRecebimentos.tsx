@@ -45,7 +45,7 @@ import FlashOnIcon from '@mui/icons-material/FlashOn';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import ReceiptIcon from '@mui/icons-material/Receipt';
-import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
+import RemoveCircleOutlinedIcon from '@mui/icons-material/RemoveCircleOutlined';
 import Snackbar from '@mui/material/Snackbar';
 import type { LancamentoVenda, Vendedor, RegraMaster, UserPermissions, StatusParcela } from '../types';
 import { EditarVendaDialog } from './SimuladorVendas';
@@ -959,7 +959,7 @@ const SubGrupoData = ({
                                   '&:hover': { bgcolor: 'rgba(244,63,94,0.12)' }
                                 }}
                               >
-                                <RemoveCircleOutlineIcon sx={{ fontSize: 16 }} />
+                                <RemoveCircleOutlinedIcon sx={{ fontSize: 16 }} />
                               </IconButton>
                             </Tooltip>
                           )}
@@ -1002,7 +1002,7 @@ const SubGrupoData = ({
                                   '&:hover': { bgcolor: 'rgba(244,63,94,0.12)' }
                                 }}
                               >
-                                <RemoveCircleOutlineIcon sx={{ fontSize: 16 }} />
+                                <RemoveCircleOutlinedIcon sx={{ fontSize: 16 }} />
                               </IconButton>
                             </Tooltip>
                           )}
