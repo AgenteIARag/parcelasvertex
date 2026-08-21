@@ -9,7 +9,7 @@ import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import PercentIcon from '@mui/icons-material/Percent';
-import { formatarMascaraDinheiro, calcularDataPrevisaoRecebimento } from '../utils/formatters';
+
 import { gerarProjecaoVazia, getStatusInicial, calcularTotaisLinha } from '../data/initialData';
 
 import type { LancamentoVenda, Vendedor, RegraMaster, StatusParcela, TipoTabela, SegmentoType, ProjecaoMensalType, Administradora } from '../types';
@@ -17,6 +17,29 @@ import type { LancamentoVenda, Vendedor, RegraMaster, StatusParcela, TipoTabela,
 const extrairValorCru = (valorFormatado: string): number => {
   const apenasNumeros = valorFormatado.replace(/\D/g, '');
   return Number(apenasNumeros) / 100;
+};
+
+const formatarMascaraDinheiro = (valor: string): string => {
+  let v = valor.replace(/\D/g, '');
+  if (v.length === 0) return '';
+  if (v.length <= 2) {
+    v = ('00' + v).slice(-3);
+  }
+  const parteInteira = v.substring(0, v.length - 2).replace(/^0+/, '') || '0';
+  const parteDecimal = v.substring(v.length - 2);
+  const inteiraFormatada = parteInteira.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `R$ ${inteiraFormatada},${parteDecimal}`;
+};
+
+const calcularDataPrevisaoRecebimento = (dataVencimentoParcela: string, _ciclos?: Record<string, [number, number]>): string => {
+  if (!dataVencimentoParcela) return '';
+  const dt = new Date(dataVencimentoParcela + 'T00:00:00');
+  if (isNaN(dt.getTime())) return '';
+  const ultimoDia = new Date(dt.getFullYear(), dt.getMonth() + 1, 0);
+  const ano = ultimoDia.getFullYear();
+  const mes = String(ultimoDia.getMonth() + 1).padStart(2, '0');
+  const dia = String(ultimoDia.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
 };
 
 export const BotaoNovaVendaWrapper = ({ theme, permissoes, onAdicionarVenda, vendedores, regras, ciclos, administradoras, mostrarSnackbar }: any) => {
