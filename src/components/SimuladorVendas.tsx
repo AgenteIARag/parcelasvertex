@@ -141,6 +141,45 @@ interface SimuladorVendasProps {
   isMaster?: boolean;
 }
 
+
+const BotaoNovaVendaWrapper = ({ theme, permissoes, onAdicionarVenda, vendedores, regras, ciclos, administradoras, mostrarSnackbar }: any) => {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <>
+      {permissoes.editarVendas && (
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => setOpen(true)}
+          sx={{
+            borderRadius: 2.5,
+            textTransform: 'none',
+            fontWeight: 600,
+            fontFamily: 'Outfit, sans-serif',
+            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)',
+            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`
+          }}
+        >
+          Nova Venda
+        </Button>
+      )}
+      <NovaVendaDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        onSave={(novaVenda) => {
+          onAdicionarVenda(novaVenda);
+          setOpen(false);
+          mostrarSnackbar('✅ Venda lançada com sucesso!');
+        }}
+        vendedores={vendedores}
+        regras={regras}
+        ciclos={ciclos}
+        administradoras={administradoras}
+      />
+    </>
+  );
+};
+
 export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   vendas,
   regras,
@@ -158,7 +197,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   const theme = useTheme();
 
   // Estados para inclusão de nova venda
-  const [openDialog, setOpenDialog] = useState(false);
+
 
   // Estado para controle de edição inline das células de venda
   const [editingCell, setEditingCell] = useState<{ vendaId: string; mes: string } | null>(null);
@@ -202,13 +241,13 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     setOpenEditDialog(true);
   };
 
-  const handleOpenDialog = () => {
-    setOpenDialog(true);
-  };
 
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
-  };
+
+
+
+
+
+
 
   // Edição inline de valores mensais na timeline
   const handleAlterarValorMensal = (
@@ -807,23 +846,32 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
             </Select>
           </FormControl>
           
-          {permissoes.editarVendas && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleOpenDialog}
-              sx={{
-                borderRadius: 2.5,
-                textTransform: 'none',
-                fontWeight: 600,
-                fontFamily: 'Outfit, sans-serif',
-                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)',
-                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`
-              }}
-            >
-              Nova Venda
-            </Button>
-          )}
+          <BotaoNovaVendaWrapper
+            theme={theme}
+            permissoes={permissoes}
+            onAdicionarVenda={onAdicionarVenda}
+            vendedores={vendedores}
+            regras={regras}
+            ciclos={ciclos}
+            administradoras={administradoras}
+            mostrarSnackbar={mostrarSnackbar}
+          />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         </Box>
       </Box>
 
@@ -2445,20 +2493,20 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
 
 
-      {/* Dialog para Nova Venda */}
-      <NovaVendaDialog
-        open={openDialog}
-        onClose={handleCloseDialog}
-        onSave={(novaVenda) => {
-          onAdicionarVenda(novaVenda);
-          handleCloseDialog();
-          mostrarSnackbar('✅ Venda lançada com sucesso!');
-        }}
-        vendedores={vendedores}
-        regras={regras}
-        ciclos={ciclos}
-        administradoras={administradoras}
-      />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
       {/* Dialog de Confirmação para Excluir Venda */}
       <Dialog
