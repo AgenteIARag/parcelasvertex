@@ -385,11 +385,11 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
                     <TableCell>
                       <Chip
                         label={
-                          user.role === 'master' ? 'Master' :
                           user.role === 'super_master' ? 'Super Master' :
-                          user.role === 'editor' ? 'Editor' :
-                          user.role === 'vendedor' ? 'Vendedor' :
-                          user.role === 'financeiro' ? 'Financeiro' : 'Visualizador'
+                          user.role === 'master' ? 'Master' :
+                          user.role === 'editor' ? 'ADM' :
+                          user.role === 'financeiro' ? 'Financeiro' :
+                          user.role === 'vendedor' ? 'Vendedor' : 'Visualizador'
                         }
                         color={
                           user.role === 'super_master' ? 'error' :
@@ -522,7 +522,7 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
                   onChange={(e) => handleRoleChange(e.target.value as UserRole)}
                 >
                   <MenuItem value="visualizador">Visualizador (Apenas consulta)</MenuItem>
-                  <MenuItem value="editor">Editor (Lançar vendas e vendedores)</MenuItem>
+                  <MenuItem value="editor">ADM (Cadastrar, editar e cancelar vendas)</MenuItem>
                   <MenuItem value="financeiro">Financeiro (Apenas receber parcelas)</MenuItem>
                   <MenuItem value="vendedor">Vendedor (Acesso restrito às próprias vendas)</MenuItem>
                   <MenuItem value="master">Master (Controle administrativo completo)</MenuItem>
