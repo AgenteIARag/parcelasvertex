@@ -6,6 +6,7 @@ import {
   TableBody,
   TableCell,
   TableContainer,
+  TablePagination,
   TableHead,
   TableRow,
   Paper,
@@ -209,6 +210,10 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   const [abaInterna, setAbaInterna] = useState<'matriz' | 'timeline' | 'resumo'>('matriz');
   const [tipoFiltro, setTipoFiltro] = useState<'todos' | 'vendas' | 'recorrencia'>('todos');
   const [filtroStatus, setFiltroStatus] = useState<StatusParcela | 'Recebida' | 'Todos'>('Todos');
+  const [pageMatriz, setPageMatriz] = useState(0);
+  const [rowsPerPageMatriz, setRowsPerPageMatriz] = useState(25);
+  const [pageTimeline, setPageTimeline] = useState(0);
+  const [rowsPerPageTimeline, setRowsPerPageTimeline] = useState(25);
   const [filtroPac, setFiltroPac] = useState('');
   const [filtroAdministradora, setFiltroAdministradora] = useState<string>('Todas');
 
@@ -1045,7 +1050,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 </TableCell>
               </TableRow>
             ) : (
-              vendasFiltradasPorPac.map((venda) => (
+              vendasFiltradasPorPac.slice(pageMatriz * rowsPerPageMatriz, pageMatriz * rowsPerPageMatriz + rowsPerPageMatriz).map((venda) => (
                 <TableRow
                   key={venda.id}
                   sx={{
@@ -1882,7 +1887,24 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
             )}
           </TableBody>
         </Table>
-      </TableContainer>
+
+          <TablePagination
+            component="div"
+            count={vendasFiltradasPorPac.length}
+            page={pageMatriz}
+            onPageChange={(_, newPage) => setPageMatriz(newPage)}
+            rowsPerPage={rowsPerPageMatriz}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPageMatriz(parseInt(e.target.value, 10));
+              setPageMatriz(0);
+            }}
+            labelRowsPerPage="Linhas por pág:"
+            sx={{
+              color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b',
+              borderTop: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`
+            }}
+          />
+        </TableContainer>
     )}
 
       {/* ========== ABA RESUMO POR VENDA ========== */}
@@ -2002,7 +2024,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                   </TableRow>
                 )}
 
-                {vendasFiltradasPorPac.map((venda, idx) => {
+                {vendasFiltradasPorPac.slice(pageMatriz * rowsPerPageMatriz, pageMatriz * rowsPerPageMatriz + rowsPerPageMatriz).map((venda, idx) => {
                   const { totalVendasPeriodo, totalComissoesPeriodo } = obterTotaisFiltrados(venda);
                   return (
                     <TableRow
@@ -2287,7 +2309,24 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 </TableBody>
               )}
             </Table>
-          </TableContainer>
+
+          <TablePagination
+            component="div"
+            count={parcelasEmpresaTimeline.length}
+            page={pageTimeline}
+            onPageChange={(_, newPage) => setPageTimeline(newPage)}
+            rowsPerPage={rowsPerPageTimeline}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPageTimeline(parseInt(e.target.value, 10));
+              setPageTimeline(0);
+            }}
+            labelRowsPerPage="Linhas por pág:"
+            sx={{
+              color: theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b',
+              borderTop: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`
+            }}
+          />
+        </TableContainer>
         </Box>
       )}
 
@@ -2328,7 +2367,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                   </TableCell>
                 </TableRow>
               ) : (
-                parcelasEmpresaTimeline.map((linha) => (
+                parcelasEmpresaTimeline.slice(pageTimeline * rowsPerPageTimeline, pageTimeline * rowsPerPageTimeline + rowsPerPageTimeline).map((linha) => (
                   <TableRow
                     key={linha.id}
                     sx={{
