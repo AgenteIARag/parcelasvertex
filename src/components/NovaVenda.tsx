@@ -9,10 +9,15 @@ import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import PercentIcon from '@mui/icons-material/Percent';
-import { formatarMascaraDinheiro, extrairValorCru, calcularDataPrevisaoRecebimento } from '../utils/formatters';
+import { formatarMascaraDinheiro, calcularDataPrevisaoRecebimento } from '../utils/formatters';
 import { gerarProjecaoVazia, getStatusInicial, calcularTotaisLinha } from '../data/initialData';
 
 import type { LancamentoVenda, Vendedor, RegraMaster, StatusParcela, TipoTabela, SegmentoType, ProjecaoMensalType, Administradora } from '../types';
+
+const extrairValorCru = (valorFormatado: string): number => {
+  const apenasNumeros = valorFormatado.replace(/\D/g, '');
+  return Number(apenasNumeros) / 100;
+};
 
 export const BotaoNovaVendaWrapper = ({ theme, permissoes, onAdicionarVenda, vendedores, regras, ciclos, administradoras, mostrarSnackbar }: any) => {
   const [open, setOpen] = React.useState(false);

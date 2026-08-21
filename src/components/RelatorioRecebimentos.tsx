@@ -484,6 +484,8 @@ const SubGrupoData = ({
   onDesfazerRecebida?: (item: ParcelaLinha) => void;
   permissoes?: UserPermissions;
   isMaster?: boolean;
+  onAdicionarVenda?: (v: any) => void;
+  administradoras?: any[];
 }) => {
   const totaisStatus = calcularTotaisStatus(itens);
   const theme = useTheme();
@@ -1406,7 +1408,9 @@ export const RelatorioRecebimentos = ({
   ciclos,
   onAtualizarVenda,
   permissoes,
-  isMaster,
+  isMaster = false,
+  onAdicionarVenda,
+  administradoras = [],
 }: RelatorioRecebimentosProps) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
