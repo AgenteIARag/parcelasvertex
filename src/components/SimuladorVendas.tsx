@@ -1554,10 +1554,10 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                             ) : ''}
                             
                             {/* Controle de Status da Parcela e Ação de Cancelar - Apenas exibidos se houver parcela ativa faturada no mês */}
-                            {dadosMes.valorVenda > 0 && (
+                            {(dadosMes.valorVenda > 0 || dadosMes.status !== 'Cancelada') && (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                   {/* Select para Comissão Recebida */}
-                                  {(permissoes.editarVendas || permissoes.receberParcelas) ? (
+                                  {permissoes.receberParcelas ? (
                                     <Select
                                       value={dadosMes.recebida ? 'Recebida' : 'A receber'}
                                       onChange={(e) => handleAlterarRecebidaParcela(venda.id, mesChaveReal, e.target.value === 'Recebida')}
@@ -1595,7 +1595,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                     </Box>
                                   )}
 
-                                  {(permissoes.editarVendas || permissoes.receberParcelas) ? (
+                                  {permissoes.editarVendas ? (
                                     <Select
                                       value={dadosMes.status}
                                       onChange={(e) => handleAlterarStatusParcela(venda.id, mesChaveReal, e.target.value as StatusParcela)}
@@ -2349,7 +2349,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                     <TableCell align="center">
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
                         {/* Select para Comissão Recebida na Timeline */}
-                        {(permissoes.editarVendas || permissoes.receberParcelas) ? (
+                        {permissoes.receberParcelas ? (
                           <Select
                             value={linha.recebida ? 'Recebida' : 'A receber'}
                             onChange={(e) => handleAlterarRecebidaParcela(linha.vendaId, linha.mesChave, e.target.value === 'Recebida')}
@@ -2387,7 +2387,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           </Box>
                         )}
 
-                        {(permissoes.editarVendas || permissoes.receberParcelas) ? (
+                        {permissoes.editarVendas ? (
                           <Select
                             value={linha.status}
                             onChange={(e) => handleAlterarStatusParcela(linha.vendaId, linha.mesChave, e.target.value as StatusParcela)}

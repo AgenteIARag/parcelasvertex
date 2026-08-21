@@ -168,7 +168,7 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
         editarVendas: true,
         cadastrarVendedores: true,
         cadastrarRegras: false,
-        receberParcelas: true,
+        receberParcelas: false,
         visualizarDashboardVendedores: true,
         editarParcelas: true
       });
