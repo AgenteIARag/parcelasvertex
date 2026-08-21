@@ -34,7 +34,7 @@ import { AdministradorasCadastro } from './components/AdministradorasCadastro';
 import { formatarData } from './utils/formatters';
 
 import { type RegraMaster, type RegraFilha, type LancamentoVenda, type Vendedor, type Usuario, type StatusComissao, type Empresa, type Administradora } from './types';
-import { INITIAL_REGRAS, INITIAL_VENDAS, INITIAL_VENDEDORES, calcularTotaisLinha } from './data/initialData';
+import { calcularTotaisLinha } from './data/initialData';
 import { KPISection } from './components/KPISection';
 import { SimuladorVendas } from './components/SimuladorVendas';
 import { RegrasMaster } from './components/RegrasMaster';
@@ -1538,6 +1538,8 @@ function App() {
                 onAtualizarVenda={handleAtualizarVenda}
                 permissoes={usuarioLogado?.permissoes}
                 isMaster={isSuperMaster || usuarioLogado?.role === 'master'}
+                onAdicionarVenda={handleAdicionarVenda}
+                administradoras={administradoras}
               />
             )}
 
