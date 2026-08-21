@@ -483,7 +483,9 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           if (tipoFiltro === 'recorrencia' && mesChave === venda.mesInicio) return;
           // Usa dataRecebimento como chave de coluna (fallback para mesChave)
           const mesReceb = (celula.dataRecebimento || celula.dataVencimento || `${mesChave}-15`).substring(0, 7);
-          mesesComDados.add(mesReceb);
+          if (!dataInicio || !dataFim || (mesReceb >= dataInicio.substring(0, 7) && mesReceb <= dataFim.substring(0, 7))) {
+            mesesComDados.add(mesReceb);
+          }
         }
       });
 
