@@ -83,7 +83,8 @@ export const excluirVendedorSupabase = async (id: string): Promise<void> => {
 export const obterRegrasLocais = (): RegraMaster[] => {
   try {
     const s = localStorage.getItem('apex_regras_master');
-    return s ? JSON.parse(s) : [];
+    let lista = s ? JSON.parse(s) : [];
+    return lista.filter((r: RegraMaster) => !['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9'].includes(r.id));
   } catch { return []; }
 };
 

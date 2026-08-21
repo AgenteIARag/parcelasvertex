@@ -16,22 +16,7 @@ export const INITIAL_VENDEDORES: Vendedor[] = [
   { id: 'vend_3', nome: 'Eduardo Souza', email: 'eduardo.souza@consultoria.com', ativo: true, empresaId: 'emp_vertex' }
 ];
 
-export const INITIAL_REGRAS: RegraMaster[] = [
-  // Imóveis
-  { id: 'r1', segmento: 'Imóveis', tabela: 'Tabela Padrão', qtdParcelas: 120, tipoTabela: 'Linear', percentualComissao: 4.5 },
-  { id: 'r2', segmento: 'Imóveis', tabela: 'Tabela Platinum', qtdParcelas: 180, tipoTabela: 'Linear', percentualComissao: 5.5 },
-  { id: 'r3', segmento: 'Imóveis', tabela: 'Tabela Gold', qtdParcelas: 240, tipoTabela: 'Linear', percentualComissao: 6.0 },
-  
-  // Autos Leves
-  { id: 'r4', segmento: 'Autos Leves', tabela: 'Tabela Linear Flex', qtdParcelas: 36, tipoTabela: 'Linear', percentualComissao: 8.0 },
-  { id: 'r5', segmento: 'Autos Leves', tabela: 'Tabela Linear Flex', qtdParcelas: 48, tipoTabela: 'Linear', percentualComissao: 9.0 },
-  { id: 'r6', segmento: 'Autos Leves', tabela: 'Tabela Express', qtdParcelas: 60, tipoTabela: 'Linear', percentualComissao: 10.0 },
-
-  // Pesados
-  { id: 'r7', segmento: 'Pesados', tabela: 'Tabela Agro-Frota', qtdParcelas: 60, tipoTabela: 'Linear', percentualComissao: 7.0 },
-  { id: 'r8', segmento: 'Pesados', tabela: 'Tabela Agro-Frota', qtdParcelas: 72, tipoTabela: 'Linear', percentualComissao: 7.5 },
-  { id: 'r9', segmento: 'Pesados', tabela: 'Tabela Pesados Plus', qtdParcelas: 84, tipoTabela: 'Linear', percentualComissao: 8.5 }
-];
+export const INITIAL_REGRAS: RegraMaster[] = [];
 
 export const MAP_MES_NUMERO: Record<MesesAno, string> = {
   janeiro: '01',
@@ -227,68 +212,4 @@ const gerarVendaMock = (
   };
 };
 
-export const INITIAL_VENDAS: LancamentoVenda[] = [
-  gerarVendaMock(
-    'v1',
-    'Residencial Park Central',
-    'vend_1',
-    'Carlos Silva',
-    'Imóveis',
-    'Tabela Platinum',
-    180,
-    5.5,
-    {
-      janeiro: 1200000,
-      fevereiro: 800000,
-      março: 1500000,
-      maio: 2000000,
-      julho: 1100000,
-      agosto: 900000,
-      outubro: 1300000,
-      dezembro: 1600000
-    }
-  ),
-  gerarVendaMock(
-    'v2',
-    'Transportadora RodoSul',
-    'vend_2',
-    'Roberta Lima',
-    'Pesados',
-    'Tabela Agro-Frota',
-    72,
-    7.5,
-    {
-      fevereiro: 900000,
-      abril: 1200000,
-      junho: 1500000,
-      agosto: 1800000,
-      outubro: 1100000,
-      novembro: 1400000,
-      dezembro: 2000000
-    }
-  ),
-  gerarVendaMock(
-    'v3',
-    'Frota Local Aluguel',
-    'vend_3',
-    'Eduardo Souza',
-    'Autos Leves',
-    'Tabela Linear Flex',
-    48,
-    9.0,
-    {
-      janeiro: 300000,
-      fevereiro: 350000,
-      março: 400000,
-      abril: 300000,
-      maio: 450000,
-      junho: 500000,
-      julho: 400000,
-      agosto: 300000,
-      setembro: 600000,
-      outubro: 450000,
-      novembro: 500000,
-      dezembro: 700000
-    }
-  )
-];
+export const INITIAL_VENDAS: LancamentoVenda[] = [];

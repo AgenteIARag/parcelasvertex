@@ -217,12 +217,17 @@ function App() {
   // Estados do Banco de Dados Master e Simulações
   const [regras, setRegras] = useState<RegraMaster[]>(() => {
     const saved = localStorage.getItem('apex_regras_master');
-    return saved ? JSON.parse(saved) : INITIAL_REGRAS;
+    let lista = saved ? JSON.parse(saved) : [];
+    // Remove as referências de tabelas hardcoded (r1 a r9) do cache local
+    lista = lista.filter((r: RegraMaster) => !['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9'].includes(r.id));
+    return lista;
   });
 
   const [vendas, setVendas] = useState<LancamentoVenda[]>(() => {
     const saved = localStorage.getItem('apex_lancamentos_vendas');
-    const lista: LancamentoVenda[] = saved ? JSON.parse(saved) : INITIAL_VENDAS;
+    let lista: LancamentoVenda[] = saved ? JSON.parse(saved) : [];
+    // Remove vendas hardcoded (v1 a v3)
+    lista = lista.filter(v => !['v1', 'v2', 'v3'].includes(v.id));
     return lista.map(v => ({ ...v, empresaId: v.empresaId || 'emp_vertex' }));
   });
 
