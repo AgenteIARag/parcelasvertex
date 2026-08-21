@@ -707,14 +707,21 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         })
         .sort();
 
+      // Pré-calcula todas as parcelas reais da venda
+      const todasParcelasVenda = Object.keys(venda.projecaoMensal)
+        .filter((m) => {
+          const c = venda.projecaoMensal[m];
+          return c && c.valorVenda && c.valorVenda > 0;
+        })
+        .sort();
       mesesAtivos.forEach((mesChave) => {
-        // Encontra o índice real cronológico da parcela ativa da venda
-        const todasParcelasVenda = Object.keys(venda.projecaoMensal)
-          .filter((m) => {
-            const c = venda.projecaoMensal[m];
-            return c && c.valorVenda && c.valorVenda > 0;
-          })
-          .sort();
+
+
+
+
+
+
+
         const parcelaIndexReal = todasParcelasVenda.indexOf(mesChave) + 1;
 
         const celula = venda.projecaoMensal[mesChave];
