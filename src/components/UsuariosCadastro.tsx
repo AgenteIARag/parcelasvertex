@@ -32,6 +32,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import {
   Switch,
   InputAdornment
@@ -74,6 +76,14 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
   const [cadastrarVendedor, setCadastrarVendedor] = useState<boolean>(true);
   const [percentualComissao, setPercentualComissao] = useState<number | ''>('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [empresasExpandidas, setEmpresasExpandidas] = useState<Record<string, boolean>>({});
+
+  const toggleEmpresa = (empresa: string) => {
+    setEmpresasExpandidas(prev => ({
+      ...prev,
+      [empresa]: prev[empresa] === false ? true : false
+    }));
+  };
 
   const isSuperMaster = usuarioLogado?.role === 'super_master' || usuarioLogado?.email.toLowerCase() === 'master@apex.com';
 
@@ -434,14 +444,30 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
                 </TableCell>
               </TableRow>
             ) : (
-              Object.keys(usuariosAgrupados).sort().map(empresa => (
-                <React.Fragment key={empresa}>
-                  <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
-                    <TableCell colSpan={6} sx={{ fontWeight: 700, py: 1.5, fontSize: '0.95rem' }}>
-                      🏢 {empresa}
-                    </TableCell>
-                  </TableRow>
-                  {Object.keys(usuariosAgrupados[empresa]).sort().map(role => (
+              Object.keys(usuariosAgrupados).sort().map(empresa => {
+                const isExpanded = empresasExpandidas[empresa] !== false;
+                return (
+                  <React.Fragment key={empresa}>
+                    <TableRow 
+                      onClick={() => toggleEmpresa(empresa)}
+                      sx={{ 
+                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }
+                      }}
+                    >
+                      <TableCell colSpan={6} sx={{ fontWeight: 700, py: 1.5, fontSize: '0.95rem' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <span>🏢</span> {empresa}
+                          </Box>
+                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); toggleEmpresa(empresa); }}>
+                            {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                          </IconButton>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                    {isExpanded && Object.keys(usuariosAgrupados[empresa]).sort().map(role => (
                     <React.Fragment key={`${empresa}-${role}`}>
                       <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }}>
                         <TableCell colSpan={6} sx={{ fontWeight: 600, py: 1, pl: 4, color: 'text.secondary', fontSize: '0.85rem' }}>
@@ -504,7 +530,8 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
                     </React.Fragment>
                   ))}
                 </React.Fragment>
-              ))
+              );
+            })
             )}
           </TableBody>
         </Table>
