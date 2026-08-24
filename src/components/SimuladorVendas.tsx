@@ -3027,7 +3027,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
         const dateVencClienteBase = new Date(dataVencimentoClienteInput + 'T00:00:00');
         const diaVenc = dateVencClienteBase.getDate();
         
-        const dtAlvo = new Date(dateAssembleiaBase.getFullYear(), dateAssembleiaBase.getMonth() + i, 1);
+        const dtAlvo = new Date(dateAssembleiaBase.getFullYear(), dateAssembleiaBase.getMonth() + (i - 1), 1);
         const ultimoDiaMes = new Date(dtAlvo.getFullYear(), dtAlvo.getMonth() + 1, 0).getDate();
         const diaFinal = Math.min(diaVenc, ultimoDiaMes);
         dtAlvo.setDate(diaFinal);
