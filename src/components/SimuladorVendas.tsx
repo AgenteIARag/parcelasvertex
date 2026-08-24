@@ -825,7 +825,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
               <MenuItem value="Cancelada">Cancelada</MenuItem>
             </Select>
           </FormControl>
-          {onAdicionarVenda && (permissoes?.editarVendas !== false || isMaster) && (
+          {onAdicionarVenda && (
             <Button
               variant="contained"
               size="small"
