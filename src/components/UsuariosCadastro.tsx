@@ -73,14 +73,18 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
   const [vendedorIdForm, setVendedorIdForm] = useState<string>('');
   const [cadastrarVendedor, setCadastrarVendedor] = useState<boolean>(true);
   const [percentualComissao, setPercentualComissao] = useState<number | ''>('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const isSuperMaster = usuarioLogado?.role === 'super_master' || usuarioLogado?.email.toLowerCase() === 'master@apex.com';
 
   const usuariosExibidos = useMemo(() => {
-    if (isSuperMaster) return usuarios;
-    const empId = usuarioLogado?.empresaId || 'emp_vertex';
-    return usuarios.filter(u => (u.empresaId || 'emp_vertex') === empId);
-  }, [usuarios, isSuperMaster, usuarioLogado]);
+    let list = isSuperMaster ? usuarios : usuarios.filter(u => (u.empresaId || 'emp_vertex') === (usuarioLogado?.empresaId || 'emp_vertex'));
+    if (searchTerm) {
+      const lowerTerm = searchTerm.toLowerCase();
+      list = list.filter(u => u.nome.toLowerCase().includes(lowerTerm) || u.email.toLowerCase().includes(lowerTerm));
+    }
+    return list;
+  }, [usuarios, isSuperMaster, usuarioLogado, searchTerm]);
 
   // Carrega os usuários na inicialização
   const carregarUsuarios = async () => {
@@ -357,6 +361,31 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
         >
           Novo Usuário
         </Button>
+      </Box>
+
+      <Box sx={{ mb: 3 }}>
+        <TextField
+          fullWidth
+          variant="outlined"
+          placeholder="Buscar por nome ou e-mail..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#ffffff',
+              borderRadius: 2,
+            }
+          }}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <span style={{ fontSize: '1.2rem', opacity: 0.5 }}>🔍</span>
+                </InputAdornment>
+              ),
+            }
+          }}
+        />
       </Box>
 
       {dbError && (
