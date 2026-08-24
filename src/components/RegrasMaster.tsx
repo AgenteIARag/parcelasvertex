@@ -69,6 +69,7 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
   administradoras = [],
 }) => {
   const theme = useTheme();
+  const empresaAtual = empresas.find(e => e.id === empresaAtualId);
 
   // Estado do filtro por segmento, por texto de busca e por administradora
   const [abaSegmento, setAbaSegmento] = useState<SegmentoType | 'Todos'>('Todos');
@@ -276,8 +277,9 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
       if (empresaFiltro) return r.empresaId === empresaFiltro;
       return true;
     }
-    // Master de empresa: vê apenas regras da sua empresa ou globais (sem empresa)
-    return !r.empresaId || r.empresaId === empresaAtualId;
+    // Master de empresa: vê apenas regras da sua empresa, globais (sem empresa), ou da empresa mãe
+    const empresaAtual = empresas.find(e => e.id === empresaAtualId);
+    return !r.empresaId || r.empresaId === empresaAtualId || (empresaAtual && r.empresaId === empresaAtual.empresaMaeId);
   });
 
   // Contadores de regras por segmento para exibir nas abas
@@ -671,29 +673,38 @@ export const RegrasMaster: React.FC<RegrasMasterProps> = ({
                     )}
                     {permissoes?.cadastrarRegras && (
                       <TableCell align="center">
-                        <IconButton
-                          color="primary"
-                          onClick={() => handleOpen(regra)}
-                          size="small"
-                          sx={{
-                            mr: 1,
-                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(99, 102, 241, 0.05)',
-                            '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
-                          }}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          color="error"
-                          onClick={() => onExcluirRegra(regra.id)}
-                          size="small"
-                          sx={{
-                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
-                            '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.2)' }
-                          }}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                        {!(empresaAtual?.empresaMaeId && regra.empresaId === empresaAtual.empresaMaeId) && (
+                          <>
+                            <IconButton
+                              color="primary"
+                              onClick={() => handleOpen(regra)}
+                              size="small"
+                              sx={{
+                                mr: 1,
+                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(99, 102, 241, 0.05)',
+                                '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
+                              }}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              color="error"
+                              onClick={() => onExcluirRegra(regra.id)}
+                              size="small"
+                              sx={{
+                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
+                                '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.2)' }
+                              }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </>
+                        )}
+                        {empresaAtual?.empresaMaeId && regra.empresaId === empresaAtual.empresaMaeId && (
+                          <Tooltip title="Regra herdada da matriz. Edição não permitida aqui.">
+                            <InfoOutlinedIcon sx={{ color: 'text.disabled', fontSize: 20 }} />
+                          </Tooltip>
+                        )}
                       </TableCell>
                     )}
                   </TableRow>

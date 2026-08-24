@@ -276,9 +276,11 @@ function App() {
       return regras.filter(r => !r.empresaId || r.empresaId === empId);
     }
 
-    // Empresa filha: mostra as regras da empresa mãe com os %s da filha sobrepostos
+    // Empresa filha: mostra as regras da empresa mãe com os %s da filha sobrepostos, MAIS as regras próprias da filha
     const regrasDaMae = regras.filter(r => !r.empresaId || r.empresaId === empObj.empresaMaeId);
-    return regrasDaMae.map(rm => {
+    const regrasDaFilha = regras.filter(r => r.empresaId === empId);
+
+    const regrasMaeEfetivas = regrasDaMae.map(rm => {
       const rFilha = regrasFilha.find(
         rf => rf.regraMasterId === rm.id && rf.empresaFilhaId === empId
       );
@@ -295,6 +297,8 @@ function App() {
       }
       return rm; // Sem regra filha: usa o % da mãe
     });
+    
+    return [...regrasMaeEfetivas, ...regrasDaFilha];
   }, [regras, regrasFilha, empresas, usuarioLogado]);
 
   // Para o super_master que está filtrando por empresa, também precisa de regras filtradas
@@ -1663,7 +1667,7 @@ function App() {
                   {/* Renderização das Sub-Abas */}
                   {subAbaAtiva === 'regras' && (
                     <RegrasMaster
-                      regras={regras}
+                      regras={regrasParaExibicao}
                       onAdicionarRegra={handleAdicionarRegra}
                       onEditarRegra={handleEditarRegra}
                       onExcluirRegra={handleExcluirRegra}
