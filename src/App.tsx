@@ -575,6 +575,7 @@ function App() {
     setVendas((prevVendas) =>
       prevVendas.map((venda) => {
         if (
+          !venda.isVendaEspelho &&
           venda.segmento === regraEditada.segmento &&
           venda.tabela === regraEditada.tabela &&
           venda.qtdParcelas === regraEditada.qtdParcelas
@@ -700,6 +701,14 @@ function App() {
               gradeDiferencial
             );
 
+          // A empresa mãe deve ver apenas as parcelas geradas pelas diferenças de tabelas (onde comissão > 0)
+          Object.keys(projEsp).forEach(mes => {
+            if (projEsp[mes].comissaoGerada === 0) {
+              projEsp[mes].valorVenda = 0;
+              projEsp[mes].valorParcela = 0;
+            }
+          });
+
           const vendaEspelho: LancamentoVenda = {
             ...vendaComEmpresa,
             id: `esp_${vendaComEmpresa.id}_${Date.now()}`,
@@ -758,6 +767,14 @@ function App() {
             v.percentualMensal,
             v.percentuaisParcelas
           );
+
+        // A empresa mãe deve ver apenas as parcelas geradas pelas diferenças de tabelas (onde comissão > 0)
+        Object.keys(projEsp).forEach(mes => {
+          if (projEsp[mes].comissaoGerada === 0) {
+            projEsp[mes].valorVenda = 0;
+            projEsp[mes].valorParcela = 0;
+          }
+        });
 
         const espelhoAtualizado: LancamentoVenda = {
           ...v,
