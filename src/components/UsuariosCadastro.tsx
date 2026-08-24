@@ -284,9 +284,13 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
       await salvarUsuarioSupabase(usuarioSalvar);
       await carregarUsuarios();
       setOpenDialog(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao salvar usuário:', err);
-      setDbError('Erro ao gravar usuário no Supabase. Verifique a tabela e as políticas de RLS.');
+      if (err?.code === '23505') {
+        setDbError('Este e-mail já está em uso por outro usuário.');
+      } else {
+        setDbError('Erro ao gravar usuário no Supabase. Tente novamente.');
+      }
     } finally {
       setLoading(false);
     }
