@@ -312,6 +312,22 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
     }
   };
 
+  const usuariosAgrupados = useMemo(() => {
+    return usuariosExibidos.reduce((acc, user) => {
+      const empNome = empresas.find(e => e.id === user.empresaId)?.nome || (user.empresaId ? user.empresaId : 'Global');
+      const roleName = user.role === 'super_master' ? 'Super Master' :
+                       user.role === 'master' ? 'Master' :
+                       user.role === 'editor' ? 'ADM' :
+                       user.role === 'financeiro' ? 'Financeiro' :
+                       user.role === 'vendedor' ? 'Vendedor' : 'Visualizador';
+                       
+      if (!acc[empNome]) acc[empNome] = {};
+      if (!acc[empNome][roleName]) acc[empNome][roleName] = [];
+      acc[empNome][roleName].push(user);
+      return acc;
+    }, {} as Record<string, Record<string, typeof usuariosExibidos[0][]>>);
+  }, [usuariosExibidos, empresas]);
+
   return (
     <Box sx={{ p: 1 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3.5 }}>
@@ -385,65 +401,77 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
                 </TableCell>
               </TableRow>
             ) : (
-              usuariosExibidos.map((user) => {
-                const vend = vendedores.find(v => (user.vendedorId && v.id === user.vendedorId) || v.email.toLowerCase() === user.email.toLowerCase());
-                return (
-                  <TableRow key={user.id} sx={{ '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.01)' : 'rgba(0,0,0,0.01)' } }}>
-                    <TableCell sx={{ fontWeight: 600 }}>{user.nome}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={empresas.find(e => e.id === user.empresaId)?.nome || (user.empresaId ? user.empresaId : 'Global')}
-                        size="small"
-                        variant="outlined"
-                        sx={{ fontSize: '0.7rem', borderRadius: 1.5 }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={
-                          user.role === 'super_master' ? 'Super Master' :
-                          user.role === 'master' ? 'Master' :
-                          user.role === 'editor' ? 'ADM' :
-                          user.role === 'financeiro' ? 'Financeiro' :
-                          user.role === 'vendedor' ? 'Vendedor' : 'Visualizador'
-                        }
-                        color={
-                          user.role === 'super_master' ? 'error' :
-                          user.role === 'master' ? 'primary' :
-                          user.role === 'editor' ? 'info' :
-                          user.role === 'vendedor' ? 'warning' :
-                          user.role === 'financeiro' ? 'success' : 'default'
-                        }
-                        size="small"
-                        sx={{ fontWeight: 600, fontSize: '0.75rem' }}
-                      />
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 650, color: theme.palette.success.main }}>
-                      {vend ? `${Number(vend.percentualComissao || 0).toFixed(2).replace('.', ',')}%` : '-'}
-                    </TableCell>
-                    <TableCell align="center">
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={() => handleOpenDialog(user)}
-                        sx={{ mr: 1, '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.15)' } }}
-                      >
-                        <EditIcon sx={{ fontSize: 18 }} />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleExcluir(user.id)}
-                        disabled={user.id === 'u_master'}
-                        sx={{ '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.15)' } }}
-                      >
-                        <DeleteIcon sx={{ fontSize: 18 }} />
-                      </IconButton>
+              Object.keys(usuariosAgrupados).sort().map(empresa => (
+                <React.Fragment key={empresa}>
+                  <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+                    <TableCell colSpan={6} sx={{ fontWeight: 700, py: 1.5, fontSize: '0.95rem' }}>
+                      🏢 {empresa}
                     </TableCell>
                   </TableRow>
-                );
-              })
+                  {Object.keys(usuariosAgrupados[empresa]).sort().map(role => (
+                    <React.Fragment key={`${empresa}-${role}`}>
+                      <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }}>
+                        <TableCell colSpan={6} sx={{ fontWeight: 600, py: 1, pl: 4, color: 'text.secondary', fontSize: '0.85rem' }}>
+                          🏷️ Perfil: {role}
+                        </TableCell>
+                      </TableRow>
+                      {usuariosAgrupados[empresa][role].sort((a,b) => a.nome.localeCompare(b.nome)).map(user => {
+                        const vend = vendedores.find(v => (user.vendedorId && v.id === user.vendedorId) || v.email.toLowerCase() === user.email.toLowerCase());
+                        return (
+                          <TableRow key={user.id} sx={{ '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' } }}>
+                            <TableCell sx={{ fontWeight: 600, pl: 6 }}>{user.nome}</TableCell>
+                            <TableCell>{user.email}</TableCell>
+                            <TableCell>
+                              <Chip
+                                label={empresa}
+                                size="small"
+                                variant="outlined"
+                                sx={{ fontSize: '0.7rem', borderRadius: 1.5 }}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={role}
+                                color={
+                                  user.role === 'super_master' ? 'error' :
+                                  user.role === 'master' ? 'primary' :
+                                  user.role === 'editor' ? 'info' :
+                                  user.role === 'vendedor' ? 'warning' :
+                                  user.role === 'financeiro' ? 'success' : 'default'
+                                }
+                                size="small"
+                                sx={{ fontWeight: 600, fontSize: '0.75rem' }}
+                              />
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 650, color: theme.palette.success.main }}>
+                              {vend ? `${Number(vend.percentualComissao || 0).toFixed(2).replace('.', ',')}%` : '-'}
+                            </TableCell>
+                            <TableCell align="center">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => handleOpenDialog(user)}
+                                sx={{ mr: 1, '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.15)' } }}
+                              >
+                                <EditIcon sx={{ fontSize: 18 }} />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleExcluir(user.id)}
+                                disabled={user.id === 'u_master'}
+                                sx={{ '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.15)' } }}
+                              >
+                                <DeleteIcon sx={{ fontSize: 18 }} />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
+                </React.Fragment>
+              ))
             )}
           </TableBody>
         </Table>
