@@ -1103,25 +1103,27 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                         )}
 
                         {/* Botões Editar / Excluir inline na coluna Cliente */}
-                        {permissoes.editarVendas && (
+                        {(permissoes.editarVendas || isMaster) && (
                           <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleIniciarEdicao(venda)}
-                              sx={{
-                                p: 0.4,
-                                color: theme.palette.primary.main,
-                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.08)',
-                                borderRadius: 1.5,
-                                '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.18)' }
-                              }}
-                              title="Editar venda"
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
-                            </IconButton>
+                            {permissoes.editarVendas && (
+                              <IconButton
+                                size="small"
+                                onClick={() => handleIniciarEdicao(venda)}
+                                sx={{
+                                  p: 0.4,
+                                  color: theme.palette.primary.main,
+                                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.08)',
+                                  borderRadius: 1.5,
+                                  '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.18)' }
+                                }}
+                                title="Editar venda"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                              </IconButton>
+                            )}
                             {isMaster && (
                               <IconButton
                                 size="small"
@@ -2155,26 +2157,28 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                       </TableCell>
 
                       {/* Ações */}
-                      {permissoes.editarVendas && (
+                      {(permissoes.editarVendas || isMaster) && (
                         <TableCell align="center" sx={{ py: 0.8 }}>
                           <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleIniciarEdicao(venda)}
-                              sx={{
-                                p: 0.5,
-                                color: theme.palette.primary.main,
-                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.08)',
-                                borderRadius: 1.5,
-                                '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.18)' }
-                              }}
-                              title="Editar venda"
-                            >
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
-                            </IconButton>
+                            {permissoes.editarVendas && (
+                              <IconButton
+                                size="small"
+                                onClick={() => handleIniciarEdicao(venda)}
+                                sx={{
+                                  p: 0.5,
+                                  color: theme.palette.primary.main,
+                                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.08)',
+                                  borderRadius: 1.5,
+                                  '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.18)' }
+                                }}
+                                title="Editar venda"
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                              </IconButton>
+                            )}
                             {isMaster && (
                               <IconButton
                                 size="small"
