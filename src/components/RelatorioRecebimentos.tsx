@@ -1409,8 +1409,6 @@ export const RelatorioRecebimentos = ({
   onAtualizarVenda,
   permissoes,
   isMaster = false,
-  onAdicionarVenda,
-  administradoras = [],
 }: RelatorioRecebimentosProps) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
