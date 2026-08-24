@@ -373,6 +373,7 @@ export const obterVendasSupabase = async (): Promise<LancamentoVenda[]> => {
       vendaOrigemId: v.venda_origem_id || undefined,
       isVendaEspelho: v.is_venda_espelho || false,
       empresaFilhaOrigemId: v.empresa_filha_origem_id || undefined,
+      createdAt: v.created_at || undefined,
     };
   });
 };

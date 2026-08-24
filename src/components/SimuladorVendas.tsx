@@ -1175,6 +1175,22 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           ].filter(Boolean).join(' | ')}
                         </Typography>
                       )}
+                      {venda.createdAt && (
+                        <Typography
+                          variant="caption"
+                          title={`Cadastrado em: ${new Date(venda.createdAt).toLocaleString('pt-BR')}`}
+                          sx={{
+                            color: theme.palette.mode === 'dark' ? '#475569' : '#94a3b8',
+                            fontSize: '0.62rem',
+                            fontWeight: 400,
+                            display: 'block',
+                            mt: 0.2,
+                            fontStyle: 'italic'
+                          }}
+                        >
+                          Cad.: {new Date(venda.createdAt).toLocaleDateString('pt-BR')}
+                        </Typography>
+                      )}
                     </Box>
                   </TableCell>
 
@@ -2036,6 +2052,21 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           {venda.vendedorNome && (
                             <Typography variant="caption" sx={{ fontSize: '0.68rem', color: theme.palette.primary.main, fontWeight: 500 }}>
                               Vend: {venda.vendedorNome}
+                            </Typography>
+                          )}
+                          {venda.createdAt && (
+                            <Typography
+                              variant="caption"
+                              title={`Cadastrado em: ${new Date(venda.createdAt).toLocaleString('pt-BR')}`}
+                              sx={{
+                                fontSize: '0.60rem',
+                                fontWeight: 400,
+                                fontStyle: 'italic',
+                                color: theme.palette.mode === 'dark' ? '#475569' : '#94a3b8',
+                                display: 'block'
+                              }}
+                            >
+                              Cad.: {new Date(venda.createdAt).toLocaleDateString('pt-BR')}
                             </Typography>
                           )}
                         </Box>

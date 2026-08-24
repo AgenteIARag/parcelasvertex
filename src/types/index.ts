@@ -137,6 +137,8 @@ export interface LancamentoVenda {
   vendaOrigemId?: string;   // Se preenchido, esta é uma venda espelho da empresa mãe
   isVendaEspelho?: boolean; // Flag explícita: true = venda espelho (diferencial da mãe)
   empresaFilhaOrigemId?: string; // ID da empresa filha que originou esta venda espelho
+
+  createdAt?: string; // Data/hora de cadastro do registro (ISO 8601, vinda do Supabase)
 }
 
 export const LISTA_MESES: MesesAno[] = [
