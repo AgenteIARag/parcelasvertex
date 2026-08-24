@@ -786,10 +786,15 @@ function App() {
   };
 
   const handleExcluirVenda = (vendaId: string) => {
-    // Excluir também as vendas espelho vinculadas
-    setVendas((prev) => prev.filter((v) => v.id !== vendaId && v.vendaOrigemId !== vendaId));
-    excluirVendaSupabase(vendaId).catch((err) => console.error('Erro Supabase Excluir Vendas:', err));
-    excluirVendasEspelhoSupabase(vendaId).catch((err) => console.warn('Erro ao excluir espelhos:', err));
+    // Determinar o ID real (caso a exclusão parta de uma visualização de espelho)
+    const vendaAlvo = vendas.find((v) => v.id === vendaId);
+    const idReal = vendaAlvo?.isVendaEspelho && vendaAlvo.vendaOrigemId ? vendaAlvo.vendaOrigemId : vendaId;
+
+    // Excluir a venda original e todas as suas vendas espelho vinculadas do estado
+    setVendas((prev) => prev.filter((v) => v.id !== idReal && v.vendaOrigemId !== idReal));
+    
+    excluirVendaSupabase(idReal).catch((err) => console.error('Erro Supabase Excluir Vendas:', err));
+    excluirVendasEspelhoSupabase(idReal).catch((err) => console.warn('Erro ao excluir espelhos:', err));
   };
 
   // Alterar status de comissão de uma parcela específica (independente do status da venda)
