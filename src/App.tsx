@@ -546,6 +546,13 @@ function App() {
     localStorage.setItem('apex_ciclos_faturamento', JSON.stringify(ciclos));
   }, [ciclos]);
 
+  // Redireciona automaticamente o vendedor para a aba de vendas ao logar
+  useEffect(() => {
+    if (usuarioLogado?.role === 'vendedor') {
+      setAbaAtiva('vendas');
+    }
+  }, [usuarioLogado]);
+
 
 
   // Ações de Regras
@@ -936,33 +943,43 @@ function App() {
 
           {/* Menu de Navegação da Sidebar */}
           <Box sx={{ flexGrow: 1, px: sidebarContraida ? 1 : 2, py: 3, display: 'flex', flexDirection: 'column', gap: 1, overflowX: 'hidden', overflowY: 'auto', transition: 'all 0.2s' }}>
-            <Tooltip title="Dashboard" placement="right" disableHoverListener={!sidebarContraida}>
-              <Button
-                variant={abaAtiva === 'dashboard' ? 'contained' : 'text'}
-                startIcon={!sidebarContraida ? <DashboardIcon /> : undefined}
-                onClick={() => setAbaAtiva('dashboard')}
-                fullWidth
-                sx={{
-                  justifyContent: sidebarContraida ? 'center' : 'flex-start',
-                  py: 1.25,
-                  px: sidebarContraida ? 0 : 2,
-                  minWidth: sidebarContraida ? 48 : undefined,
-                  borderRadius: 2,
-                  fontWeight: 600,
-                  fontFamily: 'Outfit, sans-serif',
-                  fontSize: '0.9rem',
-                  color: abaAtiva === 'dashboard' ? '#ffffff' : 'text.secondary',
-                  background: abaAtiva === 'dashboard' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
-                  boxShadow: abaAtiva === 'dashboard' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
-                  '&:hover': {
-                    background: abaAtiva === 'dashboard' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
-                    color: abaAtiva === 'dashboard' ? '#ffffff' : 'primary.main'
-                  }
-                }}
-              >
-                {sidebarContraida ? <DashboardIcon /> : 'Dashboard'}
-              </Button>
-            </Tooltip>
+            {usuarioLogado?.role === 'vendedor' && (
+              <Box sx={{ px: sidebarContraida ? 0 : 2, py: 1, bgcolor: 'rgba(245,158,11,0.1)', borderRadius: 2, mb: 1, display: 'flex', justifyContent: 'center' }}>
+                <Typography variant="caption" sx={{ color: '#f59e0b', fontWeight: 700, textAlign: 'center' }}>
+                  {sidebarContraida ? '👤' : '👤 Visão: Suas vendas apenas'}
+                </Typography>
+              </Box>
+            )}
+
+            {usuarioLogado?.role !== 'vendedor' && (
+              <Tooltip title="Dashboard" placement="right" disableHoverListener={!sidebarContraida}>
+                <Button
+                  variant={abaAtiva === 'dashboard' ? 'contained' : 'text'}
+                  startIcon={!sidebarContraida ? <DashboardIcon /> : undefined}
+                  onClick={() => setAbaAtiva('dashboard')}
+                  fullWidth
+                  sx={{
+                    justifyContent: sidebarContraida ? 'center' : 'flex-start',
+                    py: 1.25,
+                    px: sidebarContraida ? 0 : 2,
+                    minWidth: sidebarContraida ? 48 : undefined,
+                    borderRadius: 2,
+                    fontWeight: 600,
+                    fontFamily: 'Outfit, sans-serif',
+                    fontSize: '0.9rem',
+                    color: abaAtiva === 'dashboard' ? '#ffffff' : 'text.secondary',
+                    background: abaAtiva === 'dashboard' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                    boxShadow: abaAtiva === 'dashboard' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
+                    '&:hover': {
+                      background: abaAtiva === 'dashboard' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
+                      color: abaAtiva === 'dashboard' ? '#ffffff' : 'primary.main'
+                    }
+                  }}
+                >
+                  {sidebarContraida ? <DashboardIcon /> : 'Dashboard'}
+                </Button>
+              </Tooltip>
+            )}
 
             {(!usuarioLogado || isSuperMaster || usuarioLogado.role === 'master' || usuarioLogado.permissoes?.visualizarDashboardVendedores) && (
               <Tooltip title="Dashboard Vendedores" placement="right" disableHoverListener={!sidebarContraida}>
@@ -1022,89 +1039,95 @@ function App() {
               </Button>
             </Tooltip>
 
-            <Tooltip title="Comissões Vendedores" placement="right" disableHoverListener={!sidebarContraida}>
-              <Button
-                variant={abaAtiva === 'comissoes' ? 'contained' : 'text'}
-                startIcon={!sidebarContraida ? <AccountBalanceWalletIcon /> : undefined}
-                onClick={() => setAbaAtiva('comissoes')}
-                fullWidth
-                sx={{
-                  justifyContent: sidebarContraida ? 'center' : 'flex-start',
-                  py: 1.25,
-                  px: sidebarContraida ? 0 : 2,
-                  minWidth: sidebarContraida ? 48 : undefined,
-                  borderRadius: 2,
-                  fontWeight: 600,
-                  fontFamily: 'Outfit, sans-serif',
-                  fontSize: '0.9rem',
-                  color: abaAtiva === 'comissoes' ? '#ffffff' : 'text.secondary',
-                  background: abaAtiva === 'comissoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
-                  boxShadow: abaAtiva === 'comissoes' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
-                  '&:hover': {
-                    background: abaAtiva === 'comissoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
-                    color: abaAtiva === 'comissoes' ? '#ffffff' : 'primary.main'
-                  }
-                }}
-              >
-                {sidebarContraida ? <AccountBalanceWalletIcon /> : 'Comissões Vendedores'}
-              </Button>
-            </Tooltip>
+            {usuarioLogado?.role !== 'vendedor' && (
+              <Tooltip title="Comissões Vendedores" placement="right" disableHoverListener={!sidebarContraida}>
+                <Button
+                  variant={abaAtiva === 'comissoes' ? 'contained' : 'text'}
+                  startIcon={!sidebarContraida ? <AccountBalanceWalletIcon /> : undefined}
+                  onClick={() => setAbaAtiva('comissoes')}
+                  fullWidth
+                  sx={{
+                    justifyContent: sidebarContraida ? 'center' : 'flex-start',
+                    py: 1.25,
+                    px: sidebarContraida ? 0 : 2,
+                    minWidth: sidebarContraida ? 48 : undefined,
+                    borderRadius: 2,
+                    fontWeight: 600,
+                    fontFamily: 'Outfit, sans-serif',
+                    fontSize: '0.9rem',
+                    color: abaAtiva === 'comissoes' ? '#ffffff' : 'text.secondary',
+                    background: abaAtiva === 'comissoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                    boxShadow: abaAtiva === 'comissoes' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
+                    '&:hover': {
+                      background: abaAtiva === 'comissoes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
+                      color: abaAtiva === 'comissoes' ? '#ffffff' : 'primary.main'
+                    }
+                  }}
+                >
+                  {sidebarContraida ? <AccountBalanceWalletIcon /> : 'Comissões Vendedores'}
+                </Button>
+              </Tooltip>
+            )}
 
-            <Tooltip title="Previsão de Recebimentos" placement="right" disableHoverListener={!sidebarContraida}>
-              <Button
-                variant={abaAtiva === 'relatorio' ? 'contained' : 'text'}
-                startIcon={!sidebarContraida ? <AssessmentIcon /> : undefined}
-                onClick={() => setAbaAtiva('relatorio')}
-                fullWidth
-                sx={{
-                  justifyContent: sidebarContraida ? 'center' : 'flex-start',
-                  py: 1.25,
-                  px: sidebarContraida ? 0 : 2,
-                  minWidth: sidebarContraida ? 48 : undefined,
-                  borderRadius: 2,
-                  fontWeight: 600,
-                  fontFamily: 'Outfit, sans-serif',
-                  fontSize: '0.9rem',
-                  color: abaAtiva === 'relatorio' ? '#ffffff' : 'text.secondary',
-                  background: abaAtiva === 'relatorio' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'transparent',
-                  boxShadow: abaAtiva === 'relatorio' ? '0 4px 12px rgba(16, 185, 129, 0.25)' : 'none',
-                  '&:hover': {
-                    background: abaAtiva === 'relatorio' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'rgba(16, 185, 129, 0.08)',
-                    color: abaAtiva === 'relatorio' ? '#ffffff' : '#10b981'
-                  }
-                }}
-              >
-                {sidebarContraida ? <AssessmentIcon /> : 'Previsão de Recebimentos'}
-              </Button>
-            </Tooltip>
+            {usuarioLogado?.role !== 'vendedor' && (
+              <Tooltip title="Previsão de Recebimentos" placement="right" disableHoverListener={!sidebarContraida}>
+                <Button
+                  variant={abaAtiva === 'relatorio' ? 'contained' : 'text'}
+                  startIcon={!sidebarContraida ? <AssessmentIcon /> : undefined}
+                  onClick={() => setAbaAtiva('relatorio')}
+                  fullWidth
+                  sx={{
+                    justifyContent: sidebarContraida ? 'center' : 'flex-start',
+                    py: 1.25,
+                    px: sidebarContraida ? 0 : 2,
+                    minWidth: sidebarContraida ? 48 : undefined,
+                    borderRadius: 2,
+                    fontWeight: 600,
+                    fontFamily: 'Outfit, sans-serif',
+                    fontSize: '0.9rem',
+                    color: abaAtiva === 'relatorio' ? '#ffffff' : 'text.secondary',
+                    background: abaAtiva === 'relatorio' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'transparent',
+                    boxShadow: abaAtiva === 'relatorio' ? '0 4px 12px rgba(16, 185, 129, 0.25)' : 'none',
+                    '&:hover': {
+                      background: abaAtiva === 'relatorio' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'rgba(16, 185, 129, 0.08)',
+                      color: abaAtiva === 'relatorio' ? '#ffffff' : '#10b981'
+                    }
+                  }}
+                >
+                  {sidebarContraida ? <AssessmentIcon /> : 'Previsão de Recebimentos'}
+                </Button>
+              </Tooltip>
+            )}
 
-            <Tooltip title="Relatório de Comissões" placement="right" disableHoverListener={!sidebarContraida}>
-              <Button
-                variant={abaAtiva === 'relatorio_comissoes' ? 'contained' : 'text'}
-                startIcon={!sidebarContraida ? <AccountBalanceWalletIcon /> : undefined}
-                onClick={() => setAbaAtiva('relatorio_comissoes')}
-                fullWidth
-                sx={{
-                  justifyContent: sidebarContraida ? 'center' : 'flex-start',
-                  py: 1.25,
-                  px: sidebarContraida ? 0 : 2,
-                  minWidth: sidebarContraida ? 48 : undefined,
-                  borderRadius: 2,
-                  fontWeight: 600,
-                  fontFamily: 'Outfit, sans-serif',
-                  fontSize: '0.9rem',
-                  color: abaAtiva === 'relatorio_comissoes' ? '#ffffff' : 'text.secondary',
-                  background: abaAtiva === 'relatorio_comissoes' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'transparent',
-                  boxShadow: abaAtiva === 'relatorio_comissoes' ? '0 4px 12px rgba(245, 158, 11, 0.25)' : 'none',
-                  '&:hover': {
-                    background: abaAtiva === 'relatorio_comissoes' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'rgba(245, 158, 11, 0.08)',
-                    color: abaAtiva === 'relatorio_comissoes' ? '#ffffff' : '#f59e0b'
-                  }
-                }}
-              >
-                {sidebarContraida ? <AccountBalanceWalletIcon /> : 'Relatório de Comissões'}
-              </Button>
-            </Tooltip>
+            {usuarioLogado?.role !== 'vendedor' && (
+              <Tooltip title="Relatório de Comissões" placement="right" disableHoverListener={!sidebarContraida}>
+                <Button
+                  variant={abaAtiva === 'relatorio_comissoes' ? 'contained' : 'text'}
+                  startIcon={!sidebarContraida ? <AccountBalanceWalletIcon /> : undefined}
+                  onClick={() => setAbaAtiva('relatorio_comissoes')}
+                  fullWidth
+                  sx={{
+                    justifyContent: sidebarContraida ? 'center' : 'flex-start',
+                    py: 1.25,
+                    px: sidebarContraida ? 0 : 2,
+                    minWidth: sidebarContraida ? 48 : undefined,
+                    borderRadius: 2,
+                    fontWeight: 600,
+                    fontFamily: 'Outfit, sans-serif',
+                    fontSize: '0.9rem',
+                    color: abaAtiva === 'relatorio_comissoes' ? '#ffffff' : 'text.secondary',
+                    background: abaAtiva === 'relatorio_comissoes' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'transparent',
+                    boxShadow: abaAtiva === 'relatorio_comissoes' ? '0 4px 12px rgba(245, 158, 11, 0.25)' : 'none',
+                    '&:hover': {
+                      background: abaAtiva === 'relatorio_comissoes' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'rgba(245, 158, 11, 0.08)',
+                      color: abaAtiva === 'relatorio_comissoes' ? '#ffffff' : '#f59e0b'
+                    }
+                  }}
+                >
+                  {sidebarContraida ? <AccountBalanceWalletIcon /> : 'Relatório de Comissões'}
+                </Button>
+              </Tooltip>
+            )}
 
             {(isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
               <Tooltip title="Configurações" placement="right" disableHoverListener={!sidebarContraida}>

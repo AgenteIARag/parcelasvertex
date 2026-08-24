@@ -182,6 +182,18 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
         visualizarDashboardVendedores: false,
         editarParcelas: false
       });
+    } else if (selectedRole === 'vendedor') {
+      setPermissoes({
+        visualizar: true,
+        editarVendas: false,
+        cadastrarVendedores: false,
+        cadastrarRegras: false,
+        receberParcelas: false,
+        visualizarDashboardVendedores: false,
+        editarParcelas: false
+      });
+      // Vínculo com vendedor é obrigatório para este perfil
+      setCadastrarVendedor(true);
     } else {
       setPermissoes({
         visualizar: true,
@@ -216,6 +228,11 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
       if (senha.trim() !== '' && senha.length < 6) {
         tempErrors.senha = 'A nova senha deve ter no mínimo 6 caracteres.';
       }
+    }
+
+    // Perfil Vendedor obrigatoriamente deve ter vínculo com um vendedor
+    if (role === 'vendedor' && !cadastrarVendedor) {
+      tempErrors.vendedor = 'O perfil Vendedor deve estar habilitado como vendedor da consultoria.';
     }
 
     setErrors(tempErrors);
@@ -530,14 +547,39 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
               </FormControl>
             </Grid>
 
+            {/* Card informativo para perfil Vendedor */}
+            {role === 'vendedor' && (
+              <Grid size={{ xs: 12 }}>
+                <Box sx={{
+                  p: 1.5,
+                  borderRadius: 2,
+                  bgcolor: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid rgba(245, 158, 11, 0.25)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 1
+                }}>
+                  <Typography sx={{ fontSize: '1rem' }}>👤</Typography>
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#f59e0b', mb: 0.3 }}>
+                      Perfil Vendedor — Acesso Restrito
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.5 }}>
+                      Este usuário terá acesso <strong>apenas ao Painel de Vendas</strong>, visualizando somente as vendas atribuídas a ele. Não terá acesso a dashboards gerais, relatórios, comissões ou configurações.
+                    </Typography>
+                  </Box>
+                </Box>
+              </Grid>
+            )}
+
             {role === 'vendedor' && vendedores.length > 0 && (
               <Grid size={{ xs: 12 }}>
                 <FormControl fullWidth>
-                  <InputLabel id="vendedor-select-label">Vendedor Vinculado (Opcional se já cadastrado)</InputLabel>
+                  <InputLabel id="vendedor-select-label">Vincular a Vendedor Existente (opcional)</InputLabel>
                   <Select
                     labelId="vendedor-select-label"
                     value={vendedorIdForm}
-                    label="Vendedor Vinculado (Opcional se já cadastrado)"
+                    label="Vincular a Vendedor Existente (opcional)"
                     onChange={(e) => setVendedorIdForm(e.target.value)}
                   >
                     <MenuItem value=""><em>Criar novo cadastro automático de Vendedor</em></MenuItem>
@@ -554,12 +596,26 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
                 control={
                   <Switch
                     checked={cadastrarVendedor}
-                    onChange={(e) => setCadastrarVendedor(e.target.checked)}
+                    onChange={(e) => {
+                      // Não permite desligar vínculo quando role === 'vendedor'
+                      if (role === 'vendedor') return;
+                      setCadastrarVendedor(e.target.checked);
+                    }}
                     color="secondary"
+                    disabled={role === 'vendedor'}
                   />
                 }
-                label="Habilitar como Vendedor da consultoria (Cadastrar na lista de Vendedores e Comissões)"
+                label={
+                  role === 'vendedor'
+                    ? 'Habilitar como Vendedor da consultoria (Obrigatório para este perfil)'
+                    : 'Habilitar como Vendedor da consultoria (Cadastrar na lista de Vendedores e Comissões)'
+                }
               />
+              {errors.vendedor && (
+                <Typography variant="caption" sx={{ color: 'error.main', display: 'block', pl: 1, mt: 0.5 }}>
+                  {errors.vendedor}
+                </Typography>
+              )}
             </Grid>
 
             {cadastrarVendedor && (
