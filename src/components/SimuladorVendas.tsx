@@ -825,7 +825,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
               <MenuItem value="Cancelada">Cancelada</MenuItem>
             </Select>
           </FormControl>
-          {onAdicionarVenda && (
+          {true && (
             <Button
               variant="contained"
               size="small"
@@ -2612,7 +2612,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       </Dialog>
 
       {/* Dialog para Nova Venda */}
-      {onAdicionarVenda && (
+      {true && (
         <NovaVendaDialog
           open={openNovaVenda}
           onClose={() => setOpenNovaVenda(false)}
