@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '@mui/material/styles';
 import {
   Box, Typography, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Select, MenuItem, FormControl, InputLabel, InputAdornment, Alert
+  TextField, Select, MenuItem, FormControl, InputLabel, Alert
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import AddIcon from '@mui/icons-material/Add';
@@ -12,7 +12,7 @@ import PercentIcon from '@mui/icons-material/Percent';
 
 import { gerarProjecaoVazia, getStatusInicial, calcularTotaisLinha } from '../data/initialData';
 
-import type { LancamentoVenda, Vendedor, RegraMaster, StatusParcela, TipoTabela, SegmentoType, ProjecaoMensalType, Administradora } from '../types';
+import type { LancamentoVenda, Vendedor, RegraMaster, TipoTabela, SegmentoType, ProjecaoMensalType, Administradora } from '../types';
 
 const extrairValorCru = (valorFormatado: string): number => {
   const apenasNumeros = valorFormatado.replace(/\D/g, '');

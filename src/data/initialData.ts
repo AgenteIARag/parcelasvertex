@@ -143,7 +143,7 @@ export const calcularTotaisLinha = (
 };
 
 // Vendas Iniciais Mockadas
-const gerarVendaMock = (
+export const gerarVendaMock = (
   id: string,
   cliente: string,
   vendedorId: string,

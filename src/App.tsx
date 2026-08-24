@@ -1561,8 +1561,6 @@ function App() {
                 onAtualizarVenda={handleAtualizarVenda}
                 permissoes={usuarioLogado?.permissoes}
                 isMaster={isSuperMaster || usuarioLogado?.role === 'master'}
-                onAdicionarVenda={handleAdicionarVenda}
-                administradoras={administradoras}
               />
             )}
 
