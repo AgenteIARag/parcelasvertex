@@ -28,9 +28,11 @@ import GroupIcon from '@mui/icons-material/Group';
 import BusinessIcon from '@mui/icons-material/Business';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import AddIcon from '@mui/icons-material/Add';
 import { EmpresasCadastro } from './components/EmpresasCadastro';
 import { RegrasFilha } from './components/RegrasFilha';
 import { AdministradorasCadastro } from './components/AdministradorasCadastro';
+import { NovaVendaDialog } from './components/NovaVenda';
 import { formatarData } from './utils/formatters';
 
 import { type RegraMaster, type RegraFilha, type LancamentoVenda, type Vendedor, type Usuario, type StatusComissao, type Empresa, type Administradora } from './types';
@@ -255,6 +257,8 @@ function App() {
   });
 
   const isSuperMaster = usuarioLogado?.role === 'super_master' || usuarioLogado?.email?.toLowerCase() === 'master@apex.com';
+  const isAdminOuMaster = isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor' || (usuarioLogado?.role as string) === 'admin';
+  const [modalNovaVendaGlobal, setModalNovaVendaGlobal] = useState(false);
 
   // Empresa do usuário logado
   const empresaAtual = useMemo(() =>
@@ -1349,6 +1353,32 @@ function App() {
                   >
                     Filtrar
                   </Button>
+
+                  {(isAdminOuMaster || usuarioLogado?.permissoes?.editarVendas !== false) && (
+                    <Button
+                      variant="contained"
+                      size="small"
+                      startIcon={<AddIcon />}
+                      onClick={() => setModalNovaVendaGlobal(true)}
+                      sx={{
+                        borderRadius: 2,
+                        textTransform: 'none',
+                        fontWeight: 700,
+                        fontFamily: 'Outfit, sans-serif',
+                        py: 1,
+                        px: 2,
+                        height: 40,
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+                        '&:hover': {
+                          background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                          boxShadow: '0 6px 16px rgba(16, 185, 129, 0.35)',
+                        }
+                      }}
+                    >
+                      Nova Venda
+                    </Button>
+                  )}
                 </Box>
               )}
 
@@ -1552,7 +1582,7 @@ function App() {
               </Box>
             )}
 
-             {abaAtiva === 'vendas' && (
+            {abaAtiva === 'vendas' && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {/* Tabela Timeline Principal */}
                 <SimuladorVendas
@@ -1562,12 +1592,12 @@ function App() {
                   onAdicionarVenda={handleAdicionarVenda}
                   onAtualizarVenda={handleAtualizarVenda}
                   onExcluirVenda={handleExcluirVenda}
-                  permissoes={usuarioLogado?.permissoes || { visualizar: true, editarVendas: false, cadastrarVendedores: false, cadastrarRegras: false }}
+                  permissoes={usuarioLogado?.permissoes ?? { visualizar: true, editarVendas: isAdminOuMaster, cadastrarVendedores: isAdminOuMaster, cadastrarRegras: false }}
                   dataInicio={dataInicio}
                   dataFim={dataFim}
                   ciclos={ciclos}
                   administradoras={administradoras}
-                  isMaster={isSuperMaster || usuarioLogado?.role === 'master'}
+                  isMaster={isAdminOuMaster}
                 />
               </Box>
             )}
@@ -1587,8 +1617,8 @@ function App() {
                 onAtualizarVenda={handleAtualizarVenda}
                 onAdicionarVenda={handleAdicionarVenda}
                 administradoras={administradoras}
-                permissoes={usuarioLogado?.permissoes}
-                isMaster={isSuperMaster || usuarioLogado?.role === 'master'}
+                permissoes={usuarioLogado?.permissoes ?? { visualizar: true, editarVendas: isAdminOuMaster, cadastrarVendedores: isAdminOuMaster, cadastrarRegras: false }}
+                isMaster={isAdminOuMaster}
               />
             )}
 
@@ -1873,6 +1903,20 @@ function App() {
           </Container>
         </Box>
       </Box>
+
+      {/* Dialog Global de Nova Venda */}
+      <NovaVendaDialog
+        open={modalNovaVendaGlobal}
+        onClose={() => setModalNovaVendaGlobal(false)}
+        onSave={(novaVenda) => {
+          handleAdicionarVenda(novaVenda);
+          setModalNovaVendaGlobal(false);
+        }}
+        vendedores={vendedoresFiltrados}
+        regras={regrasParaExibicao}
+        ciclos={ciclos}
+        administradoras={administradoras}
+      />
     </ThemeProvider>
   );
 }

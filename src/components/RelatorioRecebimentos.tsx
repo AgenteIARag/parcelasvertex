@@ -1851,7 +1851,7 @@ export const RelatorioRecebimentos = ({
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          {(permissoes?.editarVendas || isMaster) && onAdicionarVenda && (
+          {onAdicionarVenda && (permissoes?.editarVendas !== false || isMaster) && (
             <Button
               variant="contained"
               size="small"
