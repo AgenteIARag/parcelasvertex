@@ -1580,11 +1580,13 @@ function App() {
               <RelatorioRecebimentos
                 vendas={vendasFiltradas}
                 vendedores={vendedoresFiltrados}
-                regras={regras}
+                regras={regrasParaExibicao}
                 dataInicio={dataInicio}
                 dataFim={dataFim}
                 ciclos={ciclos}
                 onAtualizarVenda={handleAtualizarVenda}
+                onAdicionarVenda={handleAdicionarVenda}
+                administradoras={administradoras}
                 permissoes={usuarioLogado?.permissoes}
                 isMaster={isSuperMaster || usuarioLogado?.role === 'master'}
               />

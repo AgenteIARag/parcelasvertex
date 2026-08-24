@@ -46,9 +46,11 @@ import AutorenewIcon from '@mui/icons-material/Autorenew';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import RemoveCircleOutlinedIcon from '@mui/icons-material/RemoveCircleOutlined';
+import AddIcon from '@mui/icons-material/Add';
 import Snackbar from '@mui/material/Snackbar';
-import type { LancamentoVenda, Vendedor, RegraMaster, UserPermissions, StatusParcela } from '../types';
+import type { LancamentoVenda, Vendedor, RegraMaster, UserPermissions, StatusParcela, Administradora } from '../types';
 import { EditarVendaDialog } from './SimuladorVendas';
+import { NovaVendaDialog } from './NovaVenda';
 import { obterStatusEfetivo } from '../utils/formatters';
 import { salvarVendaSupabase } from '../utils/supabase';
 
@@ -1395,6 +1397,8 @@ interface RelatorioRecebimentosProps {
   dataFim: string;
   ciclos: Record<string, [number, number]>;
   onAtualizarVenda?: (venda: LancamentoVenda) => void;
+  onAdicionarVenda?: (venda: LancamentoVenda) => void;
+  administradoras?: Administradora[];
   permissoes?: UserPermissions;
   isMaster?: boolean;
 }
@@ -1407,6 +1411,8 @@ export const RelatorioRecebimentos = ({
   dataFim,
   ciclos,
   onAtualizarVenda,
+  onAdicionarVenda,
+  administradoras = [],
   permissoes,
   isMaster = false,
 }: RelatorioRecebimentosProps) => {
@@ -1418,6 +1424,7 @@ export const RelatorioRecebimentos = ({
   const [buscaRelatorio, setBuscaRelatorio] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<string[]>([]); 
 
+  const [openNovaVenda, setOpenNovaVenda] = useState(false);
   const [openEditDialog, setOpenEditDialog] = useState(false);
   const [vendaEmEdicao, setVendaEmEdicao] = useState<LancamentoVenda | null>(null);
   const [snackbarMsg, setSnackbarMsg] = useState('');
@@ -1843,15 +1850,42 @@ export const RelatorioRecebimentos = ({
             Parcelas agrupadas por mês de vencimento · Período: {formatarData(dataInicio)} até {formatarData(dataFim)}
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<DownloadIcon />}
-          onClick={exportarCSV}
-          sx={{ borderRadius: 2, fontWeight: 600, textTransform: 'none', fontSize: '0.82rem' }}
-        >
-          Exportar CSV
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          {(permissoes?.editarVendas || isMaster) && onAdicionarVenda && (
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setOpenNovaVenda(true)}
+              sx={{
+                borderRadius: 2,
+                fontWeight: 700,
+                fontFamily: 'Outfit, sans-serif',
+                textTransform: 'none',
+                fontSize: '0.85rem',
+                py: 0.8,
+                px: 2,
+                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                  boxShadow: '0 6px 16px rgba(99, 102, 241, 0.4)',
+                }
+              }}
+            >
+              Nova Venda
+            </Button>
+          )}
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<DownloadIcon />}
+            onClick={exportarCSV}
+            sx={{ borderRadius: 2, fontWeight: 600, textTransform: 'none', fontSize: '0.82rem', py: 0.8, px: 2 }}
+          >
+            Exportar CSV
+          </Button>
+        </Box>
       </Box>
 
       {/* ── KPIs ── */}
@@ -2332,6 +2366,22 @@ export const RelatorioRecebimentos = ({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {onAdicionarVenda && (
+        <NovaVendaDialog
+          open={openNovaVenda}
+          onClose={() => setOpenNovaVenda(false)}
+          onSave={(novaVenda) => {
+            onAdicionarVenda(novaVenda);
+            setOpenNovaVenda(false);
+            setSnackbarMsg('✅ Venda lançada com sucesso!');
+          }}
+          vendedores={vendedores}
+          regras={regras}
+          ciclos={ciclos}
+          administradoras={administradoras}
+        />
+      )}
 
       <Snackbar
         open={!!snackbarMsg}

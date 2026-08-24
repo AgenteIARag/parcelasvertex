@@ -81,7 +81,7 @@ export const BotaoNovaVendaWrapper = ({ theme, permissoes, onAdicionarVenda, ven
 };
 
 
-interface NovaVendaDialogProps {
+export interface NovaVendaDialogProps {
   open: boolean;
   onClose: () => void;
   onSave: (venda: LancamentoVenda) => void;
@@ -91,7 +91,7 @@ interface NovaVendaDialogProps {
   administradoras?: Administradora[];
 }
 
-const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
+export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
   open,
   onClose,
   onSave,

@@ -41,6 +41,7 @@ import PercentIcon from '@mui/icons-material/Percent';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import AddIcon from '@mui/icons-material/Add';
 import {
   type LancamentoVenda,
   type RegraMaster,
@@ -55,6 +56,7 @@ import {
 } from '../types';
 import { gerarProjecaoVazia, calcularTotaisLinha, getStatusInicial } from '../data/initialData';
 import { formatarMoeda, formatarChaveMesExibicao, obterStatusEfetivo } from '../utils/formatters';
+import { NovaVendaDialog } from './NovaVenda';
 
 // Funções utilitárias de máscara financeira e cálculos de vencimento
 const formatarMascaraDinheiro = (valor: string): string => {
@@ -148,7 +150,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   vendas,
   regras,
   vendedores,
-  /* onAdicionarVenda */
+  onAdicionarVenda,
   onAtualizarVenda,
   onExcluirVenda,
   permissoes,
@@ -161,6 +163,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   const theme = useTheme();
 
   // Estados para inclusão de nova venda
+  const [openNovaVenda, setOpenNovaVenda] = useState(false);
 
 
   // Estado para controle de edição inline das células de venda
@@ -822,24 +825,31 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
               <MenuItem value="Cancelada">Cancelada</MenuItem>
             </Select>
           </FormControl>
-          
-          
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          {(permissoes?.editarVendas || isMaster) && onAdicionarVenda && (
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setOpenNovaVenda(true)}
+              sx={{
+                borderRadius: 2,
+                fontWeight: 700,
+                fontFamily: 'Outfit, sans-serif',
+                textTransform: 'none',
+                fontSize: '0.85rem',
+                py: 0.8,
+                px: 2,
+                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                  boxShadow: '0 6px 16px rgba(99, 102, 241, 0.4)',
+                }
+              }}
+            >
+              Nova Venda
+            </Button>
+          )}
         </Box>
       </Box>
 
@@ -2600,6 +2610,23 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Dialog para Nova Venda */}
+      {onAdicionarVenda && (
+        <NovaVendaDialog
+          open={openNovaVenda}
+          onClose={() => setOpenNovaVenda(false)}
+          onSave={(novaVenda) => {
+            onAdicionarVenda(novaVenda);
+            setOpenNovaVenda(false);
+            mostrarSnackbar('✅ Venda lançada com sucesso!');
+          }}
+          vendedores={vendedores}
+          regras={regras}
+          ciclos={ciclos}
+          administradoras={administradoras}
+        />
+      )}
 
       {/* Dialog para Editar Venda */}
       <EditarVendaDialog
