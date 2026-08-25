@@ -140,7 +140,16 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
     const mesFimChave = dataFim.substring(0, 7);
 
     vendasDoVendedor.forEach((venda) => {
-      const pctMensalVendedor = pctVendedor / venda.qtdParcelas;
+      // Calcula o percentual mensal do vendedor respeitando o tipo de tabela
+      const temGradePersonalizada = Array.isArray(venda.percentuaisParcelas) && venda.percentuaisParcelas.length > 0;
+      const isAdesao = venda.tipoTabela === 'Adesão';
+      const pAdesaoVendedor = (venda.percentualAdesao ?? 0) > 0
+        ? pctVendedor * ((venda.percentualAdesao ?? 0) / (venda.percentualComissao || 1))
+        : 0;
+      const pMensalVendedor = (venda.percentualMensal ?? 0) > 0
+        ? pctVendedor * ((venda.percentualMensal ?? 0) / (venda.percentualComissao || 1))
+        : 0;
+      const parcelasRestantes = Math.max(1, venda.qtdParcelas - 1);
 
       const mesesAtivos = Object.keys(venda.projecaoMensal)
         .filter((mesChave) => {
@@ -154,18 +163,42 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
         })
         .sort();
 
+      // Identifica a 1ª parcela com valor para lógica de Adesão
+      const todasParcelasVendaGlobal = Object.keys(venda.projecaoMensal)
+        .filter((m) => {
+          const c = venda.projecaoMensal[m];
+          return c && c.valorVenda && c.valorVenda > 0;
+        })
+        .sort();
+      const primeiraChaveComVenda = todasParcelasVendaGlobal.length > 0 ? todasParcelasVendaGlobal[0] : null;
+
       mesesAtivos.forEach((mesChave) => {
-        // Encontra o índice real cronológico da parcela ativa da venda
-        const todasParcelasVenda = Object.keys(venda.projecaoMensal)
-          .filter((m) => {
-            const c = venda.projecaoMensal[m];
-            return c && c.valorVenda && c.valorVenda > 0;
-          })
-          .sort();
-        const parcelaIndexReal = todasParcelasVenda.indexOf(mesChave) + 1;
+        const parcelaIndexReal = todasParcelasVendaGlobal.indexOf(mesChave) + 1;
 
         const celula = venda.projecaoMensal[mesChave];
-        const comissaoVendedorCalculada = (venda.valorVenda * (pctMensalVendedor / 100));
+
+        // Calcula comissão do vendedor respeitando o tipo de tabela
+        let comissaoVendedorCalculada: number;
+        if (temGradePersonalizada) {
+          // Grade customizada: usa o percentual proporcional da parcela
+          const indiceCronologico = Object.keys(venda.projecaoMensal).filter(k => !k.startsWith('__')).sort().indexOf(mesChave);
+          const percParcela = (indiceCronologico >= 0 && venda.percentuaisParcelas![indiceCronologico] !== undefined)
+            ? venda.percentuaisParcelas![indiceCronologico]
+            : 0;
+          const proporcaoVendedor = venda.percentualComissao > 0 ? pctVendedor / venda.percentualComissao : 0;
+          comissaoVendedorCalculada = venda.valorVenda * (percParcela / 100) * proporcaoVendedor;
+        } else if (isAdesao) {
+          // Adesão: 1ª parcela recebe mais, restantes recebem fracionado
+          if (mesChave === primeiraChaveComVenda) {
+            comissaoVendedorCalculada = venda.valorVenda * (pAdesaoVendedor / 100);
+          } else {
+            comissaoVendedorCalculada = venda.valorVenda * ((pMensalVendedor / parcelasRestantes) / 100);
+          }
+        } else {
+          // Linear: percentual total dividido igualmente
+          const pctMensalVendedor = pctVendedor / venda.qtdParcelas;
+          comissaoVendedorCalculada = venda.valorVenda * (pctMensalVendedor / 100);
+        }
 
         linhas.push({
           id: `${venda.id}_${mesChave}`,
@@ -223,14 +256,40 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
 
     vendasDoVendedor.forEach((venda) => {
       if (venda.statusCliente === 'Cancelado') return;
-      const pctMensalVendedor = pctVendedor / venda.qtdParcelas;
+      const temGrade = Array.isArray(venda.percentuaisParcelas) && venda.percentuaisParcelas.length > 0;
+      const isAdesao = venda.tipoTabela === 'Adesão';
+      const pAdesaoV = (venda.percentualAdesao ?? 0) > 0
+        ? pctVendedor * ((venda.percentualAdesao ?? 0) / (venda.percentualComissao || 1))
+        : 0;
+      const pMensalV = (venda.percentualMensal ?? 0) > 0
+        ? pctVendedor * ((venda.percentualMensal ?? 0) / (venda.percentualComissao || 1))
+        : 0;
+      const parcelasRest = Math.max(1, venda.qtdParcelas - 1);
+      const todasChaves = Object.keys(venda.projecaoMensal).filter(k => !k.startsWith('__')).sort();
+      const chavesComVenda = todasChaves.filter(k => (venda.projecaoMensal[k]?.valorVenda || 0) > 0);
+      const primeiraChave = chavesComVenda.length > 0 ? chavesComVenda[0] : null;
 
       Object.keys(venda.projecaoMensal).forEach((mesChave) => {
         const celula = venda.projecaoMensal[mesChave];
         if (celula && celula.valorVenda && celula.valorVenda > 0 && celula.status !== 'Cancelada') {
           if (tipoFiltro === 'vendas' && mesChave !== venda.mesInicio) return;
           if (tipoFiltro === 'recorrencia' && mesChave === venda.mesInicio) return;
-          const comissaoVendedorCalculada = (venda.valorVenda * (pctMensalVendedor / 100));
+
+          let comissaoVendedorCalculada: number;
+          if (temGrade) {
+            const idx = todasChaves.indexOf(mesChave);
+            const perc = (idx >= 0 && venda.percentuaisParcelas![idx] !== undefined) ? venda.percentuaisParcelas![idx] : 0;
+            const prop = venda.percentualComissao > 0 ? pctVendedor / venda.percentualComissao : 0;
+            comissaoVendedorCalculada = venda.valorVenda * (perc / 100) * prop;
+          } else if (isAdesao) {
+            comissaoVendedorCalculada = mesChave === primeiraChave
+              ? venda.valorVenda * (pAdesaoV / 100)
+              : venda.valorVenda * ((pMensalV / parcelasRest) / 100);
+          } else {
+            const pctMensalVendedor = pctVendedor / venda.qtdParcelas;
+            comissaoVendedorCalculada = venda.valorVenda * (pctMensalVendedor / 100);
+          }
+
           if (totais[mesChave]) {
             totais[mesChave].faturamento += celula.valorVenda;
             totais[mesChave].comissao += comissaoVendedorCalculada;

@@ -344,7 +344,8 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
       projecaoMensal: projecaoAtualizada,
       totalVendas,
       totalComissoes,
-      statusCliente: 'Ativo'
+      statusCliente: 'Ativo',
+      empresaId: 'emp_vertex'
     };
 
     onSave(novaVenda);

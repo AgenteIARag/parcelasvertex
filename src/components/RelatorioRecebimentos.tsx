@@ -179,7 +179,7 @@ const calcularTotaisStatus = (itens: ParcelaLinha[]): TotaisStatus => {
     else if (i.statusParcela === 'A vencer') t.aVencer += v;
 
     if (i.situacaoRecebimento === 'Recebida') t.recebida += v;
-    else t.aReceber += v;
+    else if (i.statusParcela !== 'Cancelada') t.aReceber += v;
   });
   return t;
 };
@@ -1535,6 +1535,10 @@ export const RelatorioRecebimentos = ({
     const novaCelula = { ...celula, status: 'A vencer' as StatusParcela };
     delete novaCelula.dataPagamentoCliente;
     delete novaCelula.dataRecebimento; // Volta a usar default
+    novaCelula.recebida = false;
+    delete novaCelula.dataRecebimentoComissao;
+    delete novaCelula.numeroRelatorioRecebimento;
+    delete novaCelula.notaFiscalRecebimento;
 
     const vendaAtualizada: LancamentoVenda = {
       ...venda,
@@ -1657,7 +1661,7 @@ export const RelatorioRecebimentos = ({
         if (termoRel && !(venda.numeroRelatorio || '').toLowerCase().includes(termoRel)) return;
 
         const dtPag = statusParcela === 'Paga'
-          ? (celula.dataPagamentoCliente || celula.dataRecebimento || celula.dataVencimento)
+          ? (celula.dataRecebimentoComissao || celula.dataPagamentoCliente || celula.dataRecebimento || celula.dataVencimento)
           : undefined;
 
         const mesVencimento = dtVenc.substring(0, 7);
@@ -1801,7 +1805,7 @@ export const RelatorioRecebimentos = ({
   // Exportar CSV
   const exportarCSV = () => {
     const header = ['Data de Corte', 'Cliente', 'PAC', 'Vendedor', 'Mês Ref.', 'Vencimento', 'Valor da Cota', 'Valor Parcela', 'Comissão', 'Status Parcela', 'Recebimento', 'Parcela Nº'];
-    const rows = parcelas.map((p) => [
+    const rows = parcelas.filter((p) => !p.isEspelho).map((p) => [
       formatarData(p.dataPrevisaoRecebimento),
       p.cliente,
       p.pac,

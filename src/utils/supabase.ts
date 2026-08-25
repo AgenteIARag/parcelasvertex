@@ -439,6 +439,7 @@ export const salvarVendaSupabase = async (venda: LancamentoVenda): Promise<void>
         console.error('Erro mesmo no fallback de salvar venda:', fallbackError);
         throw fallbackError;
       }
+      console.error('[ALERTA] Dados parciais salvos - campos removidos no fallback: percentual_adesao, percentuais_parcelas, tipo_tabela, etc. Migração de banco necessária.');
       return;
     }
     
@@ -529,7 +530,7 @@ export const obterUsuariosSupabase = async (): Promise<Usuario[]> => {
       permissoes: u.permissoes,
       empresaId: u.empresa_id || undefined,
       vendedorId: u.vendedor_id || u.vendedorId || undefined,
-      created_at: u.created_at
+      createdAt: u.created_at
     }));
 
     const mapa = new Map<string, Usuario>();

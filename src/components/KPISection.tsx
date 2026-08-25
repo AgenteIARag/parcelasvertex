@@ -58,10 +58,6 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
       return;
     }
 
-    if (vendaNoPeriodo) {
-      volumeTotalVendas += v.valorVenda;
-    }
-
     const todasParcelasVenda = Object.keys(v.projecaoMensal)
       .filter((m) => { const c = v.projecaoMensal[m]; return c && c.valorVenda > 0; })
       .sort();
@@ -77,6 +73,7 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
           if (statusEfetivo !== 'Cancelada' && celula.valorVenda > 0) {
             const comissao = celula.comissaoGerada || 0;
             receitaTotalComissoes += comissao;
+            volumeTotalVendas += celula.valorVenda;
             clientesAtivosSet.add(v.cliente);
 
             const parcelaIdx = todasParcelasVenda.indexOf(mes) + 1;

@@ -101,7 +101,11 @@ const migrarDadosStatusRecebida = async (
         const { totalVendas, totalComissoes } = calcularTotaisLinha(
           projecaoAtualizada,
           venda.percentualComissao,
-          venda.qtdParcelas
+          venda.qtdParcelas,
+          venda.tipoTabela,
+          venda.percentualAdesao,
+          venda.percentualMensal,
+          venda.percentuaisParcelas
         );
         const vendaNova = {
           ...venda,
@@ -524,7 +528,10 @@ function App() {
           try {
             const parsed = JSON.parse(savedVendas);
             migrarDadosStatusRecebida(parsed, false).then(({ novasVendas }) => {
-              setVendas(novasVendas.map(v => ({ ...v, empresaId: v.empresaId || 'emp_vertex' })));
+              setVendas(prev => {
+                const migrados = novasVendas.map(v => ({ ...v, empresaId: v.empresaId || 'emp_vertex' }));
+                return prev.map(p => migrados.find(m => m.id === p.id) || p);
+              });
             });
           } catch (e) {
             console.error('Erro ao ler vendas locais do localStorage:', e);

@@ -26,7 +26,7 @@ export const formatarMoeda = (valor: number): string => {
  */
 export const formatarData = (iso: string): string => {
   if (!iso || iso.includes('undefined')) return '—';
-  const [ano, mes, dia] = iso.split('-');
+  const [ano, mes, dia] = iso.split('T')[0].split('-');
   if (!ano || !mes || !dia) return iso;
   return `${dia}/${mes}/${ano}`;
 };
@@ -91,7 +91,7 @@ export const obterStatusEfetivo = (status: StatusParcela, dataVencimento: string
     const hoje = obterDataHoje();
     hoje.setHours(0, 0, 0, 0);
     const venc = new Date(`${dataVencimento}T00:00:00`);
-    if (venc <= hoje) return 'Vencida';
+    if (venc < hoje) return 'Vencida';
   }
   return status;
 };

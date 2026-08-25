@@ -95,7 +95,7 @@ export const calcularTotaisLinha = (
     if (valor > 0) {
       if (temGradePersonalizada) {
         // Usa a grade de percentuais por parcela individual [P1, P2, ..., Pn]
-        const indiceParcela = mesesComVenda.indexOf(mesChave);
+        const indiceParcela = Object.keys(projecao).filter(k => !k.startsWith('__')).sort().indexOf(mesChave);
         const percParcela = (indiceParcela >= 0 && percentuaisParcelas![indiceParcela] !== undefined)
           ? percentuaisParcelas![indiceParcela]
           : 0;

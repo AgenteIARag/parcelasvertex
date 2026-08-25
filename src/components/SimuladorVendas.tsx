@@ -3081,14 +3081,17 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
         comissaoCalculada = Number((valorVendaV * (percentualMensalLinear / 100)).toFixed(2));
       }
 
+      const oldEntry = venda.projecaoMensal[mesChave] || {};
+
       proj[mesChave] = {
+        ...oldEntry,
         valorVenda: valorVendaV,
         valorParcela: valorParcelaV,
         comissaoGerada: comissaoCalculada,
         status,
         dataVencimento: dataVenc,
         dataPrevisaoRecebimento,
-        dataRecebimento: venda.projecaoMensal[mesChave]?.dataRecebimento || dataVenc
+        dataRecebimento: oldEntry.dataRecebimento || dataVenc
       };
     }
 
@@ -3395,17 +3398,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
               )}
             </FormControl>
           </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <TextField
-              fullWidth
-              label="PAC (Contrato)"
-              placeholder="Número do Contrato"
-              value={pac}
-              onChange={(e) => setPac(e.target.value)}
-              error={!!errors.pac}
-              helperText={errors.pac}
-            />
-          </Grid>
+
           <Grid size={{ xs: 12, sm: 6 }}>
             <FormControlLabel
               control={
