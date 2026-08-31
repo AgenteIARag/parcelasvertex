@@ -139,8 +139,10 @@ interface TotaisStatus {
   paga: number;
   recebida: number;
   cancelada: number;
-  aReceber: number;   // = aVencer + vencida (ainda não liquidado)
-  espelhoRecebido: number; // Valor (comissão) espelhada que entrou neste mês vinda de meses anteriores
+  aReceber: number;        // Somente Pagas que NÃO foram recebidas ainda
+  espelhoRecebido: number; // Total espelho (meses anteriores) - mantido por compatibilidade
+  espelhoAReceber: number; // Espelhos (Parcelas de Meses Anteriores) ainda A Receber
+  espelhoRecebidaReal: number; // Espelhos (Parcelas de Meses Anteriores) já Recebidas
   pagaForaMes: number;     // Valor (comissão) da competência original que foi paga apenas em meses futuros
 }
 
@@ -158,13 +160,18 @@ interface GrupoPeriodo {
 // ──────────────────────────────────────────────────────────
 
 const calcularTotaisStatus = (itens: ParcelaLinha[]): TotaisStatus => {
-  const t: TotaisStatus = { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, aReceber: 0, espelhoRecebido: 0, pagaForaMes: 0 };
+  const t: TotaisStatus = { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, aReceber: 0, espelhoRecebido: 0, espelhoAReceber: 0, espelhoRecebidaReal: 0, pagaForaMes: 0 };
   itens.forEach((i) => {
     const v = i.comissao;
     
-    // Se for espelho, conta apenas no total de espelho recebido (Caixa de meses anteriores)
+    // Se for espelho, separa em A Receber vs Recebida (Parcelas de Meses Anteriores)
     if (i.isEspelho) {
       t.espelhoRecebido += v;
+      if (i.situacaoRecebimento === 'Recebida') {
+        t.espelhoRecebidaReal += v;
+      } else {
+        t.espelhoAReceber += v;
+      }
       return;
     }
 
@@ -179,10 +186,12 @@ const calcularTotaisStatus = (itens: ParcelaLinha[]): TotaisStatus => {
     else if (i.statusParcela === 'A vencer') t.aVencer += v;
 
     if (i.situacaoRecebimento === 'Recebida') t.recebida += v;
-    else if (i.statusParcela !== 'Cancelada') t.aReceber += v;
+    // A Receber = somente Pagas que ainda NÃO foram recebidas
+    else if (i.statusParcela === 'Paga') t.aReceber += v;
   });
   return t;
 };
+
 
 // ──────────────────────────────────────────────────────────
 // Sub-componente: Mini badges de status com valor
@@ -201,13 +210,14 @@ const StatusValorRow = ({ totais }: { totais: TotaisStatus }) => {
   if (totais.pagaForaMes > 0) {
     items.push({ label: 'Paga em Atraso (Outro Mês)', value: totais.pagaForaMes, color: '#eab308', bg: 'rgba(234,179,8,0.12)' });
   }
-  if (totais.espelhoRecebido > 0) {
-    items.push({ label: 'Caixa Adicional (Meses Anteriores)', value: totais.espelhoRecebido, color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' });
-  }
+
+  // Total a Receber = A Receber (Pagas não recebidas) + Parcelas de Meses Anteriores A Receber
+  const totalAReceber = totais.aReceber + totais.espelhoAReceber;
 
   const validItems = items.filter((item) => item.value > 0);
 
-  if (validItems.length === 0) return null;
+  // Blocos de Parcelas de Meses Anteriores (espelhos separados)
+  const temEspelho = totais.espelhoRecebido > 0;
 
   return (
     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'nowrap', alignItems: 'center' }}>
@@ -227,9 +237,63 @@ const StatusValorRow = ({ totais }: { totais: TotaisStatus }) => {
           </Box>
         </Tooltip>
       ))}
+
+      {/* Parcelas de Meses Anteriores (espelhos) - divididos em A Receber e Recebida */}
+      {temEspelho && (
+        <Box sx={{
+          display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+          px: 0.7, py: 0.2, borderRadius: 1.2,
+          bgcolor: 'rgba(139,92,246,0.12)', color: '#8b5cf6', whiteSpace: 'nowrap',
+          border: '1px solid rgba(139,92,246,0.3)',
+        }}>
+          <Typography sx={{ fontSize: '0.54rem', fontWeight: 700, lineHeight: 1.1, textTransform: 'uppercase', letterSpacing: '0.2px' }}>
+            Parc. Meses Ant.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+            {totais.espelhoAReceber > 0 && (
+              <Tooltip title="Parcelas de Meses Anteriores – A Receber">
+                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3, px: 0.5, py: 0.1, borderRadius: 1, bgcolor: 'rgba(249,115,22,0.18)', color: '#f97316' }}>
+                  <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}>
+                    {formatarMoeda(totais.espelhoAReceber)}
+                  </Typography>
+                </Box>
+              </Tooltip>
+            )}
+            {totais.espelhoRecebidaReal > 0 && (
+              <Tooltip title="Parcelas de Meses Anteriores – Recebida">
+                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3, px: 0.5, py: 0.1, borderRadius: 1, bgcolor: 'rgba(14,165,233,0.18)', color: '#0ea5e9' }}>
+                  <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}>
+                    {formatarMoeda(totais.espelhoRecebidaReal)}
+                  </Typography>
+                </Box>
+              </Tooltip>
+            )}
+          </Box>
+        </Box>
+      )}
+
+      {/* Total a Receber = A Receber + Parcelas de Meses Anteriores A Receber */}
+      {totalAReceber > 0 && (
+        <Tooltip title={`Total a Receber = A Receber (${formatarMoeda(totais.aReceber)}) + Parc. Meses Ant. A Receber (${formatarMoeda(totais.espelhoAReceber)})`}>
+          <Box sx={{
+            display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+            px: 0.7, py: 0.2, borderRadius: 1.2,
+            bgcolor: 'rgba(245,158,11,0.15)', color: '#f59e0b', whiteSpace: 'nowrap',
+            border: '1.5px solid rgba(245,158,11,0.5)',
+          }}>
+            <Typography sx={{ fontSize: '0.54rem', fontWeight: 700, lineHeight: 1.1, textTransform: 'uppercase', letterSpacing: '0.2px' }}>
+              Total a Receber
+            </Typography>
+            <Typography sx={{ fontSize: '0.7rem', fontWeight: 900, lineHeight: 1.1, fontFamily: 'Outfit, sans-serif' }}>
+              {formatarMoeda(totalAReceber)}
+            </Typography>
+          </Box>
+        </Tooltip>
+      )}
     </Box>
   );
 };
+
 
 // ──────────────────────────────────────────────────────────
 // Sub-componente: Badging de Status e Recebimento
@@ -1423,6 +1487,8 @@ export const RelatorioRecebimentos = ({
   const [busca, setBusca] = useState('');
   const [buscaRelatorio, setBuscaRelatorio] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<string[]>([]); 
+  // Filtro: 'Todos' | 'Vendas' | 'Recorrência'
+  const [filtroTipo, setFiltroTipo] = useState<'Todos' | 'Vendas' | 'Recorrência'>('Todos');
 
   const [openNovaVenda, setOpenNovaVenda] = useState(false);
   const [openEditDialog, setOpenEditDialog] = useState(false);
@@ -1700,6 +1766,10 @@ export const RelatorioRecebimentos = ({
         if (dataInicio && dtVenc < dataInicio) criarOriginal = false;
         if (dataFim && dtVenc > dataFim) criarOriginal = false;
 
+        // Filtro de tipo: Vendas (1ª parcela) vs Recorrência (2ª em diante)
+        if (filtroTipo === 'Vendas' && parcelaIndex !== 1) criarOriginal = false;
+        if (filtroTipo === 'Recorrência' && parcelaIndex === 1) criarOriginal = false;
+
         if (criarOriginal) {
           lista.push({
             ...linhaBase,
@@ -1716,6 +1786,10 @@ export const RelatorioRecebimentos = ({
           if (dataInicio && dtPag < dataInicio) criarEspelho = false;
           if (dataFim && dtPag > dataFim) criarEspelho = false;
 
+          // Filtro de tipo também se aplica aos espelhos
+          if (filtroTipo === 'Vendas' && parcelaIndex !== 1) criarEspelho = false;
+          if (filtroTipo === 'Recorrência' && parcelaIndex === 1) criarEspelho = false;
+
           if (criarEspelho) {
             lista.push({
               ...linhaBase,
@@ -1730,7 +1804,8 @@ export const RelatorioRecebimentos = ({
     });
 
     return lista;
-  }, [vendas, dataInicio, dataFim, ciclos, busca, buscaRelatorio, filtroStatus]);
+  }, [vendas, dataInicio, dataFim, ciclos, busca, buscaRelatorio, filtroStatus, filtroTipo]);
+
 
   // 2. Agrupa por grupoVisual (que é o Mês/Ano onde a linha deve aparecer)
   const grupos = useMemo<GrupoPeriodo[]>(() => {
@@ -2051,7 +2126,46 @@ export const RelatorioRecebimentos = ({
             );
           })}
         </Box>
+
+        {/* Filtro: Vendas vs Recorrência */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, ml: 0.5 }}>
+          <Divider orientation="vertical" flexItem sx={{ height: 22, mx: 0.5 }} />
+          {(['Todos', 'Vendas', 'Recorrência'] as const).map((tipo) => {
+            const isAtivo = filtroTipo === tipo;
+            const cor = tipo === 'Vendas' ? '#0ea5e9' : tipo === 'Recorrência' ? '#a855f7' : theme.palette.primary.main;
+            const icon = tipo === 'Vendas'
+              ? <FlashOnIcon sx={{ fontSize: 13 }} />
+              : tipo === 'Recorrência'
+              ? <AutorenewIcon sx={{ fontSize: 13 }} />
+              : null;
+            return (
+              <Chip
+                key={tipo}
+                label={tipo}
+                size="small"
+                icon={icon ? <Box sx={{ display: 'flex', alignItems: 'center', color: isAtivo ? '#fff' : cor }}>{icon}</Box> : undefined}
+                onClick={() => setFiltroTipo(tipo)}
+                variant={isAtivo ? 'filled' : 'outlined'}
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '0.72rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  bgcolor: isAtivo ? cor : 'transparent',
+                  color: isAtivo ? '#fff' : 'text.secondary',
+                  borderColor: isAtivo ? cor : (isDark ? '#374151' : '#d1d5db'),
+                  '&:hover': {
+                    bgcolor: isAtivo ? cor : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                    borderColor: cor,
+                  },
+                  '& .MuiChip-icon': { ml: 0.5 },
+                }}
+              />
+            );
+          })}
+        </Box>
       </Box>
+
 
       {/* ── Lista de grupos ── */}
       {grupos.length === 0 ? (
@@ -2096,20 +2210,23 @@ export const RelatorioRecebimentos = ({
                 <TableRow>
                   {[
                     'Mês/Ano', 'Parcelas', 'Datas de Recebimento', 'Valor do Crédito',
-                    'Total Comissões', 'Cancelada', 'A Vencer', 'Vencida', 'Paga', 'Recebida', 'A Receber'
+                    'Total Comissões', 'Cancelada', 'A Vencer', 'Vencida', 'Paga', 'Recebida',
+                    'A Receber', 'Parc. Meses Ant. (A Receber)', 'Parc. Meses Ant. (Recebida)', 'Total a Receber'
                   ].map((h) => (
                     <TableCell key={h} sx={{
                       fontWeight: 700, fontSize: '0.72rem', color:
-                        h === 'A Receber' ? '#f59e0b' :
+                        h === 'A Receber' ? '#f97316' :
+                        h === 'Total a Receber' ? '#f59e0b' :
                         h === 'Cancelada' ? '#ef4444' :
                         h === 'A Vencer' ? '#6366f1' :
                         h === 'Vencida' ? '#f59e0b' :
                         h === 'Paga' ? '#10b981' :
                         h === 'Recebida' ? '#0ea5e9' :
+                        h.includes('Parc. Meses Ant.') ? '#8b5cf6' :
                         'text.secondary',
                       textTransform: 'uppercase', letterSpacing: '0.4px', whiteSpace: 'nowrap',
                       bgcolor: isDark ? '#0b0f19' : '#f8fafc',
-                      borderBottom: h === 'A Receber' ? `2px solid #f59e0b` : undefined,
+                      borderBottom: h === 'Total a Receber' ? `2px solid #f59e0b` : undefined,
                     }}>
                       {h}
                     </TableCell>
@@ -2120,6 +2237,7 @@ export const RelatorioRecebimentos = ({
                 {grupos.map((g) => {
                   const datasUnicas = [...new Set(g.itens.map((i) => i.dataPrevisaoRecebimento))].sort();
                   const ts = g.totaisStatus;
+                  const totalAReceberRow = ts.aReceber + ts.espelhoAReceber;
                   return (
                     <TableRow key={g.mesPeriodo} hover sx={{ '&:last-child td': { border: 0 } }}>
                       <TableCell sx={{ fontWeight: 700, fontSize: '0.82rem', fontFamily: 'Outfit, sans-serif' }}>
@@ -2144,12 +2262,36 @@ export const RelatorioRecebimentos = ({
                       <TableCell sx={{ fontSize: '0.78rem', fontWeight: 600, color: ts.recebida > 0 ? '#0ea5e9' : 'text.disabled' }}>
                         {ts.recebida > 0 ? formatarMoeda(ts.recebida) : '—'}
                       </TableCell>
+                      {/* A Receber = Pagas não recebidas */}
                       <TableCell sx={{
-                        fontSize: '0.82rem', fontWeight: 900,
-                        color: ts.aReceber > 0 ? '#f59e0b' : 'text.disabled',
-                        bgcolor: ts.aReceber > 0 ? 'rgba(245,158,11,0.06)' : 'transparent',
+                        fontSize: '0.78rem', fontWeight: 700,
+                        color: ts.aReceber > 0 ? '#f97316' : 'text.disabled',
                       }}>
                         {ts.aReceber > 0 ? formatarMoeda(ts.aReceber) : '—'}
+                      </TableCell>
+                      {/* Parcelas de Meses Anteriores - A Receber */}
+                      <TableCell sx={{
+                        fontSize: '0.78rem', fontWeight: 700,
+                        color: ts.espelhoAReceber > 0 ? '#8b5cf6' : 'text.disabled',
+                        bgcolor: ts.espelhoAReceber > 0 ? 'rgba(139,92,246,0.06)' : 'transparent',
+                      }}>
+                        {ts.espelhoAReceber > 0 ? formatarMoeda(ts.espelhoAReceber) : '—'}
+                      </TableCell>
+                      {/* Parcelas de Meses Anteriores - Recebida */}
+                      <TableCell sx={{
+                        fontSize: '0.78rem', fontWeight: 700,
+                        color: ts.espelhoRecebidaReal > 0 ? '#8b5cf6' : 'text.disabled',
+                        bgcolor: ts.espelhoRecebidaReal > 0 ? 'rgba(139,92,246,0.06)' : 'transparent',
+                      }}>
+                        {ts.espelhoRecebidaReal > 0 ? formatarMoeda(ts.espelhoRecebidaReal) : '—'}
+                      </TableCell>
+                      {/* Total a Receber */}
+                      <TableCell sx={{
+                        fontSize: '0.82rem', fontWeight: 900,
+                        color: totalAReceberRow > 0 ? '#f59e0b' : 'text.disabled',
+                        bgcolor: totalAReceberRow > 0 ? 'rgba(245,158,11,0.06)' : 'transparent',
+                      }}>
+                        {totalAReceberRow > 0 ? formatarMoeda(totalAReceberRow) : '—'}
                       </TableCell>
                     </TableRow>
                   );
@@ -2158,15 +2300,18 @@ export const RelatorioRecebimentos = ({
                 {(() => {
                   const totGeral = grupos.reduce(
                     (acc, g) => ({
-                      cancelada: acc.cancelada + g.totaisStatus.cancelada,
-                      aVencer:   acc.aVencer   + g.totaisStatus.aVencer,
-                      vencida:   acc.vencida   + g.totaisStatus.vencida,
-                      paga:      acc.paga      + g.totaisStatus.paga,
-                      recebida:  acc.recebida  + g.totaisStatus.recebida,
-                      aReceber:  acc.aReceber  + g.totaisStatus.aReceber,
+                      cancelada:           acc.cancelada           + g.totaisStatus.cancelada,
+                      aVencer:             acc.aVencer             + g.totaisStatus.aVencer,
+                      vencida:             acc.vencida             + g.totaisStatus.vencida,
+                      paga:                acc.paga                + g.totaisStatus.paga,
+                      recebida:            acc.recebida            + g.totaisStatus.recebida,
+                      aReceber:            acc.aReceber            + g.totaisStatus.aReceber,
+                      espelhoAReceber:     acc.espelhoAReceber     + g.totaisStatus.espelhoAReceber,
+                      espelhoRecebidaReal: acc.espelhoRecebidaReal + g.totaisStatus.espelhoRecebidaReal,
                     }),
-                    { cancelada: 0, aVencer: 0, vencida: 0, paga: 0, recebida: 0, aReceber: 0 }
+                    { cancelada: 0, aVencer: 0, vencida: 0, paga: 0, recebida: 0, aReceber: 0, espelhoAReceber: 0, espelhoRecebidaReal: 0 }
                   );
+                  const totalGeralAReceber = totGeral.aReceber + totGeral.espelhoAReceber;
                   return (
                     <TableRow sx={{ '& td': { borderTop: `2px solid ${isDark ? '#374151' : '#e5e7eb'}` } }}>
                       <TableCell colSpan={3} sx={{ fontWeight: 800, fontSize: '0.82rem', fontFamily: 'Outfit, sans-serif' }}>TOTAL GERAL</TableCell>
@@ -2187,12 +2332,21 @@ export const RelatorioRecebimentos = ({
                       <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.recebida > 0 ? '#0ea5e9' : 'text.disabled' }}>
                         {totGeral.recebida > 0 ? formatarMoeda(totGeral.recebida) : '—'}
                       </TableCell>
+                      <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.aReceber > 0 ? '#f97316' : 'text.disabled' }}>
+                        {totGeral.aReceber > 0 ? formatarMoeda(totGeral.aReceber) : '—'}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.espelhoAReceber > 0 ? '#8b5cf6' : 'text.disabled', bgcolor: totGeral.espelhoAReceber > 0 ? 'rgba(139,92,246,0.06)' : 'transparent' }}>
+                        {totGeral.espelhoAReceber > 0 ? formatarMoeda(totGeral.espelhoAReceber) : '—'}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.espelhoRecebidaReal > 0 ? '#8b5cf6' : 'text.disabled', bgcolor: totGeral.espelhoRecebidaReal > 0 ? 'rgba(139,92,246,0.06)' : 'transparent' }}>
+                        {totGeral.espelhoRecebidaReal > 0 ? formatarMoeda(totGeral.espelhoRecebidaReal) : '—'}
+                      </TableCell>
                       <TableCell sx={{
                         fontWeight: 900, fontSize: '0.9rem',
-                        color: totGeral.aReceber > 0 ? '#f59e0b' : 'text.disabled',
-                        bgcolor: totGeral.aReceber > 0 ? 'rgba(245,158,11,0.08)' : 'transparent',
+                        color: totalGeralAReceber > 0 ? '#f59e0b' : 'text.disabled',
+                        bgcolor: totalGeralAReceber > 0 ? 'rgba(245,158,11,0.08)' : 'transparent',
                       }}>
-                        {totGeral.aReceber > 0 ? formatarMoeda(totGeral.aReceber) : '—'}
+                        {totalGeralAReceber > 0 ? formatarMoeda(totalGeralAReceber) : '—'}
                       </TableCell>
                     </TableRow>
                   );
