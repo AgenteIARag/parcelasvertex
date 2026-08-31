@@ -149,7 +149,9 @@ interface TotaisStatus {
 interface GrupoPeriodo {
   mesPeriodo: string;         // YYYY-MM (chave de agrupamento por mês)
   totalComissoes: number;
-  totalParcelas: number;
+  totalParcelas: number;          // Soma do crédito correto (valorVenda p/ vendas, valorParcela p/ recorrência)
+  totalCreditoVendas: number;     // Valor da cota das 1ªs parcelas (vendas novas)
+  totalCreditoRecorrencia: number; // Valor da mensalidade das parcelas 2ª em diante
   qtdParcelas: number;
   itens: ParcelaLinha[];
   totaisStatus: TotaisStatus;
@@ -441,12 +443,15 @@ const exportarRecebimentosParaPDF = (mesAnoFormatado: string, itens: ParcelaLinh
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const rodapeY = pageHeight - 6; // 6mm acima da borda inferior
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);
     const numPaginaStr = `Página ${i} de ${totalPages}`;
-    doc.text(numPaginaStr, 283 - doc.getTextWidth(numPaginaStr), 200);
-    doc.text('Gerado por APEX - Previsão de Recebimentos', 14, 200);
+    doc.text(numPaginaStr, pageWidth - 14 - doc.getTextWidth(numPaginaStr), rodapeY);
+    doc.text('Gerado por APEX - Previsão de Recebimentos', 14, rodapeY);
   }
 
   // Salvar PDF
@@ -1171,7 +1176,8 @@ const GrupoRecebimento = ({
       return;
     }
     const totalComissoes = itensParaExportar.reduce((acc, i) => acc + i.comissao, 0);
-    const totalCredito = itensParaExportar.reduce((acc, i) => acc + i.valorVenda, 0);
+    const totalCredito = itensParaExportar.reduce((acc, i) =>
+      acc + (i.parcelaIndex === 1 ? i.valorVenda : i.valorParcela), 0);
 
     exportarRecebimentosParaPDF(
       formatarMesAno(grupo.mesPeriodo + '-01'),
@@ -1299,14 +1305,6 @@ const GrupoRecebimento = ({
             </Typography>
           </Box>
 
-          <Box sx={{ flexShrink: 0 }}>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block', whiteSpace: 'nowrap' }}>
-              Valor do Crédito
-            </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 800, color: 'text.primary', fontFamily: 'Outfit, sans-serif', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
-              {formatarMoeda(grupo.totalParcelas)}
-            </Typography>
-          </Box>
 
           <Box sx={{ flexShrink: 0 }}>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block', whiteSpace: 'nowrap' }}>
@@ -1316,6 +1314,50 @@ const GrupoRecebimento = ({
               {grupo.qtdParcelas}
             </Typography>
           </Box>
+
+          {/* Crédito: Vendas Novas */}
+          {grupo.totalCreditoVendas > 0 && (
+            <Tooltip title={`Crédito das vendas novas (1ª parcela) do mês`}>
+              <Box sx={{
+                display: 'flex', flexDirection: 'column',
+                p: '3px 8px', borderRadius: 1.5, flexShrink: 0,
+                bgcolor: isDark ? 'rgba(14,165,233,0.1)' : 'rgba(14,165,233,0.07)',
+                border: `1px solid ${isDark ? 'rgba(14,165,233,0.25)' : 'rgba(14,165,233,0.2)'}`,
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                  <FlashOnIcon sx={{ fontSize: 11, color: '#0ea5e9' }} />
+                  <Typography variant="caption" sx={{ color: '#0ea5e9', fontWeight: 800, fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>
+                    Crédito Vendas
+                  </Typography>
+                </Box>
+                <Typography variant="body2" sx={{ fontWeight: 800, color: '#0ea5e9', fontFamily: 'Outfit, sans-serif', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                  {formatarMoeda(grupo.totalCreditoVendas)}
+                </Typography>
+              </Box>
+            </Tooltip>
+          )}
+
+          {/* Crédito: Recorrência */}
+          {grupo.totalCreditoRecorrencia > 0 && (
+            <Tooltip title={`Crédito da recorrência (2ª parcela em diante) do mês`}>
+              <Box sx={{
+                display: 'flex', flexDirection: 'column',
+                p: '3px 8px', borderRadius: 1.5, flexShrink: 0,
+                bgcolor: isDark ? 'rgba(168,85,247,0.1)' : 'rgba(168,85,247,0.07)',
+                border: `1px solid ${isDark ? 'rgba(168,85,247,0.25)' : 'rgba(168,85,247,0.2)'}`,
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                  <AutorenewIcon sx={{ fontSize: 11, color: '#a855f7' }} />
+                  <Typography variant="caption" sx={{ color: '#a855f7', fontWeight: 800, fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>
+                    Crédito Recorr.
+                  </Typography>
+                </Box>
+                <Typography variant="body2" sx={{ fontWeight: 800, color: '#a855f7', fontFamily: 'Outfit, sans-serif', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                  {formatarMoeda(grupo.totalCreditoRecorrencia)}
+                </Typography>
+              </Box>
+            </Tooltip>
+          )}
 
           {/* Indicador: Vendas do Mês (1ª Parcela) */}
           <Tooltip title={`Vendas do Mês: ${qtdNovasVendas} contrato(s) com crédito total de ${formatarMoeda(totalNovasVendasCredito)}`}>
@@ -1818,6 +1860,8 @@ export const RelatorioRecebimentos = ({
           mesPeriodo: key,
           totalComissoes: 0,
           totalParcelas: 0,
+          totalCreditoVendas: 0,
+          totalCreditoRecorrencia: 0,
           qtdParcelas: 0,
           itens: [],
           totaisStatus: { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, aReceber: 0, espelhoRecebido: 0, espelhoAReceber: 0, espelhoRecebidaReal: 0, pagaForaMes: 0 },
@@ -1825,11 +1869,19 @@ export const RelatorioRecebimentos = ({
       }
       const g = mapa.get(key)!;
       
-      // Conforme Opção 1, espelhos não somam no total base daquele mês para evitar duplicação.
+      // Espelhos não somam no total base do mês para evitar duplicação.
       if (!p.isEspelho) {
         g.totalComissoes += p.comissao;
-        g.totalParcelas += p.valorVenda;
         g.qtdParcelas += 1;
+        // 1ª parcela = Venda nova → soma valorVenda (valor da cota)
+        // 2ª+ parcela = Recorrência → soma valorParcela (mensalidade)
+        if (p.parcelaIndex === 1) {
+          g.totalCreditoVendas += p.valorVenda;
+          g.totalParcelas += p.valorVenda;
+        } else {
+          g.totalCreditoRecorrencia += p.valorParcela;
+          g.totalParcelas += p.valorParcela;
+        }
       }
       
       g.itens.push(p);
@@ -1848,6 +1900,8 @@ export const RelatorioRecebimentos = ({
   // 3. Totais gerais
   const totalComissoes = grupos.reduce((acc, g) => acc + g.totalComissoes, 0);
   const totalCredito = grupos.reduce((acc, g) => acc + g.totalParcelas, 0);
+  const totalCreditoVendas = grupos.reduce((acc, g) => acc + g.totalCreditoVendas, 0);
+  const totalCreditoRecorrencia = grupos.reduce((acc, g) => acc + g.totalCreditoRecorrencia, 0);
   const totalQtd = grupos.reduce((acc, g) => acc + g.qtdParcelas, 0);
 
   // Totais consolidados de Vendas do Mês vs Recorrência no período filtrado
@@ -1864,7 +1918,7 @@ export const RelatorioRecebimentos = ({
     const itensRecorrentes = parcelas.filter(p => !p.isEspelho && p.parcelaIndex > 1);
     return {
       comissao: itensRecorrentes.reduce((acc, p) => acc + p.comissao, 0),
-      credito: itensRecorrentes.reduce((acc, p) => acc + p.valorVenda, 0),
+      credito: itensRecorrentes.reduce((acc, p) => acc + p.valorParcela, 0), // valorParcela p/ recorrência
       qtd: itensRecorrentes.length
     };
   }, [parcelas]);
@@ -1997,7 +2051,7 @@ export const RelatorioRecebimentos = ({
           {
             label: 'Valor do Crédito',
             value: formatarMoeda(totalCredito),
-            sub: 'Volume total',
+            sub: `Vendas: ${formatarMoeda(totalCreditoVendas)} · Recorr.: ${formatarMoeda(totalCreditoRecorrencia)}`,
             icon: <TrendingUpIcon />,
             color: '#6366f1',
             bg: 'rgba(99,102,241,0.12)',
