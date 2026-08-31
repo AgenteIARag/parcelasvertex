@@ -1176,8 +1176,7 @@ const GrupoRecebimento = ({
       return;
     }
     const totalComissoes = itensParaExportar.reduce((acc, i) => acc + i.comissao, 0);
-    const totalCredito = itensParaExportar.reduce((acc, i) =>
-      acc + (i.parcelaIndex === 1 ? i.valorVenda : i.valorParcela), 0);
+    const totalCredito = itensParaExportar.reduce((acc, i) => acc + i.valorVenda, 0);
 
     exportarRecebimentosParaPDF(
       formatarMesAno(grupo.mesPeriodo + '-01'),
@@ -1874,14 +1873,13 @@ export const RelatorioRecebimentos = ({
         g.totalComissoes += p.comissao;
         g.qtdParcelas += 1;
         // 1ª parcela = Venda nova → soma valorVenda (valor da cota)
-        // 2ª+ parcela = Recorrência → soma valorParcela (mensalidade)
+        // 2ª+ parcela = Recorrência → soma valorVenda (valor da cota) conforme solicitado
         if (p.parcelaIndex === 1) {
           g.totalCreditoVendas += p.valorVenda;
-          g.totalParcelas += p.valorVenda;
         } else {
-          g.totalCreditoRecorrencia += p.valorParcela;
-          g.totalParcelas += p.valorParcela;
+          g.totalCreditoRecorrencia += p.valorVenda;
         }
+        g.totalParcelas += p.valorVenda;
       }
       
       g.itens.push(p);
@@ -1916,7 +1914,7 @@ export const RelatorioRecebimentos = ({
     const itensRecorrentes = parcelas.filter(p => !p.isEspelho && p.parcelaIndex > 1);
     return {
       comissao: itensRecorrentes.reduce((acc, p) => acc + p.comissao, 0),
-      credito: itensRecorrentes.reduce((acc, p) => acc + p.valorParcela, 0), // valorParcela p/ recorrência
+      credito: itensRecorrentes.reduce((acc, p) => acc + p.valorVenda, 0), // valorVenda p/ recorrência conforme solicitado
       qtd: itensRecorrentes.length
     };
   }, [parcelas]);
