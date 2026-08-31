@@ -1176,7 +1176,14 @@ const GrupoRecebimento = ({
       return;
     }
     const totalComissoes = itensParaExportar.reduce((acc, i) => acc + i.comissao, 0);
-    const totalCredito = itensParaExportar.reduce((acc, i) => acc + i.valorVenda, 0);
+    const pacsUnicos = new Set<string>();
+    let totalCredito = 0;
+    itensParaExportar.forEach(i => {
+      if (!pacsUnicos.has(i.vendaId)) {
+        pacsUnicos.add(i.vendaId);
+        totalCredito += i.valorVenda;
+      }
+    });
 
     exportarRecebimentosParaPDF(
       formatarMesAno(grupo.mesPeriodo + '-01'),
@@ -1851,6 +1858,7 @@ export const RelatorioRecebimentos = ({
   // 2. Agrupa por grupoVisual (que é o Mês/Ano onde a linha deve aparecer)
   const grupos = useMemo<GrupoPeriodo[]>(() => {
     const mapa = new Map<string, GrupoPeriodo>();
+    const pacsPorMes = new Map<string, Set<string>>(); // Controla PACs únicos por mês para o crédito
 
     parcelas.forEach((p) => {
       const key = p.grupoVisual; // Agrupamento por mês de visualização
@@ -1865,21 +1873,28 @@ export const RelatorioRecebimentos = ({
           itens: [],
           totaisStatus: { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, aReceber: 0, espelhoRecebido: 0, espelhoAReceber: 0, espelhoRecebidaReal: 0, pagaForaMes: 0 },
         });
+        pacsPorMes.set(key, new Set<string>());
       }
       const g = mapa.get(key)!;
+      const pacsDoMes = pacsPorMes.get(key)!;
       
       // Espelhos não somam no total base do mês para evitar duplicação.
       if (!p.isEspelho) {
         g.totalComissoes += p.comissao;
         g.qtdParcelas += 1;
-        // 1ª parcela = Venda nova → soma valorVenda (valor da cota)
-        // 2ª+ parcela = Recorrência → soma valorVenda (valor da cota) conforme solicitado
-        if (p.parcelaIndex === 1) {
-          g.totalCreditoVendas += p.valorVenda;
-        } else {
-          g.totalCreditoRecorrencia += p.valorVenda;
+        
+        // Garante que o crédito da cota (valorVenda) seja somado apenas 1x por PAC no mês
+        if (!pacsDoMes.has(p.vendaId)) {
+          pacsDoMes.add(p.vendaId);
+          // 1ª parcela = Venda nova → soma valorVenda (valor da cota)
+          // 2ª+ parcela = Recorrência → soma valorVenda (valor da cota)
+          if (p.parcelaIndex === 1) {
+            g.totalCreditoVendas += p.valorVenda;
+          } else {
+            g.totalCreditoRecorrencia += p.valorVenda;
+          }
+          g.totalParcelas += p.valorVenda;
         }
-        g.totalParcelas += p.valorVenda;
       }
       
       g.itens.push(p);
@@ -1897,24 +1912,52 @@ export const RelatorioRecebimentos = ({
 
   // 3. Totais gerais
   const totalComissoes = grupos.reduce((acc, g) => acc + g.totalComissoes, 0);
-  const totalCredito = grupos.reduce((acc, g) => acc + g.totalParcelas, 0);
   const totalQtd = grupos.reduce((acc, g) => acc + g.qtdParcelas, 0);
+
+  // Calcula o crédito total considerando PACs únicos (em vez de somar todos os grupos e duplicar se o mesmo PAC aparecer em meses diferentes)
+  const totalCredito = useMemo(() => {
+    const pacsUnicos = new Set<string>();
+    let creditoUnico = 0;
+    parcelas.forEach(p => {
+      if (!p.isEspelho && !pacsUnicos.has(p.vendaId)) {
+        pacsUnicos.add(p.vendaId);
+        creditoUnico += p.valorVenda;
+      }
+    });
+    return creditoUnico;
+  }, [parcelas]);
 
   // Totais consolidados de Vendas do Mês vs Recorrência no período filtrado
   const totalNovasVendasGeral = useMemo(() => {
     const itensNovos = parcelas.filter(p => !p.isEspelho && p.parcelaIndex === 1);
+    const pacsUnicos = new Set<string>();
+    let creditoUnico = 0;
+    itensNovos.forEach(p => {
+      if (!pacsUnicos.has(p.vendaId)) {
+        pacsUnicos.add(p.vendaId);
+        creditoUnico += p.valorVenda;
+      }
+    });
     return {
       comissao: itensNovos.reduce((acc, p) => acc + p.comissao, 0),
-      credito: itensNovos.reduce((acc, p) => acc + p.valorVenda, 0),
+      credito: creditoUnico,
       qtd: itensNovos.length
     };
   }, [parcelas]);
 
   const totalRecorrenciaGeral = useMemo(() => {
     const itensRecorrentes = parcelas.filter(p => !p.isEspelho && p.parcelaIndex > 1);
+    const pacsUnicos = new Set<string>();
+    let creditoUnico = 0;
+    itensRecorrentes.forEach(p => {
+      if (!pacsUnicos.has(p.vendaId)) {
+        pacsUnicos.add(p.vendaId);
+        creditoUnico += p.valorVenda;
+      }
+    });
     return {
       comissao: itensRecorrentes.reduce((acc, p) => acc + p.comissao, 0),
-      credito: itensRecorrentes.reduce((acc, p) => acc + p.valorVenda, 0), // valorVenda p/ recorrência conforme solicitado
+      credito: creditoUnico,
       qtd: itensRecorrentes.length
     };
   }, [parcelas]);
