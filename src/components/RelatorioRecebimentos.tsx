@@ -1900,8 +1900,6 @@ export const RelatorioRecebimentos = ({
   // 3. Totais gerais
   const totalComissoes = grupos.reduce((acc, g) => acc + g.totalComissoes, 0);
   const totalCredito = grupos.reduce((acc, g) => acc + g.totalParcelas, 0);
-  const totalCreditoVendas = grupos.reduce((acc, g) => acc + g.totalCreditoVendas, 0);
-  const totalCreditoRecorrencia = grupos.reduce((acc, g) => acc + g.totalCreditoRecorrencia, 0);
   const totalQtd = grupos.reduce((acc, g) => acc + g.qtdParcelas, 0);
 
   // Totais consolidados de Vendas do Mês vs Recorrência no período filtrado
@@ -2042,7 +2040,7 @@ export const RelatorioRecebimentos = ({
           },
           {
             label: 'Recorrência Carteira',
-            value: formatarMoeda(totalRecorrenciaGeral.comissao),
+            value: formatarMoeda(totalRecorrenciaGeral.credito),
             sub: `${totalRecorrenciaGeral.qtd} parcela(s) recorrentes`,
             icon: <AutorenewIcon />,
             color: '#a855f7',
@@ -2051,7 +2049,7 @@ export const RelatorioRecebimentos = ({
           {
             label: 'Valor do Crédito',
             value: formatarMoeda(totalCredito),
-            sub: `Vendas: ${formatarMoeda(totalCreditoVendas)} · Recorr.: ${formatarMoeda(totalCreditoRecorrencia)}`,
+            sub: 'Volume total',
             icon: <TrendingUpIcon />,
             color: '#6366f1',
             bg: 'rgba(99,102,241,0.12)',
