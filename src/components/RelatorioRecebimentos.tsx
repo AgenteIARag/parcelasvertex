@@ -1820,7 +1820,7 @@ export const RelatorioRecebimentos = ({
           totalParcelas: 0,
           qtdParcelas: 0,
           itens: [],
-          totaisStatus: { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, aReceber: 0, espelhoRecebido: 0, pagaForaMes: 0 },
+          totaisStatus: { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, aReceber: 0, espelhoRecebido: 0, espelhoAReceber: 0, espelhoRecebidaReal: 0, pagaForaMes: 0 },
         });
       }
       const g = mapa.get(key)!;
