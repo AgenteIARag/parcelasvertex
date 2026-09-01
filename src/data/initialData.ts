@@ -76,10 +76,10 @@ export const calcularTotaisLinha = (
   let valorMaximoVenda = 0;
 
   const chavesOrdenadas = Object.keys(projecaoAtualizada).sort();
-  
-  // Identifica os meses com valor > 0 para aplicar a regra de 1ª parcela (Adesão) e parcelas restantes
+
+  // ✅ Índice relativo: posição da parcela apenas entre os meses com valor > 0 (ignora meses vazios)
+  // Isso garante que P1=Adesão, P2..Pn=Mensal independente do mês em que a venda começa
   const mesesComVenda = chavesOrdenadas.filter(k => (projecaoAtualizada[k]?.valorVenda || 0) > 0);
-  const primeiraChaveComVenda = mesesComVenda.length > 0 ? mesesComVenda[0] : null;
 
   const temGradePersonalizada = Array.isArray(percentuaisParcelas) && percentuaisParcelas.length > 0;
   const isAdesao = tipoTabela === 'Adesão';
@@ -90,38 +90,41 @@ export const calcularTotaisLinha = (
   chavesOrdenadas.forEach((mesChave) => {
     const celula = projecaoAtualizada[mesChave];
     const valor = celula.valorVenda || 0;
-    
+
     let comissao = 0;
     if (valor > 0) {
+      // Índice relativo entre as parcelas com valor > 0 (P0 = 1ª parcela, P1 = 2ª parcela, etc.)
+      const indiceParcela = mesesComVenda.indexOf(mesChave);
+
       if (temGradePersonalizada) {
         // Usa a grade de percentuais por parcela individual [P1, P2, ..., Pn]
-        const indiceParcela = Object.keys(projecao).filter(k => !k.startsWith('__')).sort().indexOf(mesChave);
+        // O índice é baseado na ordem das parcelas ativas, não na posição absoluta do mês no calendário
         const percParcela = (indiceParcela >= 0 && percentuaisParcelas![indiceParcela] !== undefined)
           ? percentuaisParcelas![indiceParcela]
           : 0;
         comissao = valor * (percParcela / 100);
       } else if (isAdesao) {
-        if (mesChave === primeiraChaveComVenda) {
-          // 1ª Parcela: recebe a comissão de Adesão
+        if (indiceParcela === 0) {
+          // 1ª Parcela (Adesão): recebe o percentual de adesão
           comissao = valor * (pAdesao / 100);
         } else {
-          // Parcelas restantes (2..N): fracionadas
+          // Parcelas restantes (2..N): percentual mensal fracionado
           comissao = valor * ((pMensal / parcelasRestantes) / 100);
         }
       } else {
-        // Linear: percentual total dividido igualmente
+        // Linear: percentual total dividido igualmente por todas as parcelas
         const percentualMensalLinear = percentualComissao / qtdParcelas;
         comissao = valor * (percentualMensalLinear / 100);
       }
     }
-    
+
     projecaoAtualizada[mesChave] = {
       ...celula,
       comissaoGerada: Number(comissao.toFixed(2)),
       // Preserva dataRecebimento se já existir, senão inicializa igual a dataVencimento
       dataRecebimento: celula.dataRecebimento || celula.dataVencimento
     };
-    
+
     if (celula.status !== 'Cancelada' && valor > 0) {
       parcelasAtivas += 1;
       totalComissoes += comissao;
@@ -141,6 +144,7 @@ export const calcularTotaisLinha = (
     projecaoAtualizada
   };
 };
+
 
 // Vendas Iniciais Mockadas
 export const gerarVendaMock = (

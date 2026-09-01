@@ -299,14 +299,26 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
         comissaoCalculada = Number((valorVendaV * (percentualMensalLinear / 100)).toFixed(2));
       }
 
-      proj[mesChave] = {
-        valorVenda: valorVendaV,
-        valorParcela: valorParcelaV,
-        comissaoGerada: comissaoCalculada,
-        status,
-        dataVencimento: dataVenc,
-        dataPrevisaoRecebimento
-      };
+      // ✅ Proteção contra colisão de chave de mês (YYYY-MM):
+      // Na tabela Adesão, a 1ª parcela usa a data da venda e as demais usam a data da assembleia.
+      // Se ambas caem no mesmo mês, a 2ª+ parcela NÃO deve sobrescrever a 1ª.
+      // Em vez disso, acumula a comissão na entrada existente, preservando status/data da 1ª parcela.
+      const entradaExistente = proj[mesChave];
+      if (entradaExistente && entradaExistente.valorVenda > 0 && i > 0) {
+        proj[mesChave] = {
+          ...entradaExistente,
+          comissaoGerada: Number((entradaExistente.comissaoGerada + comissaoCalculada).toFixed(2)),
+        };
+      } else {
+        proj[mesChave] = {
+          valorVenda: valorVendaV,
+          valorParcela: valorParcelaV,
+          comissaoGerada: comissaoCalculada,
+          status,
+          dataVencimento: dataVenc,
+          dataPrevisaoRecebimento
+        };
+      }
     }
 
     const { totalVendas, totalComissoes, projecaoAtualizada } = calcularTotaisLinha(

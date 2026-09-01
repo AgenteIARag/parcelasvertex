@@ -47,6 +47,7 @@ import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import RemoveCircleOutlinedIcon from '@mui/icons-material/RemoveCircleOutlined';
 import AddIcon from '@mui/icons-material/Add';
+import BlockIcon from '@mui/icons-material/Block';
 import Snackbar from '@mui/material/Snackbar';
 import type { LancamentoVenda, Vendedor, RegraMaster, UserPermissions, StatusParcela, Administradora } from '../types';
 import { EditarVendaDialog } from './SimuladorVendas';
@@ -1962,11 +1963,35 @@ export const RelatorioRecebimentos = ({
     };
   }, [parcelas]);
 
+  const totalCreditosVencidos = useMemo(() => {
+    const itensVencidos = parcelas.filter(p => !p.isEspelho && p.statusParcela === 'Vencida');
+    const pacsUnicos = new Set<string>();
+    let creditoUnico = 0;
+    itensVencidos.forEach(p => {
+      if (!pacsUnicos.has(p.vendaId)) {
+        pacsUnicos.add(p.vendaId);
+        creditoUnico += p.valorVenda;
+      }
+    });
+    return { credito: creditoUnico, qtd: pacsUnicos.size };
+  }, [parcelas]);
+
+  const totalCreditosCancelados = useMemo(() => {
+    const itensCancelados = parcelas.filter(p => !p.isEspelho && p.statusParcela === 'Cancelada');
+    const pacsUnicos = new Set<string>();
+    let creditoUnico = 0;
+    itensCancelados.forEach(p => {
+      if (!pacsUnicos.has(p.vendaId)) {
+        pacsUnicos.add(p.vendaId);
+        creditoUnico += p.valorVenda;
+      }
+    });
+    return { credito: creditoUnico, qtd: pacsUnicos.size };
+  }, [parcelas]);
+
   // 4. Próximo período com valor a receber
   const mesAtual = new Date().toISOString().substring(0, 7); // YYYY-MM
   const proximoPeriodo = grupos.find((g) => g.mesPeriodo >= mesAtual);
-  const periodoAtrasados = grupos.filter((g) => g.mesPeriodo < mesAtual);
-  const totalAtrasado = periodoAtrasados.reduce((acc, g) => acc + g.totalComissoes, 0);
   const proximoValor = proximoPeriodo ? formatarMoeda(proximoPeriodo.totalComissoes) : '';
   const proximoLabel = proximoPeriodo ? formatarMesAno(proximoPeriodo.mesPeriodo + '-01') : '—';
 
@@ -2061,7 +2086,7 @@ export const RelatorioRecebimentos = ({
       </Box>
 
       {/* ── KPIs ── */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr', lg: 'repeat(6, 1fr)' }, gap: 2 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
         {[
           {
             label: 'Total a Receber',
@@ -2078,6 +2103,14 @@ export const RelatorioRecebimentos = ({
             icon: <FlashOnIcon />,
             color: '#0ea5e9',
             bg: 'rgba(14,165,233,0.12)',
+          },
+          {
+            label: 'Crédito de Vendas',
+            value: formatarMoeda(totalNovasVendasGeral.credito),
+            sub: `${totalNovasVendasGeral.qtd} contrato(s)`,
+            icon: <FlashOnIcon />,
+            color: '#0284c7', // um tom diferente de azul
+            bg: 'rgba(2,132,199,0.12)',
           },
           {
             label: 'Recorrência Carteira',
@@ -2104,12 +2137,20 @@ export const RelatorioRecebimentos = ({
             bg: 'rgba(245,158,11,0.12)',
           },
           {
-            label: 'Em Atraso',
-            value: formatarMoeda(totalAtrasado),
-            sub: `${periodoAtrasados.length} período(s)`,
+            label: 'Créditos Vencidos',
+            value: formatarMoeda(totalCreditosVencidos.credito),
+            sub: `${totalCreditosVencidos.qtd} PAC(s) com parcelas vencidas`,
             icon: <HourglassEmptyIcon />,
-            color: totalAtrasado > 0 ? '#ef4444' : '#94a3b8',
-            bg: totalAtrasado > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(148,163,184,0.08)',
+            color: totalCreditosVencidos.credito > 0 ? '#ef4444' : '#94a3b8',
+            bg: totalCreditosVencidos.credito > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(148,163,184,0.08)',
+          },
+          {
+            label: 'Canceladas',
+            value: formatarMoeda(totalCreditosCancelados.credito),
+            sub: `${totalCreditosCancelados.qtd} PAC(s) cancelados`,
+            icon: <BlockIcon />,
+            color: '#64748b',
+            bg: 'rgba(100,116,139,0.12)',
           },
         ].map((kpi) => (
           <Paper
