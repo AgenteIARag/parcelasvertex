@@ -1051,7 +1051,7 @@ export const RelatorioComissoes = ({
 
       const vendedorObj = venda.vendedorId ? mapaVendedores.get(venda.vendedorId) : null;
       const pctVendedor = Number(vendedorObj?.percentualComissao ?? venda.percentualComissao ?? 2.0);
-      const pctMensalVendedor = pctVendedor / venda.qtdParcelas;
+
 
       const todasParcelasVenda = Object.keys(venda.projecaoMensal)
         .filter((m) => { const c = venda.projecaoMensal[m]; return c && c.valorVenda > 0; })
@@ -1094,6 +1094,17 @@ export const RelatorioComissoes = ({
 
         const proporcaoVendedor = venda.percentualComissao > 0 ? pctVendedor / venda.percentualComissao : 0;
         const comissaoVendedorCalculada = Number(((celula.comissaoGerada || 0) * proporcaoVendedor).toFixed(2));
+        if (comissaoVendedorCalculada === 0) {
+          console.log('Zero commission debug:', {
+            cliente: venda.cliente,
+            mesChave,
+            celulaComissaoGerada: celula.comissaoGerada,
+            proporcaoVendedor,
+            pctVendedor,
+            vendaPercentualComissao: venda.percentualComissao,
+            valorVenda: venda.valorVenda
+          });
+        }
         // Filtro de busca textual
         const termo = busca.toLowerCase();
         if (termo && !(

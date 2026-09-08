@@ -140,17 +140,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
     const mesFimChave = dataFim.substring(0, 7);
 
     vendasDoVendedor.forEach((venda) => {
-      // Calcula o percentual mensal do vendedor respeitando o tipo de tabela
-      const temGradePersonalizada = Array.isArray(venda.percentuaisParcelas) && venda.percentuaisParcelas.length > 0;
-      const isAdesao = venda.tipoTabela === 'Adesão';
-      const pAdesaoVendedor = (venda.percentualAdesao ?? 0) > 0
-        ? pctVendedor * ((venda.percentualAdesao ?? 0) / (venda.percentualComissao || 1))
-        : 0;
-      const pMensalVendedor = (venda.percentualMensal ?? 0) > 0
-        ? pctVendedor * ((venda.percentualMensal ?? 0) / (venda.percentualComissao || 1))
-        : 0;
-      const parcelasRestantes = Math.max(1, venda.qtdParcelas - 1);
-
+      
       const mesesAtivos = Object.keys(venda.projecaoMensal)
         .filter((mesChave) => {
           const celula = venda.projecaoMensal[mesChave];
@@ -170,7 +160,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
           return c && c.valorVenda && c.valorVenda > 0;
         })
         .sort();
-      const primeiraChaveComVenda = todasParcelasVendaGlobal.length > 0 ? todasParcelasVendaGlobal[0] : null;
+
 
       mesesAtivos.forEach((mesChave) => {
         const parcelaIndexReal = todasParcelasVendaGlobal.indexOf(mesChave) + 1;
@@ -238,18 +228,9 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
 
     vendasDoVendedor.forEach((venda) => {
       if (venda.statusCliente === 'Cancelado') return;
-      const temGrade = Array.isArray(venda.percentuaisParcelas) && venda.percentuaisParcelas.length > 0;
-      const isAdesao = venda.tipoTabela === 'Adesão';
-      const pAdesaoV = (venda.percentualAdesao ?? 0) > 0
-        ? pctVendedor * ((venda.percentualAdesao ?? 0) / (venda.percentualComissao || 1))
-        : 0;
-      const pMensalV = (venda.percentualMensal ?? 0) > 0
-        ? pctVendedor * ((venda.percentualMensal ?? 0) / (venda.percentualComissao || 1))
-        : 0;
-      const parcelasRest = Math.max(1, venda.qtdParcelas - 1);
       const todasChaves = Object.keys(venda.projecaoMensal).filter(k => !k.startsWith('__')).sort();
       const chavesComVenda = todasChaves.filter(k => (venda.projecaoMensal[k]?.valorVenda || 0) > 0);
-      const primeiraChave = chavesComVenda.length > 0 ? chavesComVenda[0] : null;
+
 
       Object.keys(venda.projecaoMensal).forEach((mesChave) => {
         const celula = venda.projecaoMensal[mesChave];
@@ -705,7 +686,6 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                   ) : (
                     vendasDoVendedor.map((venda) => {
                       const pctVendedor = Number(vendedorSelecionado.percentualComissao || 0);
-                      const pctProporcionalParcela = pctVendedor / venda.qtdParcelas;
 
                       return (
                         <TableRow
