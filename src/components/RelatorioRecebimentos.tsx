@@ -538,6 +538,8 @@ const SubGrupoData = ({
   onMarcarRecebida,
   onDesfazerPaga,
   onDesfazerRecebida,
+  onCancelarParcela,
+  onDesfazerCancelar,
   permissoes,
   isMaster,
 }: {
@@ -554,6 +556,8 @@ const SubGrupoData = ({
   onMarcarRecebida?: (item: ParcelaLinha) => void;
   onDesfazerPaga?: (item: ParcelaLinha) => void;
   onDesfazerRecebida?: (item: ParcelaLinha) => void;
+  onCancelarParcela?: (item: ParcelaLinha) => void;
+  onDesfazerCancelar?: (item: ParcelaLinha) => void;
   permissoes?: UserPermissions;
   isMaster?: boolean;
   onAdicionarVenda?: (v: any) => void;
@@ -1080,6 +1084,38 @@ const SubGrupoData = ({
                               </IconButton>
                             </Tooltip>
                           )}
+                          {/* Botão Cancelar Parcela (A vencer / Vencida) */}
+                          {(item.statusParcela === 'A vencer' || item.statusParcela === 'Vencida') && !item.isEspelho && permissoes?.editarVendas && (
+                            <Tooltip title="Cancelar esta parcela e as futuras">
+                              <IconButton
+                                size="small"
+                                onClick={() => onCancelarParcela?.(item)}
+                                sx={{
+                                  p: 0.4,
+                                  color: '#ef4444',
+                                  '&:hover': { bgcolor: 'rgba(239,68,68,0.12)' }
+                                }}
+                              >
+                                <BlockIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          {/* Desfazer Cancelamento (Master) */}
+                          {item.statusParcela === 'Cancelada' && !item.isEspelho && isMaster && (
+                            <Tooltip title="Desfazer cancelamento">
+                              <IconButton
+                                size="small"
+                                onClick={() => onDesfazerCancelar?.(item)}
+                                sx={{
+                                  p: 0.4,
+                                  color: '#f97316',
+                                  '&:hover': { bgcolor: 'rgba(249,115,22,0.12)' }
+                                }}
+                              >
+                                <RemoveCircleOutlinedIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
                           {/* Botão Editar Venda */}
                           {permissoes?.editarVendas ? (
                             <Tooltip title="Editar venda">
@@ -1127,6 +1163,8 @@ const GrupoRecebimento = ({
   onMarcarRecebida,
   onDesfazerPaga,
   onDesfazerRecebida,
+  onCancelarParcela,
+  onDesfazerCancelar,
   permissoes,
   isMaster,
 }: {
@@ -1138,6 +1176,8 @@ const GrupoRecebimento = ({
   onMarcarRecebida?: (item: ParcelaLinha) => void;
   onDesfazerPaga?: (item: ParcelaLinha) => void;
   onDesfazerRecebida?: (item: ParcelaLinha) => void;
+  onCancelarParcela?: (item: ParcelaLinha) => void;
+  onDesfazerCancelar?: (item: ParcelaLinha) => void;
   permissoes?: UserPermissions;
   isMaster?: boolean;
 }) => {
@@ -1487,6 +1527,8 @@ const GrupoRecebimento = ({
                 onMarcarRecebida={onMarcarRecebida}
                 onDesfazerPaga={onDesfazerPaga}
                 onDesfazerRecebida={onDesfazerRecebida}
+                onCancelarParcela={onCancelarParcela}
+                onDesfazerCancelar={onDesfazerCancelar}
                 permissoes={permissoes}
                 isMaster={isMaster}
               />
@@ -1560,6 +1602,12 @@ export const RelatorioRecebimentos = ({
     notaFiscal: string;
   }>({ open: false, item: null, dataRecebimento: new Date().toISOString().split('T')[0], numeroRelatorio: '', notaFiscal: '' });
 
+  // ── Modal: Cancelar Parcela ──
+  const [modalCancelar, setModalCancelar] = useState<{
+    open: boolean;
+    item: ParcelaLinha | null;
+  }>({ open: false, item: null });
+
   const handleAbrirModalPaga = (item: ParcelaLinha) => {
     setModalPaga({ open: true, item, dataPagamento: new Date().toISOString().split('T')[0] });
   };
@@ -1572,6 +1620,10 @@ export const RelatorioRecebimentos = ({
       numeroRelatorio: '',
       notaFiscal: '',
     });
+  };
+
+  const handleAbrirModalCancelar = (item: ParcelaLinha) => {
+    setModalCancelar({ open: true, item });
   };
 
   const handleConfirmarPaga = async () => {
@@ -1702,6 +1754,61 @@ export const RelatorioRecebimentos = ({
       setSnackbarMsg(`✅ Recebimento desfeito para ${item.cliente}`);
     } catch (err: any) {
       console.error('Erro ao desfazer recebimento no Supabase:', err);
+      const msg = err?.message || err?.details || JSON.stringify(err);
+      setSnackbarMsg(`❌ Erro no banco: ${msg.substring(0, 100)}`);
+    }
+  };
+
+  const handleConfirmarCancelar = async () => {
+    const { item } = modalCancelar;
+    if (!item || !onAtualizarVenda) return;
+    const venda = vendas.find((v) => v.id === item.vendaId);
+    if (!venda) return;
+
+    // Cancela a parcela clicada e todas as futuras não-pagas da mesma venda
+    const todasChaves = Object.keys(venda.projecaoMensal).sort();
+    const chavesCancelar = todasChaves.filter((m) => m >= item.mesReferencia);
+
+    const novaProjecao = { ...venda.projecaoMensal };
+    chavesCancelar.forEach((m) => {
+      const cel = novaProjecao[m];
+      if (cel && cel.status !== 'Paga') {
+        novaProjecao[m] = { ...cel, status: 'Cancelada' as StatusParcela };
+      }
+    });
+
+    const vendaAtualizada: LancamentoVenda = { ...venda, projecaoMensal: novaProjecao };
+    try {
+      await salvarVendaSupabase(vendaAtualizada);
+      onAtualizarVenda(vendaAtualizada);
+      setModalCancelar({ open: false, item: null });
+      setSnackbarMsg(`🚫 Parcela(s) de ${item.cliente} cancelada(s) a partir de ${formatarMesAno(item.mesReferencia + '-01')}`);
+    } catch (err: any) {
+      console.error('Erro ao cancelar parcela no Supabase:', err);
+      const msg = err?.message || err?.details || JSON.stringify(err);
+      setSnackbarMsg(`❌ Erro no banco: ${msg.substring(0, 100)}`);
+    }
+  };
+
+  const handleDesfazerCancelar = async (item: ParcelaLinha) => {
+    if (!window.confirm(`Deseja desfazer o cancelamento da parcela ${item.parcelaIndex}/${item.qtdParcelas} de ${item.cliente}?`)) return;
+    if (!onAtualizarVenda) return;
+    const venda = vendas.find((v) => v.id === item.vendaId);
+    if (!venda) return;
+    const celula = venda.projecaoMensal[item.mesReferencia];
+    if (!celula) return;
+
+    const novaCelula = { ...celula, status: 'A vencer' as StatusParcela };
+    const vendaAtualizada: LancamentoVenda = {
+      ...venda,
+      projecaoMensal: { ...venda.projecaoMensal, [item.mesReferencia]: novaCelula },
+    };
+    try {
+      await salvarVendaSupabase(vendaAtualizada);
+      onAtualizarVenda(vendaAtualizada);
+      setSnackbarMsg(`✅ Cancelamento desfeito para ${item.cliente}`);
+    } catch (err: any) {
+      console.error('Erro ao desfazer cancelamento no Supabase:', err);
       const msg = err?.message || err?.details || JSON.stringify(err);
       setSnackbarMsg(`❌ Erro no banco: ${msg.substring(0, 100)}`);
     }
@@ -2325,6 +2432,8 @@ export const RelatorioRecebimentos = ({
               onMarcarRecebida={handleAbrirModalRecebida}
               onDesfazerPaga={handleDesfazerPaga}
               onDesfazerRecebida={handleDesfazerRecebida}
+              onCancelarParcela={handleAbrirModalCancelar}
+              onDesfazerCancelar={handleDesfazerCancelar}
               permissoes={permissoes}
               isMaster={isMaster}
             />
@@ -2674,6 +2783,56 @@ export const RelatorioRecebimentos = ({
           administradoras={administradoras}
         />
       )}
+
+      {/* ── Dialog: Confirmar Cancelamento ── */}
+      <Dialog
+        open={modalCancelar.open}
+        onClose={() => setModalCancelar({ open: false, item: null })}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.2, py: 1.8 }}>
+          <Box sx={{ p: 0.7, borderRadius: 1.5, bgcolor: 'rgba(239,68,68,0.12)', color: '#ef4444', display: 'flex' }}>
+            <BlockIcon sx={{ fontSize: 18 }} />
+          </Box>
+          Cancelar Parcelas
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2.5, pb: 1.5 }}>
+          {modalCancelar.item && (
+            <Stack spacing={2}>
+              <Alert severity="warning" sx={{ fontSize: '0.8rem', py: 0.5, borderRadius: 2 }}>
+                <strong>{modalCancelar.item.cliente}</strong> · Parcela {modalCancelar.item.parcelaIndex}/{modalCancelar.item.qtdParcelas}
+              </Alert>
+              <Typography variant="body2" color="text.secondary">
+                Esta ação irá cancelar <strong>esta parcela e todas as parcelas futuras</strong> desta venda que ainda não estejam pagas.
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Parcelas já <strong>Pagas</strong> não serão afetadas. O cancelamento pode ser desfeito individualmente por usuários Master.
+              </Typography>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 2.5, py: 1.5, borderTop: `1px solid ${isDark ? '#1f2937' : '#e5e7eb'}`, gap: 1 }}>
+          <Button
+            onClick={() => setModalCancelar({ open: false, item: null })}
+            variant="outlined"
+            size="small"
+            sx={{ textTransform: 'none', borderRadius: 2, fontWeight: 600 }}
+          >
+            Voltar
+          </Button>
+          <Button
+            onClick={handleConfirmarCancelar}
+            variant="contained"
+            color="error"
+            size="small"
+            startIcon={<BlockIcon />}
+            sx={{ textTransform: 'none', borderRadius: 2, fontWeight: 700 }}
+          >
+            Confirmar Cancelamento
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={!!snackbarMsg}
