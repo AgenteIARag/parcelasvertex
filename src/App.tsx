@@ -627,6 +627,38 @@ function App() {
     );
   };
 
+  const handleRecalcularTudo = async () => {
+    if (!window.confirm("Deseja recalcular TODAS as comissões de todas as vendas e salvar no banco?")) return;
+    try {
+      const novasVendas = await Promise.all(
+        vendas.map(async (venda) => {
+          const { totalVendas, totalComissoes, projecaoAtualizada } = calcularTotaisLinha(
+            venda.projecaoMensal,
+            venda.percentualComissao,
+            venda.qtdParcelas,
+            venda.tipoTabela || 'Linear',
+            venda.percentualAdesao,
+            venda.percentualMensal,
+            venda.percentuaisParcelas
+          );
+          const vendaAtualizada = {
+            ...venda,
+            projecaoMensal: projecaoAtualizada,
+            totalVendas,
+            totalComissoes
+          };
+          await salvarVendaSupabase(vendaAtualizada);
+          return vendaAtualizada;
+        })
+      );
+      setVendas(novasVendas);
+      alert("Comissões recalculadas com sucesso!");
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao recalcular.");
+    }
+  };
+
   const handleExcluirRegra = (id: string) => {
     setRegras((prev) => prev.filter((r) => r.id !== id));
     excluirRegraSupabase(id).catch((err) => console.error('Erro Supabase Regras (Exclusão):', err));
@@ -1458,12 +1490,12 @@ function App() {
                     {statusSincronizacao === 'sincronizado' ? (
                       <>
                         <CloudDoneIcon sx={{ fontSize: 14 }} />
-                        <span>Supabase</span>
+                        <span>Sincronizado</span>
                       </>
                     ) : statusSincronizacao === 'sincronizando' ? (
                       <>
                         <CloudQueueIcon sx={{ fontSize: 14 }} />
-                        <span>Conectando...</span>
+                        <span>Sincronizando</span>
                       </>
                     ) : (
                       <>
@@ -1473,6 +1505,18 @@ function App() {
                     )}
                   </Box>
                 </Tooltip>
+              )}
+
+              {isSuperMaster && (
+                <Button
+                  variant="outlined"
+                  color="warning"
+                  size="small"
+                  onClick={handleRecalcularTudo}
+                  sx={{ fontWeight: 'bold', fontSize: '0.7rem' }}
+                >
+                  RECALCULAR TUDO
+                </Button>
               )}
 
               {/* Botão de Backup */}
