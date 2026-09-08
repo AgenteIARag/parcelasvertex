@@ -3040,8 +3040,18 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
     const parcelasRestantes = Math.max(1, parcelas - 1);
     const vendedorSelecionado = vendedores.find((v) => v.id === vendedorId);
 
+    // Inicializa com a projeção vazia apenas para meses que não existem na venda original,
+    // mas preserva TODOS os dados originais (recebida, dataRecebimentoComissao, etc.)
     const projVaziaBase = gerarProjecaoVazia();
-    Object.assign(proj, projVaziaBase);
+    Object.entries(projVaziaBase).forEach(([mes, celVazia]) => {
+      proj[mes] = venda?.projecaoMensal[mes] ?? celVazia;
+    });
+    // Preserva também meses fora de 2026 que já existam na venda original
+    if (venda?.projecaoMensal) {
+      Object.entries(venda.projecaoMensal).forEach(([mes, cel]) => {
+        if (!proj[mes]) proj[mes] = cel;
+      });
+    }
 
     const mesInicioChave = dataVendaInput.substring(0, 7);
 
