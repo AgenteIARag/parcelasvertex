@@ -55,14 +55,14 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
 
       vendasDoVend.forEach((venda) => {
         const pctVendedor = Number(vendedor.percentualComissao || 0);
-        const pctMensalVendedor = pctVendedor / venda.qtdParcelas;
+        const proporcao = venda.percentualComissao > 0 ? pctVendedor / venda.percentualComissao : 0;
         
         // 1. Calcula a Comissão fluindo no período (Fluxo de Caixa / Parcelas ativas)
         Object.keys(venda.projecaoMensal).forEach((mesChave) => {
           const celula = venda.projecaoMensal[mesChave];
           if (celula && celula.valorVenda > 0 && celula.status !== 'Cancelada') {
             if (mesChave >= mesInicioChave && mesChave <= mesFimChave) {
-              const comissaoParcela = (venda.valorVenda * (pctMensalVendedor / 100));
+              const comissaoParcela = (celula.comissaoGerada || 0) * proporcao;
               comissaoTotal += comissaoParcela;
             }
           }

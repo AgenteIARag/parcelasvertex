@@ -1092,8 +1092,8 @@ export const RelatorioComissoes = ({
 
         const parcelaIndex = todasParcelasVenda.indexOf(mesChave) + 1;
 
-        const comissaoVendedorCalculada = Number((venda.valorVenda * (pctMensalVendedor / 100)).toFixed(2));
-
+        const proporcaoVendedor = venda.percentualComissao > 0 ? pctVendedor / venda.percentualComissao : 0;
+        const comissaoVendedorCalculada = Number(((celula.comissaoGerada || 0) * proporcaoVendedor).toFixed(2));
         // Filtro de busca textual
         const termo = busca.toLowerCase();
         if (termo && !(

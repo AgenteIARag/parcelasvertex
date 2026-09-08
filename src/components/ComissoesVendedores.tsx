@@ -1031,11 +1031,11 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                           if (v.statusCliente === 'Cancelado') return acc;
                           let totalC = 0;
                           const pctV = Number(vendedorSelecionado.percentualComissao || 0);
-                          const pctProporcional = pctV / v.qtdParcelas;
+                          const proporcao = v.percentualComissao > 0 ? pctV / v.percentualComissao : 0;
                           listaMesesTimeline.forEach((mes) => {
                             const cel = v.projecaoMensal[mes];
                             if (cel && cel.valorVenda && cel.valorVenda > 0 && cel.status !== 'Cancelada') {
-                              totalC += (v.valorVenda * (pctProporcional / 100));
+                              totalC += (cel.comissaoGerada || 0) * proporcao;
                             }
                           });
                           return acc + totalC;
