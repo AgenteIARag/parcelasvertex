@@ -229,7 +229,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
     vendasDoVendedor.forEach((venda) => {
       if (venda.statusCliente === 'Cancelado') return;
       const todasChaves = Object.keys(venda.projecaoMensal).filter(k => !k.startsWith('__')).sort();
-      const chavesComVenda = todasChaves.filter(k => (venda.projecaoMensal[k]?.valorVenda || 0) > 0);
+
 
 
       Object.keys(venda.projecaoMensal).forEach((mesChave) => {
