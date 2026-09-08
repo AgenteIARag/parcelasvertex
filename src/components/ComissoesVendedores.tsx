@@ -177,28 +177,10 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
 
         const celula = venda.projecaoMensal[mesChave];
 
-        // Calcula comissão do vendedor respeitando o tipo de tabela
-        let comissaoVendedorCalculada: number;
-        if (temGradePersonalizada) {
-          // Grade customizada: usa o percentual proporcional da parcela
-          const indiceCronologico = Object.keys(venda.projecaoMensal).filter(k => !k.startsWith('__')).sort().indexOf(mesChave);
-          const percParcela = (indiceCronologico >= 0 && venda.percentuaisParcelas![indiceCronologico] !== undefined)
-            ? venda.percentuaisParcelas![indiceCronologico]
-            : 0;
-          const proporcaoVendedor = venda.percentualComissao > 0 ? pctVendedor / venda.percentualComissao : 0;
-          comissaoVendedorCalculada = venda.valorVenda * (percParcela / 100) * proporcaoVendedor;
-        } else if (isAdesao) {
-          // Adesão: 1ª parcela recebe mais, restantes recebem fracionado
-          if (mesChave === primeiraChaveComVenda) {
-            comissaoVendedorCalculada = venda.valorVenda * (pAdesaoVendedor / 100);
-          } else {
-            comissaoVendedorCalculada = venda.valorVenda * ((pMensalVendedor / parcelasRestantes) / 100);
-          }
-        } else {
-          // Linear: percentual total dividido igualmente
-          const pctMensalVendedor = pctVendedor / venda.qtdParcelas;
-          comissaoVendedorCalculada = venda.valorVenda * (pctMensalVendedor / 100);
-        }
+        // Calcula comissão do vendedor proporcional à comissão gerada (mestre)
+        const proporcaoVendedor = venda.percentualComissao > 0 ? pctVendedor / venda.percentualComissao : 0;
+        const comissaoVendedorCalculada = (celula.comissaoGerada || 0) * proporcaoVendedor;
+
 
         linhas.push({
           id: `${venda.id}_${mesChave}`,
@@ -275,20 +257,8 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
           if (tipoFiltro === 'vendas' && mesChave !== venda.mesInicio) return;
           if (tipoFiltro === 'recorrencia' && mesChave === venda.mesInicio) return;
 
-          let comissaoVendedorCalculada: number;
-          if (temGrade) {
-            const idx = todasChaves.indexOf(mesChave);
-            const perc = (idx >= 0 && venda.percentuaisParcelas![idx] !== undefined) ? venda.percentuaisParcelas![idx] : 0;
-            const prop = venda.percentualComissao > 0 ? pctVendedor / venda.percentualComissao : 0;
-            comissaoVendedorCalculada = venda.valorVenda * (perc / 100) * prop;
-          } else if (isAdesao) {
-            comissaoVendedorCalculada = mesChave === primeiraChave
-              ? venda.valorVenda * (pAdesaoV / 100)
-              : venda.valorVenda * ((pMensalV / parcelasRest) / 100);
-          } else {
-            const pctMensalVendedor = pctVendedor / venda.qtdParcelas;
-            comissaoVendedorCalculada = venda.valorVenda * (pctMensalVendedor / 100);
-          }
+          const proporcaoVendedor = venda.percentualComissao > 0 ? pctVendedor / venda.percentualComissao : 0;
+          const comissaoVendedorCalculada = (celula.comissaoGerada || 0) * proporcaoVendedor;
 
           if (totais[mesChave]) {
             totais[mesChave].faturamento += celula.valorVenda;
@@ -832,7 +802,8 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                               if (tipoFiltro === 'vendas' && mes !== venda.mesInicio) possuiDados = false;
                               if (tipoFiltro === 'recorrencia' && mes === venda.mesInicio) possuiDados = false;
                             }
-                            const comissaoVendedorCalculada = (venda.valorVenda * (pctProporcionalParcela / 100));
+                            const proporcaoVendedor = venda.percentualComissao > 0 ? pctVendedor / venda.percentualComissao : 0;
+                            const comissaoVendedorCalculada = celula ? (celula.comissaoGerada || 0) * proporcaoVendedor : 0;
 
                             return (
                               <React.Fragment key={`cell-${venda.id}-${mes}`}>
@@ -944,12 +915,12 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                           {/* Totais do Lado Direito */}
                           {(() => {
                             const pctV = Number(vendedorSelecionado.percentualComissao || 0);
-                            const pctProporcional = pctV / venda.qtdParcelas;
+                            const proporcao = venda.percentualComissao > 0 ? pctV / venda.percentualComissao : 0;
                             const totaisVenda = listaMesesTimeline.reduce((acc, mes) => {
                               const cel = venda.projecaoMensal[mes];
                               if (cel && cel.valorVenda && cel.valorVenda > 0 && cel.status !== 'Cancelada') {
                                 acc.vendas += cel.valorVenda;
-                                acc.comissoes += (venda.valorVenda * (pctProporcional / 100));
+                                acc.comissoes += (cel.comissaoGerada || 0) * proporcao;
                               }
                               return acc;
                             }, { vendas: 0, comissoes: 0 });
