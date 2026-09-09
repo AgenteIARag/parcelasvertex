@@ -218,7 +218,6 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
   const handleSalvarVenda = () => {
     const tempErrors: Record<string, string> = {};
     if (!cliente.trim()) tempErrors.cliente = 'Nome do cliente é obrigatório.';
-    if (!pac.trim()) tempErrors.pac = 'PAC (Contrato) é obrigatório.';
     if (!vendedorId) tempErrors.vendedorId = 'Selecione o vendedor.';
     if (!segmento) tempErrors.segmento = 'Selecione o segmento.';
     if (!tabela) tempErrors.tabela = 'Selecione a tabela.';
@@ -238,9 +237,6 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
     }
     if (!dataVencimentoClienteInput) {
       tempErrors.dataVencimentoClienteInput = 'Vencimento do cliente é obrigatório.';
-    }
-    if (!dataAssembleiaInput) {
-      tempErrors.dataAssembleiaInput = 'A data da 1ª Assembleia é obrigatória.';
     }
 
     setErrors(tempErrors);
