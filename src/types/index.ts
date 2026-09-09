@@ -69,8 +69,8 @@ export interface MesProjecao {
   dataRecebimento?: string; // Data real de recebimento da parcela, editável pelo usuário (YYYY-MM-DD). Inicializa igual a dataVencimento
   recebida?: boolean; // Indica se a comissão foi recebida
   dataPagamentoCliente?: string; // Data em que o cliente efetuou o pagamento da parcela (YYYY-MM-DD)
-  dataRecebimentoComissao?: string; // Data em que a comissão foi efetivamente recebida da administradora (YYYY-MM-DD)
   numeroRelatorioRecebimento?: string; // Nº do relatório da administradora referente ao recebimento da comissão
+  dataRelatorioRecebimento?: string; // Data do relatório da administradora referente ao recebimento da comissão (YYYY-MM-DD)
   notaFiscalRecebimento?: string; // Nº ou código da Nota Fiscal relativa ao recebimento da comissão
 }
 

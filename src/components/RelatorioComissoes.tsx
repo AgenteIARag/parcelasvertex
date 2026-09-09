@@ -104,7 +104,7 @@ interface ParcelaComissaoLinha {
   percentualVendedor: number;      // % do vendedor
   valorParcela: number;
   valorVenda: number;
-  status: 'A receber' | 'Recebida' | 'Cancelada';
+  status: 'A receber' | 'Paga' | 'Recebida' | 'Cancelada';
   statusComissao: StatusComissao;  // Status de pagamento da comissão ao parceiro
   parcelaIndex: number;
   qtdParcelas: number;
@@ -124,9 +124,10 @@ interface GrupoPeriodoComissao {
 // Sub-componente: Badge de Status
 // ──────────────────────────────────────────────────────────
 
-const StatusBadge = ({ status }: { status: 'A receber' | 'Recebida' | 'Cancelada' }) => {
-  const map: Record<'A receber' | 'Recebida' | 'Cancelada', { color: string; bg: string; icon: React.ReactNode }> = {
+const StatusBadge = ({ status }: { status: 'A receber' | 'Paga' | 'Recebida' | 'Cancelada' }) => {
+  const map: Record<'A receber' | 'Paga' | 'Recebida' | 'Cancelada', { color: string; bg: string; icon: React.ReactNode }> = {
     'A receber': { color: '#f97316', bg: 'rgba(249,115,22,0.12)',  icon: <HourglassEmptyIcon sx={{ fontSize: 12 }} /> },
+    'Paga':      { color: '#10b981', bg: 'rgba(16,185,129,0.12)',  icon: <CheckCircleIcon sx={{ fontSize: 12 }} /> },
     'Recebida':  { color: '#0ea5e9', bg: 'rgba(14,165,233,0.12)',  icon: <CheckCircleIcon sx={{ fontSize: 12 }} /> },
     'Cancelada': { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   icon: <CancelIcon sx={{ fontSize: 12 }} /> },
   };
@@ -919,11 +920,11 @@ const GrupoPagamentoComissao = ({
 
         {/* Badges de status */}
         <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', gap: 0.5 }}>
-          {(['A receber', 'Recebida', 'Cancelada'] as string[]).map((s) => {
+          {(['A receber', 'Paga', 'Recebida', 'Cancelada'] as string[]).map((s) => {
             const count = grupo.itens.filter((i) => i.status === s).length;
             if (!count) return null;
             const colors: Record<string, string> = {
-              'A receber': '#f97316', 'Recebida': '#0ea5e9', 'Cancelada': '#ef4444'
+              'A receber': '#f97316', 'Paga': '#10b981', 'Recebida': '#0ea5e9', 'Cancelada': '#ef4444'
             };
             return (
               <Tooltip key={s} title={`${s}: ${count}`}>
@@ -1019,7 +1020,7 @@ export const RelatorioComissoes = ({
   const [busca, setBusca] = useState('');
   const [buscaRelatorio, setBuscaRelatorio] = useState('');
   const [vendedorIdFiltro, setVendedorIdFiltro] = useState<string>('Todos');
-  const [filtroStatus, setFiltroStatus] = useState<Array<'A receber' | 'Recebida' | 'Cancelada'>>([]); 
+  const [filtroStatus, setFiltroStatus] = useState<Array<'A receber' | 'Paga' | 'Recebida' | 'Cancelada'>>([]); 
 
   const toggleFiltroStatus = (s: string) => {
     if (s === 'Todos') { setFiltroStatus([]); return; }
@@ -1139,8 +1140,8 @@ export const RelatorioComissoes = ({
           statusComissao: celula.statusComissao ?? 'A pagar',
           parcelaIndex,
           qtdParcelas: venda.qtdParcelas,
-          numeroRelatorio: venda.numeroRelatorio,
-          dataRelatorio: venda.dataRelatorio,
+          numeroRelatorio: celula.numeroRelatorioRecebimento || venda.numeroRelatorio,
+          dataRelatorio: celula.dataRelatorioRecebimento || venda.dataRelatorio,
         });
       });
     });
@@ -1212,11 +1213,12 @@ export const RelatorioComissoes = ({
   const totalComissoesContestadas = parcelas.reduce((acc, p) => p.statusComissao === 'Contestada' ? acc + p.comissaoVendedor : acc, 0);
   const qtdComissoesPagas = parcelas.filter((p) => p.statusComissao === 'Paga').length;
 
-  const STATUS_OPCOES = ['Todos', 'A receber', 'Recebida', 'Cancelada'];
+  const STATUS_OPCOES = ['Todos', 'A receber', 'Paga', 'Recebida', 'Cancelada'];
 
   const STATUS_CORES: Record<string, { active: string; border: string }> = {
     'Todos':      { active: '#f59e0b', border: '#f59e0b' },
     'A receber':  { active: '#f97316', border: '#f97316' },
+    'Paga':       { active: '#10b981', border: '#10b981' },
     'Recebida':   { active: '#0ea5e9', border: '#0ea5e9' },
     'Cancelada':  { active: '#ef4444', border: '#ef4444' },
   };

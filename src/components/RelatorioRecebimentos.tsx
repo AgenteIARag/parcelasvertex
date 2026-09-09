@@ -127,7 +127,7 @@ interface ParcelaLinha {
   dataPagamentoCliente?: string;       // Data em que o cliente pagou (YYYY-MM-DD)
   numeroRelatorioRecebimento?: string; // Nº do relatório do recebimento da comissão
   notaFiscalRecebimento?: string;      // NF relativa ao recebimento da comissão
-  dataRecebimentoComissao?: string;    // Data de recebimento da comissão (YYYY-MM-DD)
+  dataRelatorioRecebimento?: string;    // Data de recebimento da comissão (YYYY-MM-DD)
   // Espelhamento
   grupoVisual: string;                 // Mês em que a linha será renderizada (YYYY-MM)
   isEspelho: boolean;                  // True se for a linha de caixa (gerada no mês do pagamento)
@@ -491,8 +491,8 @@ function obterValorOrdenacao(item: ParcelaLinha, campo: string) {
       return item.statusParcela || '';
     case 'situacaoRecebimento':
       return item.situacaoRecebimento || '';
-    case 'dataRecebimentoComissao':
-      return item.dataRecebimentoComissao || '';
+    case 'dataRelatorioRecebimento':
+      return item.dataRelatorioRecebimento || '';
     case 'parcelaIndex':
       return item.parcelaIndex || 0;
     case 'comissao':
@@ -594,7 +594,7 @@ const SubGrupoData = ({
     { label: 'Tabela', field: 'tabela' },
     { label: 'Status', field: 'statusParcela' },
     { label: 'Recebimento', field: 'situacaoRecebimento' },
-    { label: 'DT. RECEB.', field: 'dataRecebimentoComissao' },
+    { label: 'DT. RECEB.', field: 'dataRelatorioRecebimento' },
     { label: 'Parcela Nº', field: 'parcelaIndex' },
     { label: 'Comissão', field: 'comissao' },
     { label: 'Ações', field: 'acoes' },
@@ -955,14 +955,14 @@ const SubGrupoData = ({
                       </TableCell>
                       {/* Dt. Recebimento da Comissão */}
                       <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
-                        {item.dataRecebimentoComissao ? (
+                        {item.dataRelatorioRecebimento ? (
                           <Box sx={{
                             display: 'inline-flex', alignItems: 'center', gap: 0.4,
                             px: 0.8, py: 0.2, borderRadius: 1,
                             bgcolor: 'rgba(14,165,233,0.1)', color: '#0ea5e9',
                             fontWeight: 700, fontSize: '0.7rem'
                           }}>
-                            {formatarData(item.dataRecebimentoComissao)}
+                            {formatarData(item.dataRelatorioRecebimento)}
                           </Box>
                         ) : (
                           <Typography sx={{ color: 'text.disabled', fontSize: '0.72rem' }}>—</Typography>
@@ -1059,7 +1059,7 @@ const SubGrupoData = ({
                           )}
                           {/* Indicador visual quando Recebida */}
                           {item.situacaoRecebimento === 'Recebida' && (
-                            <Tooltip title={`Comissão recebida${item.dataRecebimentoComissao ? ` em ${formatarData(item.dataRecebimentoComissao)}` : ''}${item.numeroRelatorioRecebimento ? ` · Rel: ${item.numeroRelatorioRecebimento}` : ''}${item.notaFiscalRecebimento ? ` · NF: ${item.notaFiscalRecebimento}` : ''}`}>
+                            <Tooltip title={`Comissão recebida${item.dataRelatorioRecebimento ? ` em ${formatarData(item.dataRelatorioRecebimento)}` : ''}${item.numeroRelatorioRecebimento ? ` · Rel: ${item.numeroRelatorioRecebimento}` : ''}${item.notaFiscalRecebimento ? ` · NF: ${item.notaFiscalRecebimento}` : ''}`}>
                               <Box sx={{
                                 display: 'inline-flex', alignItems: 'center', px: 0.6, py: 0.2,
                                 borderRadius: 1, bgcolor: 'rgba(14,165,233,0.1)', color: '#0ea5e9'
@@ -1597,10 +1597,10 @@ export const RelatorioRecebimentos = ({
   const [modalRecebida, setModalRecebida] = useState<{
     open: boolean;
     item: ParcelaLinha | null;
-    dataRecebimento: string;
     numeroRelatorio: string;
+    dataRelatorio: string;
     notaFiscal: string;
-  }>({ open: false, item: null, dataRecebimento: new Date().toISOString().split('T')[0], numeroRelatorio: '', notaFiscal: '' });
+  }>({ open: false, item: null, numeroRelatorio: '', dataRelatorio: new Date().toISOString().split('T')[0], notaFiscal: '' });
 
   // ── Modal: Cancelar Parcela ──
   const [modalCancelar, setModalCancelar] = useState<{
@@ -1616,8 +1616,8 @@ export const RelatorioRecebimentos = ({
     setModalRecebida({
       open: true,
       item,
-      dataRecebimento: new Date().toISOString().split('T')[0],
       numeroRelatorio: '',
+      dataRelatorio: new Date().toISOString().split('T')[0],
       notaFiscal: '',
     });
   };
@@ -1659,8 +1659,8 @@ export const RelatorioRecebimentos = ({
   };
 
   const handleConfirmarRecebida = async () => {
-    const { item, dataRecebimento, numeroRelatorio, notaFiscal } = modalRecebida;
-    if (!item || !dataRecebimento || !numeroRelatorio || !onAtualizarVenda) return;
+    const { item, numeroRelatorio, dataRelatorio, notaFiscal } = modalRecebida;
+    if (!item || !numeroRelatorio || !dataRelatorio || !onAtualizarVenda) return;
     const venda = vendas.find((v) => v.id === item.vendaId);
     if (!venda) return;
     const celula = venda.projecaoMensal[item.mesReferencia];
@@ -1672,8 +1672,8 @@ export const RelatorioRecebimentos = ({
         [item.mesReferencia]: {
           ...celula,
           recebida: true,
-          dataRecebimentoComissao: dataRecebimento,
           numeroRelatorioRecebimento: numeroRelatorio,
+          dataRelatorioRecebimento: dataRelatorio,
           notaFiscalRecebimento: notaFiscal,
         },
       },
@@ -1682,7 +1682,7 @@ export const RelatorioRecebimentos = ({
     try {
       await salvarVendaSupabase(vendaAtualizada);
       onAtualizarVenda(vendaAtualizada);
-      setModalRecebida({ open: false, item: null, dataRecebimento: '', numeroRelatorio: '', notaFiscal: '' });
+      setModalRecebida({ open: false, item: null, numeroRelatorio: '', dataRelatorio: '', notaFiscal: '' });
       setSnackbarMsg(`💰 Recebimento da comissão de ${item.cliente} registrado com sucesso!`);
     } catch (err: any) {
       console.error('Erro ao salvar no Supabase:', err);
@@ -1703,8 +1703,8 @@ export const RelatorioRecebimentos = ({
     delete novaCelula.dataPagamentoCliente;
     delete novaCelula.dataRecebimento; // Volta a usar default
     novaCelula.recebida = false;
-    delete novaCelula.dataRecebimentoComissao;
     delete novaCelula.numeroRelatorioRecebimento;
+    delete novaCelula.dataRelatorioRecebimento;
     delete novaCelula.notaFiscalRecebimento;
 
     const vendaAtualizada: LancamentoVenda = {
@@ -1736,8 +1736,8 @@ export const RelatorioRecebimentos = ({
 
     const novaCelula = { ...celula };
     delete novaCelula.recebida;
-    delete novaCelula.dataRecebimentoComissao;
     delete novaCelula.numeroRelatorioRecebimento;
+    delete novaCelula.dataRelatorioRecebimento;
     delete novaCelula.notaFiscalRecebimento;
 
     const vendaAtualizada: LancamentoVenda = {
@@ -1883,7 +1883,7 @@ export const RelatorioRecebimentos = ({
         if (termoRel && !(venda.numeroRelatorio || '').toLowerCase().includes(termoRel)) return;
 
         const dtPag = statusParcela === 'Paga'
-          ? (celula.dataRecebimentoComissao || celula.dataPagamentoCliente || celula.dataRecebimento || celula.dataVencimento)
+          ? (celula.dataRelatorioRecebimento || celula.dataPagamentoCliente || celula.dataRecebimento || celula.dataVencimento)
           : undefined;
 
         const mesVencimento = dtVenc.substring(0, 7);
@@ -1908,12 +1908,13 @@ export const RelatorioRecebimentos = ({
           situacaoRecebimento,
           parcelaIndex,
           qtdParcelas: venda.qtdParcelas,
-          numeroRelatorio: venda.numeroRelatorio,
+          numeroRelatorio: celula.numeroRelatorioRecebimento || venda.numeroRelatorio,
+          dataRelatorio: celula.dataRelatorioRecebimento || venda.dataRelatorio,
           dataPagamentoCliente: dtPag,
           numeroRelatorioRecebimento: celula.numeroRelatorioRecebimento,
           notaFiscalRecebimento: celula.notaFiscalRecebimento,
-          dataRecebimentoComissao: celula.recebida
-            ? (celula.dataRecebimentoComissao || celula.dataRecebimento)
+          dataRelatorioRecebimento: celula.recebida
+            ? (celula.dataRelatorioRecebimento || celula.dataRecebimento)
             : undefined,
         };
 
@@ -2711,17 +2712,6 @@ export const RelatorioRecebimentos = ({
                 <strong>{modalRecebida.item.cliente}</strong> · Parcela {modalRecebida.item.parcelaIndex}/{modalRecebida.item.qtdParcelas} · Comissão: <strong>{formatarMoeda(modalRecebida.item.comissao)}</strong>
               </Alert>
               <TextField
-                label="Data de Recebimento da Comissão"
-                type="date"
-                fullWidth
-                size="small"
-                required
-                value={modalRecebida.dataRecebimento}
-                onChange={(e) => setModalRecebida((p) => ({ ...p, dataRecebimento: e.target.value }))}
-                slotProps={{ inputLabel: { shrink: true } }}
-                helperText="Data em que a comissão foi creditada/transferida"
-              />
-              <TextField
                 label="Nº do Relatório"
                 fullWidth
                 size="small"
@@ -2730,6 +2720,17 @@ export const RelatorioRecebimentos = ({
                 value={modalRecebida.numeroRelatorio}
                 onChange={(e) => setModalRecebida((p) => ({ ...p, numeroRelatorio: e.target.value }))}
                 helperText="Número do relatório da administradora referente ao recebimento (obrigatório)"
+              />
+              <TextField
+                label="Data do Relatório"
+                type="date"
+                fullWidth
+                size="small"
+                required
+                value={modalRecebida.dataRelatorio}
+                onChange={(e) => setModalRecebida((p) => ({ ...p, dataRelatorio: e.target.value }))}
+                slotProps={{ inputLabel: { shrink: true } }}
+                helperText="Data do relatório da administradora (obrigatório)"
               />
               <TextField
                 label="Nota Fiscal (opcional)"
@@ -2756,7 +2757,7 @@ export const RelatorioRecebimentos = ({
             onClick={handleConfirmarRecebida}
             variant="contained"
             size="small"
-            disabled={!modalRecebida.dataRecebimento || !modalRecebida.numeroRelatorio}
+            disabled={!modalRecebida.numeroRelatorio || !modalRecebida.dataRelatorio}
             startIcon={<CheckCircleIcon />}
             sx={{
               textTransform: 'none', borderRadius: 2, fontWeight: 700,
