@@ -241,7 +241,7 @@ const exportarComissoesParaPDF = (mesAnoFormatado: string, itens: ParcelaComissa
     item.tabela,
     item.status,
     `${item.parcelaIndex}/${item.qtdParcelas}`,
-    `${item.percentualVendedor.toFixed(2).replace('.', ',')}%`,
+    `${item.percentualVendedor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}%`,
     formatarMoeda(item.comissaoVendedor),
     item.statusComissao
   ]);
@@ -1136,7 +1136,7 @@ export const RelatorioComissoes = ({
           dataVencimento: dtVenc,
           dataPrevisaoPagamento: dtPrev,
           comissaoVendedor: comissaoVendedorCalculada,
-          percentualVendedor: proporcaoVendedor * 100,
+          percentualVendedor: venda.valorVenda > 0 ? (comissaoVendedorCalculada / venda.valorVenda) * 100 : 0,
           valorParcela: celula.valorParcela || venda.valorParcela,
           valorVenda: venda.valorVenda,
           status: statusEf,
@@ -1198,7 +1198,7 @@ export const RelatorioComissoes = ({
       p.status,
       p.statusComissao,
       `${p.parcelaIndex}/${p.qtdParcelas}`,
-      `${p.percentualVendedor.toFixed(2).replace('.', ',')}%`,
+      `${p.percentualVendedor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}%`,
       p.comissaoVendedor.toFixed(2).replace('.', ','),
     ]);
     const csv = [header, ...rows].map((r) => r.join(';')).join('\n');
