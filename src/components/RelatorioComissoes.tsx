@@ -1020,6 +1020,7 @@ export const RelatorioComissoes = ({
   const [busca, setBusca] = useState('');
   const [buscaRelatorio, setBuscaRelatorio] = useState('');
   const [vendedorIdFiltro, setVendedorIdFiltro] = useState<string>('Todos');
+  const [filtroStatusComissao, setFiltroStatusComissao] = useState<string>('Todos');
   const [filtroStatus, setFiltroStatus] = useState<Array<'A receber' | 'Paga' | 'Recebida' | 'Cancelada'>>([]); 
 
   const toggleFiltroStatus = (s: string) => {
@@ -1064,7 +1065,12 @@ export const RelatorioComissoes = ({
 
         const statusEf = celula.status === 'Cancelada'
           ? 'Cancelada' as any
-          : (celula.recebida ? 'Recebida' as any : 'A receber' as any);
+          : (celula.recebida ? 'Recebida' as any : (celula.status === 'Paga' ? 'Paga' as any : 'A receber' as any));
+
+        if (filtroStatusComissao !== 'Todos') {
+          const stCom = celula.statusComissao ?? 'A pagar';
+          if (stCom !== filtroStatusComissao) return;
+        }
 
         if (filtroStatus.length > 0) {
           const incluirCancelada = filtroStatus.includes('Cancelada');
@@ -1147,7 +1153,7 @@ export const RelatorioComissoes = ({
     });
 
     return lista;
-  }, [vendas, vendedores, mapaVendedores, dataInicio, dataFim, ciclos, busca, vendedorIdFiltro, filtroStatus, buscaRelatorio]);
+  }, [vendas, vendedores, mapaVendedores, dataInicio, dataFim, ciclos, busca, vendedorIdFiltro, filtroStatus, filtroStatusComissao, buscaRelatorio]);
 
   // 2. Agrupa por mês de VENCIMENTO da parcela (mesReferencia = YYYY-MM)
   const grupos = useMemo<GrupoPeriodoComissao[]>(() => {
@@ -1386,6 +1392,22 @@ export const RelatorioComissoes = ({
                 {v.nome}
               </MenuItem>
             ))}
+          </Select>
+        </FormControl>
+
+        {/* Seletor de Status da Comissão */}
+        <FormControl size="small" sx={{ minWidth: 160 }}>
+          <InputLabel id="status-comissao-select-label">Status da Comissão</InputLabel>
+          <Select
+            labelId="status-comissao-select-label"
+            value={filtroStatusComissao}
+            label="Status da Comissão"
+            onChange={(e) => setFiltroStatusComissao(e.target.value)}
+          >
+            <MenuItem value="Todos">Todos</MenuItem>
+            <MenuItem value="A pagar">A pagar</MenuItem>
+            <MenuItem value="Paga">Paga</MenuItem>
+            <MenuItem value="Contestada">Contestada</MenuItem>
           </Select>
         </FormControl>
 
