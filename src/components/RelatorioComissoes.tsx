@@ -221,13 +221,12 @@ const exportarComissoesParaPDF = (mesAnoFormatado: string, itens: ParcelaComissa
     'Cliente / PAC',
     'Data Venda',
     'Vencimento',
-    'Nº Rel ADM',
-    'Data Rel',
     'Valor da Cota',
     'Parcela',
     'Tabela',
     'Status Venda',
     'Parcela Nº',
+    '% Comissão',
     'Comissão Vendedor',
     'Status Comissão'
   ];
@@ -237,13 +236,12 @@ const exportarComissoesParaPDF = (mesAnoFormatado: string, itens: ParcelaComissa
     item.cliente + (item.pac ? `\nPAC: ${item.pac}` : ''),
     item.dataVenda ? formatarData(item.dataVenda) : '—',
     formatarData(item.dataVencimento),
-    item.numeroRelatorio || '—',
-    item.dataRelatorio ? formatarData(item.dataRelatorio) : '—',
     formatarMoeda(item.valorVenda),
     formatarMoeda(item.valorParcela),
     item.tabela,
     item.status,
     `${item.parcelaIndex}/${item.qtdParcelas}`,
+    `${item.percentualVendedor.toFixed(2).replace('.', ',')}%`,
     formatarMoeda(item.comissaoVendedor),
     item.statusComissao
   ]);
@@ -268,18 +266,17 @@ const exportarComissoesParaPDF = (mesAnoFormatado: string, itens: ParcelaComissa
     },
     columnStyles: {
       0: { cellWidth: 20 }, // Vendedor
-      1: { cellWidth: 32 }, // Cliente / PAC
-      2: { cellWidth: 16 }, // Data Venda
-      3: { cellWidth: 16 }, // Vencimento
-      4: { cellWidth: 18 }, // Nº Rel ADM
-      5: { cellWidth: 16 }, // Data Rel
-      6: { cellWidth: 20, halign: 'right' }, // Valor da Cota
-      7: { cellWidth: 18, halign: 'right' }, // Parcela
-      8: { cellWidth: 26 }, // Tabela
-      9: { cellWidth: 18, halign: 'center' }, // Status Venda
-      10: { cellWidth: 12, halign: 'center' }, // Parcela Nº
-      11: { cellWidth: 22, halign: 'right' }, // Comissão Vendedor
-      12: { cellWidth: 20, halign: 'center' } // Status Comissão
+      1: { cellWidth: 34 }, // Cliente / PAC
+      2: { cellWidth: 18 }, // Data Venda
+      3: { cellWidth: 18 }, // Vencimento
+      4: { cellWidth: 22, halign: 'right' }, // Valor da Cota
+      5: { cellWidth: 20, halign: 'right' }, // Parcela
+      6: { cellWidth: 28 }, // Tabela
+      7: { cellWidth: 20, halign: 'center' }, // Status Venda
+      8: { cellWidth: 14, halign: 'center' }, // Parcela Nº
+      9: { cellWidth: 16, halign: 'right' }, // % Comissão
+      10: { cellWidth: 24, halign: 'right' }, // Comissão Vendedor
+      11: { cellWidth: 22, halign: 'center' } // Status Comissão
     },
     margin: { left: 14, right: 14 }
   });
@@ -1186,7 +1183,7 @@ export const RelatorioComissoes = ({
 
   // Exportar CSV de comissões
   const exportarCSV = () => {
-    const header = ['Data de Corte', 'Vendedor', 'Cliente', 'PAC', 'Data Venda', 'Mês Ref.', 'Vencimento', 'Valor da Cota', 'Valor Parcela', 'Tabela', 'Status Venda', 'Status Comissão', 'Parcela Nº', 'Comissão Vendedor'];
+    const header = ['Data de Corte', 'Vendedor', 'Cliente', 'PAC', 'Data Venda', 'Mês Ref.', 'Vencimento', 'Valor da Cota', 'Valor Parcela', 'Tabela', 'Status Venda', 'Status Comissão', 'Parcela Nº', '% Comissão', 'Comissão Vendedor'];
     const rows = parcelas.map((p) => [
       formatarData(p.dataPrevisaoPagamento),
       p.vendedorNome,
@@ -1201,6 +1198,7 @@ export const RelatorioComissoes = ({
       p.status,
       p.statusComissao,
       `${p.parcelaIndex}/${p.qtdParcelas}`,
+      `${p.percentualVendedor.toFixed(2).replace('.', ',')}%`,
       p.comissaoVendedor.toFixed(2).replace('.', ','),
     ]);
     const csv = [header, ...rows].map((r) => r.join(';')).join('\n');
