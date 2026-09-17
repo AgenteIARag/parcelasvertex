@@ -15,6 +15,10 @@ import {
   TableRow,
   Paper,
   Chip,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
   useTheme
 } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -25,7 +29,9 @@ import LeaderboardIcon from '@mui/icons-material/Leaderboard';
 import {
   ResponsiveContainer,
   BarChart,
+  ComposedChart,
   Bar,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -33,7 +39,7 @@ import {
   Legend
 } from 'recharts';
 import { type LancamentoVenda, type Vendedor } from '../types';
-import { formatarMoeda, formatarMoedaEixo } from '../utils/formatters';
+import { formatarMoeda, formatarMoedaEixo, formatarChaveMesExibicao } from '../utils/formatters';
 
 interface DashboardVendedoresProps {
   vendas: LancamentoVenda[];
@@ -49,6 +55,8 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
   dataFim
 }) => {
   const theme = useTheme();
+  
+  const [vendedorSelecionadoId, setVendedorSelecionadoId] = React.useState<string>('todos');
 
   const dadosVendedores = useMemo(() => {
     const mesInicioChave = dataInicio.substring(0, 7);
@@ -135,6 +143,72 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
   const maxFaturamento = useMemo(() => {
     return ranking.length > 0 ? ranking[0].faturamento : 1;
   }, [ranking]);
+
+  // Gera dinamicamente a lista de chaves "YYYY-MM" no intervalo de data selecionado
+  const obterMesesEvolucao = (): string[] => {
+    const dInicioValid = (dataInicio && dataInicio.length >= 10 && !dataInicio.includes('d')) ? dataInicio : '2026-01-01';
+    const dFimValid = (dataFim && dataFim.length >= 10 && !dataFim.includes('d')) ? dataFim : '2026-12-31';
+
+    const dataI = new Date(dInicioValid + 'T00:00:00');
+    const dataF = new Date(dFimValid + 'T00:00:00');
+
+    if (isNaN(dataI.getTime()) || isNaN(dataF.getTime()) || dataI > dataF) {
+      return ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12'];
+    }
+
+    const meses: string[] = [];
+    let dataAtual = new Date(dataI.getFullYear(), dataI.getMonth(), 15);
+    const dataLimite = new Date(dataF.getFullYear(), dataF.getMonth(), 15);
+
+    while (dataAtual <= dataLimite) {
+      const ano = dataAtual.getFullYear();
+      const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+      meses.push(`${ano}-${mes}`);
+      dataAtual.setMonth(dataAtual.getMonth() + 1);
+    }
+    return meses.length > 0 ? meses : ['2026-01'];
+  };
+
+  const dadosDesempenhoVendedor = useMemo(() => {
+    const meses = obterMesesEvolucao();
+    
+    const vendasFiltradas = vendedorSelecionadoId === 'todos' 
+      ? vendas 
+      : vendas.filter(v => v.vendedorId === vendedorSelecionadoId);
+
+    return meses.map(mesChave => {
+      let volumeVendidoAtivo = 0;
+      let volumeCancelado = 0;
+
+      vendasFiltradas.forEach(v => {
+        const mesVenda = v.dataVenda ? v.dataVenda.substring(0, 7) : (v.mesInicio || '');
+        if (mesVenda === mesChave) {
+          const cotaCancelada =
+            v.statusCliente?.toLowerCase() === 'cancelado' ||
+            (v.projecaoMensal &&
+              Object.values(v.projecaoMensal).length > 0 &&
+              !Object.values(v.projecaoMensal).some((p) => p.status?.toLowerCase() !== 'cancelada' && (p.valorVenda || 0) > 0));
+
+          if (cotaCancelada) {
+            volumeCancelado += Number(v.valorVenda || 0);
+          } else {
+            volumeVendidoAtivo += Number(v.valorVenda || 0);
+          }
+        }
+      });
+
+      const totalMensal = volumeVendidoAtivo + volumeCancelado;
+      const taxaCancelamento = totalMensal > 0 ? (volumeCancelado / totalMensal) * 100 : 0;
+
+      return {
+        mes: mesChave,
+        nomeMes: formatarChaveMesExibicao(mesChave),
+        volumeVendidoAtivo,
+        volumeCancelado,
+        taxaCancelamento: Number(taxaCancelamento.toFixed(2))
+      };
+    });
+  }, [vendas, vendedorSelecionadoId, dataInicio, dataFim]);
 
   return (
     <Box sx={{ p: 1 }}>
@@ -375,6 +449,138 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
                       maxBarSize={40}
                     />
                   </BarChart>
+                </ResponsiveContainer>
+              )}
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {/* Gráfico de Desempenho e Cancelamentos por Vendedor */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid size={{ xs: 12 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              borderRadius: 4,
+              border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+              background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff'
+            }}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 700,
+                  fontFamily: 'Outfit, sans-serif',
+                  color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a'
+                }}
+              >
+                Evolução Mensal & Taxa de Cancelamento
+              </Typography>
+              <FormControl size="small" sx={{ minWidth: 220 }}>
+                <InputLabel id="select-vendedor-label">Vendedor / Corretor</InputLabel>
+                <Select
+                  labelId="select-vendedor-label"
+                  value={vendedorSelecionadoId}
+                  label="Vendedor / Corretor"
+                  onChange={(e) => setVendedorSelecionadoId(e.target.value)}
+                  sx={{ borderRadius: 2 }}
+                >
+                  <MenuItem value="todos">Todos os Vendedores</MenuItem>
+                  {vendedores.map(v => (
+                    <MenuItem key={v.id} value={v.id}>{v.nome}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+            
+            <Box sx={{ width: '100%', height: 350 }}>
+              {dadosDesempenhoVendedor.length === 0 ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                  <Typography sx={{ color: '#64748b' }}>Sem dados suficientes para gerar gráficos</Typography>
+                </Box>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={dadosDesempenhoVendedor} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'} vertical={false} />
+                    <XAxis
+                      dataKey="nomeMes"
+                      stroke={theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'}
+                      fontSize={11}
+                      tickLine={false}
+                      tick={{ fill: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }}
+                    />
+                    <YAxis
+                      yAxisId="left"
+                      stroke={theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'}
+                      fontSize={11}
+                      tickFormatter={formatarMoedaEixo}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      stroke={theme.palette.error.main}
+                      fontSize={11}
+                      tickFormatter={(val) => `${val}%`}
+                      tickLine={false}
+                    />
+                    <ChartTooltip
+                      formatter={(value: any, name: any) => {
+                        if (name === 'volumeVendidoAtivo') return [formatarMoeda(value), 'Volume Vendido (Ativo)'];
+                        if (name === 'volumeCancelado') return [formatarMoeda(value), 'Volume Cancelado'];
+                        if (name === 'taxaCancelamento') return [`${value}%`, 'Taxa de Cancelamento'];
+                        return [value, name];
+                      }}
+                      contentStyle={{
+                        backgroundColor: theme.palette.mode === 'dark' ? '#0f172a' : '#ffffff',
+                        borderColor: theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0',
+                        borderRadius: 8,
+                        color: theme.palette.mode === 'dark' ? '#f1f5f9' : '#0f172a'
+                      }}
+                    />
+                    <Legend 
+                      verticalAlign="top" 
+                      height={36} 
+                      iconType="circle" 
+                      formatter={(value) => {
+                        if (value === 'volumeVendidoAtivo') return 'Vendas Ativas (VGV)';
+                        if (value === 'volumeCancelado') return 'Vendas Canceladas (VGV)';
+                        if (value === 'taxaCancelamento') return 'Taxa de Cancelamentos (%)';
+                        return value;
+                      }} 
+                    />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="volumeVendidoAtivo"
+                      name="volumeVendidoAtivo"
+                      stackId="a"
+                      fill={theme.palette.primary.main}
+                      radius={[0, 0, 0, 0]}
+                      maxBarSize={40}
+                    />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="volumeCancelado"
+                      name="volumeCancelado"
+                      stackId="a"
+                      fill={theme.palette.error.main}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={40}
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="taxaCancelamento"
+                      name="taxaCancelamento"
+                      stroke={theme.palette.error.main}
+                      strokeWidth={3}
+                      dot={{ r: 4, strokeWidth: 1 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </ComposedChart>
                 </ResponsiveContainer>
               )}
             </Box>
