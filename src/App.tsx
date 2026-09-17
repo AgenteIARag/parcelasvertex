@@ -44,6 +44,7 @@ import { AnalyticsCharts } from './components/AnalyticsCharts';
 import { Login } from './components/Login';
 import { UsuariosCadastro } from './components/UsuariosCadastro';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { RelatorioRetencaoLTV } from './components/RelatorioRetencaoLTV';
 import { ComissoesVendedores } from './components/ComissoesVendedores';
 import { RelatorioRecebimentos } from './components/RelatorioRecebimentos';
 import { RelatorioComissoes } from './components/RelatorioComissoes';
@@ -72,6 +73,7 @@ import CloudOffIcon from '@mui/icons-material/CloudOff';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import SettingsIcon from '@mui/icons-material/Settings';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 const migrarDadosStatusRecebida = async (
@@ -244,7 +246,7 @@ function App() {
     return lista.map(v => ({ ...v, empresaId: v.empresaId || 'emp_vertex' }));
   });
 
-  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'dashboard_vendedores' | 'vendas' | 'comissoes' | 'relatorio' | 'relatorio_comissoes' | 'configuracoes'>('dashboard');
+  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'dashboard_vendedores' | 'vendas' | 'comissoes' | 'relatorio' | 'relatorio_comissoes' | 'configuracoes' | 'retencao_ltv'>('dashboard');
   const [subAbaAtiva, setSubAbaAtiva] = useState<'regras' | 'regras_filha' | 'vendedores' | 'acessos' | 'empresas' | 'administradoras'>('regras');
 
   // Multi-tenant: empresas
@@ -1204,6 +1206,36 @@ function App() {
               </Tooltip>
             )}
 
+            {usuarioLogado?.role !== 'vendedor' && (
+              <Tooltip title="Retenção e LTV" placement="right" disableHoverListener={!sidebarContraida}>
+                <Button
+                  variant={abaAtiva === 'retencao_ltv' ? 'contained' : 'text'}
+                  startIcon={!sidebarContraida ? <TrendingDownIcon /> : undefined}
+                  onClick={() => setAbaAtiva('retencao_ltv')}
+                  fullWidth
+                  sx={{
+                    justifyContent: sidebarContraida ? 'center' : 'flex-start',
+                    py: 1.25,
+                    px: sidebarContraida ? 0 : 2,
+                    minWidth: sidebarContraida ? 48 : undefined,
+                    borderRadius: 2,
+                    fontWeight: 600,
+                    fontFamily: 'Outfit, sans-serif',
+                    fontSize: '0.9rem',
+                    color: abaAtiva === 'retencao_ltv' ? '#ffffff' : 'text.secondary',
+                    background: abaAtiva === 'retencao_ltv' ? 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)' : 'transparent',
+                    boxShadow: abaAtiva === 'retencao_ltv' ? '0 4px 12px rgba(236, 72, 153, 0.25)' : 'none',
+                    '&:hover': {
+                      background: abaAtiva === 'retencao_ltv' ? 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)' : 'rgba(236, 72, 153, 0.08)',
+                      color: abaAtiva === 'retencao_ltv' ? '#ffffff' : '#ec4899'
+                    }
+                  }}
+                >
+                  {sidebarContraida ? <TrendingDownIcon /> : 'Retenção e LTV'}
+                </Button>
+              </Tooltip>
+            )}
+
             {(isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
               <Tooltip title="Configurações" placement="right" disableHoverListener={!sidebarContraida}>
                 <Button
@@ -1343,6 +1375,7 @@ function App() {
               {abaAtiva === 'comissoes' && 'Comissões de Corretores'}
               {abaAtiva === 'relatorio' && 'Relatório de Previsão de Recebimentos'}
               {abaAtiva === 'relatorio_comissoes' && 'Relatório de Comissões'}
+              {abaAtiva === 'retencao_ltv' && 'Retenção de Clientes e LTV'}
               {abaAtiva === 'configuracoes' && 'Configurações Administrativas'}
             </Typography>
 
@@ -1690,6 +1723,15 @@ function App() {
                 ciclos={ciclos}
                 onAlterarStatusComissao={handleAlterarStatusComissao}
                 podeEditarComissao={isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'financeiro' || usuarioLogado?.role === 'financeiro_master'}
+              />
+            )}
+
+            {abaAtiva === 'retencao_ltv' && (
+              <RelatorioRetencaoLTV
+                vendas={vendasFiltradas}
+                vendedores={vendedoresFiltrados}
+                dataInicio={dataInicio}
+                dataFim={dataFim}
               />
             )}
 
