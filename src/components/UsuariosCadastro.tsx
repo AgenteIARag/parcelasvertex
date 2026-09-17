@@ -186,7 +186,7 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
         visualizarDashboardVendedores: true,
         editarParcelas: true
       });
-    } else if (selectedRole === 'financeiro') {
+    } else if (selectedRole === 'financeiro' || selectedRole === 'financeiro_master') {
       setPermissoes({
         visualizar: true,
         editarVendas: false,
@@ -337,6 +337,7 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
                        user.role === 'master' ? 'Master' :
                        user.role === 'editor' ? 'ADM' :
                        user.role === 'financeiro' ? 'Financeiro' :
+                       user.role === 'financeiro_master' ? 'Financeiro Master' :
                        user.role === 'vendedor' ? 'Vendedor' : 'Visualizador';
                        
       if (!acc[empNome]) acc[empNome] = {};
@@ -496,7 +497,7 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
                                   user.role === 'master' ? 'primary' :
                                   user.role === 'editor' ? 'info' :
                                   user.role === 'vendedor' ? 'warning' :
-                                  user.role === 'financeiro' ? 'success' : 'default'
+                                  (user.role === 'financeiro' || user.role === 'financeiro_master') ? 'success' : 'default'
                                 }
                                 size="small"
                                 sx={{ fontWeight: 600, fontSize: '0.75rem' }}
@@ -629,6 +630,7 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
                   <MenuItem value="visualizador">Visualizador (Apenas consulta)</MenuItem>
                   <MenuItem value="editor">ADM (Cadastrar, editar e cancelar vendas)</MenuItem>
                   <MenuItem value="financeiro">Financeiro (Apenas receber parcelas)</MenuItem>
+                  <MenuItem value="financeiro_master">Financeiro Master (Receber parcelas e filtrar por empresa)</MenuItem>
                   <MenuItem value="vendedor">Vendedor (Acesso restrito às próprias vendas)</MenuItem>
                   <MenuItem value="master">Master (Controle administrativo completo)</MenuItem>
                 </Select>

@@ -171,7 +171,7 @@ export const NOMES_MESES_EXIBICAO: Record<MesesAno, string> = {
   dezembro: 'Dez/26'
 };
 
-export type UserRole = 'super_master' | 'master' | 'editor' | 'visualizador' | 'financeiro' | 'vendedor';
+export type UserRole = 'super_master' | 'master' | 'editor' | 'visualizador' | 'financeiro' | 'financeiro_master' | 'vendedor';
 
 export interface UserPermissions {
   visualizar: boolean;

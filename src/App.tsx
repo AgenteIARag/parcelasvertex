@@ -263,6 +263,7 @@ function App() {
 
   const isSuperMaster = usuarioLogado?.role === 'super_master' || usuarioLogado?.email?.toLowerCase() === 'master@apex.com';
   const isAdminOuMaster = isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor' || (usuarioLogado?.role as string) === 'admin';
+  const canFilterCompany = isSuperMaster || usuarioLogado?.role === 'financeiro_master';
   const [modalNovaVendaGlobal, setModalNovaVendaGlobal] = useState(false);
 
   // Empresa do usuário logado
@@ -310,17 +311,17 @@ function App() {
     return [...regrasMaeEfetivas, ...regrasDaFilha];
   }, [regras, regrasFilha, empresas, usuarioLogado]);
 
-  // Para o super_master que está filtrando por empresa, também precisa de regras filtradas
+  // Para o super_master e financeiro_master que está filtrando por empresa, também precisa de regras filtradas
   const regrasParaExibicao = useMemo((): RegraMaster[] => {
-    if (isSuperMaster) return regras; // Super master vê tudo (filtro interno no RegrasMaster)
+    if (canFilterCompany) return regras; // Super/Financeiro master vê tudo (filtro interno)
     return regrasEfetivasParaEmpresaAtual;
-  }, [isSuperMaster, regras, regrasEfetivasParaEmpresaAtual]);
+  }, [canFilterCompany, regras, regrasEfetivasParaEmpresaAtual]);
 
   // Vendas e Vendedores filtrados por empresa e por vendedor
   const vendasFiltradas = useMemo(() => {
     if (!usuarioLogado) return vendas;
     let base = vendas;
-    if (isSuperMaster) {
+    if (canFilterCompany) {
       if (empresaFiltroMaster) {
         base = base.filter(v => (v.empresaId || 'emp_vertex') === empresaFiltroMaster);
       }
@@ -339,12 +340,12 @@ function App() {
       base = base.filter(v => !v.isVendaEspelho && ((vId && v.vendedorId === vId) || v.vendedorNome?.toLowerCase() === vNome));
     }
     return base;
-  }, [vendas, usuarioLogado, empresaFiltroMaster, isSuperMaster, empresaAtualEhFilha]);
+  }, [vendas, usuarioLogado, empresaFiltroMaster, canFilterCompany, empresaAtualEhFilha]);
 
   const vendedoresFiltrados = useMemo(() => {
     if (!usuarioLogado) return vendedores;
     let base = vendedores;
-    if (isSuperMaster) {
+    if (canFilterCompany) {
       if (empresaFiltroMaster) {
         base = base.filter(v => (v.empresaId || 'emp_vertex') === empresaFiltroMaster);
       }
@@ -358,7 +359,7 @@ function App() {
       base = base.filter(v => (vId && v.id === vId) || v.nome?.toLowerCase() === vNome);
     }
     return base;
-  }, [vendedores, usuarioLogado, empresaFiltroMaster, isSuperMaster]);
+  }, [vendedores, usuarioLogado, empresaFiltroMaster, canFilterCompany]);
 
   // Helper para formatar data ISO YYYY-MM-DD
   const formatarDataISO = (d: Date) => {
@@ -669,8 +670,8 @@ function App() {
 
   // Ações de Vendas
   const handleAdicionarVenda = (novaVenda: LancamentoVenda) => {
-    // Injeta a empresa: super_master usa a do filtro; masters de empresa usam a sua empresa
-    const empId = isSuperMaster
+    // Injeta a empresa: super_master e financeiro_master usam a do filtro; masters de empresa usam a sua empresa
+    const empId = canFilterCompany
       ? (empresaFiltroMaster || usuarioLogado?.empresaId || 'emp_vertex')
       : (usuarioLogado?.empresaId || 'emp_vertex');
     const vendaComEmpresa: LancamentoVenda = { ...novaVenda, empresaId: empId };
@@ -888,7 +889,7 @@ function App() {
   // Ações de Vendedores
   const handleAdicionarVendedor = (novoVendedor: Vendedor) => {
     const empId = novoVendedor.empresaId || (
-      isSuperMaster
+      canFilterCompany
         ? (empresaFiltroMaster || usuarioLogado?.empresaId || 'emp_vertex')
         : (usuarioLogado?.empresaId || 'emp_vertex')
     );
@@ -1426,8 +1427,8 @@ function App() {
                 </Box>
               )}
 
-              {/* Filtro de Empresa — visível apenas para super_master */}
-              {isSuperMaster && empresas.length > 0 && (
+              {/* Filtro de Empresa — visível para super_master e financeiro_master */}
+              {canFilterCompany && empresas.length > 0 && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 1 }}>
                   <BusinessIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
                   <select
@@ -1686,7 +1687,7 @@ function App() {
                 dataFim={dataFim}
                 ciclos={ciclos}
                 onAlterarStatusComissao={handleAlterarStatusComissao}
-                podeEditarComissao={isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'financeiro'}
+                podeEditarComissao={isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'financeiro' || usuarioLogado?.role === 'financeiro_master'}
               />
             )}
 
