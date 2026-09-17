@@ -1526,28 +1526,30 @@ function App() {
               )}
 
               {/* Botão de Backup */}
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<FileDownloadIcon />}
-                onClick={handleExportarDados}
-                sx={{
-                  borderColor: theme.palette.mode === 'dark' ? '#374151' : '#d1d5db',
-                  color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
-                  borderRadius: 2,
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  fontSize: '0.8rem',
-                  py: 0.6,
-                  px: 1.5,
-                  '&:hover': {
-                    borderColor: theme.palette.primary.main,
-                    color: theme.palette.primary.main
-                  }
-                }}
-              >
-                Backup dos Dados
-              </Button>
+              {isSuperMaster && (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<FileDownloadIcon />}
+                  onClick={handleExportarDados}
+                  sx={{
+                    borderColor: theme.palette.mode === 'dark' ? '#374151' : '#d1d5db',
+                    color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '0.8rem',
+                    py: 0.6,
+                    px: 1.5,
+                    '&:hover': {
+                      borderColor: theme.palette.primary.main,
+                      color: theme.palette.primary.main
+                    }
+                  }}
+                >
+                  Backup dos Dados
+                </Button>
+              )}
             </Box>
           </Box>
 
