@@ -179,6 +179,8 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
     return meses.map(mesChave => {
       let volumeVendidoAtivo = 0;
       let volumeCancelado = 0;
+      let qtdVendidoAtivo = 0;
+      let qtdCancelado = 0;
 
       vendasFiltradas.forEach(v => {
         const mesVenda = v.dataVenda ? v.dataVenda.substring(0, 7) : (v.mesInicio || '');
@@ -191,8 +193,10 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
 
           if (cotaCancelada) {
             volumeCancelado += Number(v.valorVenda || 0);
+            qtdCancelado += 1;
           } else {
             volumeVendidoAtivo += Number(v.valorVenda || 0);
+            qtdVendidoAtivo += 1;
           }
         }
       });
@@ -205,6 +209,8 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
         nomeMes: formatarChaveMesExibicao(mesChave),
         volumeVendidoAtivo,
         volumeCancelado,
+        qtdVendidoAtivo,
+        qtdCancelado,
         taxaCancelamento: Number(taxaCancelamento.toFixed(2))
       };
     });
@@ -400,8 +406,9 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
                       tickLine={false}
                     />
                     <ChartTooltip
-                      formatter={(value: any, name: any) => {
-                        if (name === 'faturamento') return [formatarMoeda(value), 'Total Faturado'];
+                      formatter={(value: any, name: any, props: any) => {
+                        const qtd = props.payload.qtdVendas;
+                        if (name === 'faturamento') return [`${formatarMoeda(value)} (${qtd} cotas)`, 'Total Faturado'];
                         if (name === 'comissaoEmpresa') return [formatarMoeda(value), 'Comissão da Empresa (Gera)'];
                         if (name === 'comissaoVendedor') return [formatarMoeda(value), 'Comissão do Vendedor (Paga)'];
                         return [formatarMoeda(value), name];
@@ -528,9 +535,9 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
                       tickLine={false}
                     />
                     <ChartTooltip
-                      formatter={(value: any, name: any) => {
-                        if (name === 'volumeVendidoAtivo') return [formatarMoeda(value), 'Volume Vendido (Ativo)'];
-                        if (name === 'volumeCancelado') return [formatarMoeda(value), 'Volume Cancelado'];
+                      formatter={(value: any, name: any, props: any) => {
+                        if (name === 'volumeVendidoAtivo') return [`${formatarMoeda(value)} (${props.payload.qtdVendidoAtivo} cotas)`, 'Volume Vendido (Ativo)'];
+                        if (name === 'volumeCancelado') return [`${formatarMoeda(value)} (${props.payload.qtdCancelado} cotas)`, 'Volume Cancelado'];
                         if (name === 'taxaCancelamento') return [`${value}%`, 'Taxa de Cancelamento'];
                         return [value, name];
                       }}
