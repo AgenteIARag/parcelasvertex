@@ -50,14 +50,14 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
 }) => {
   const theme = useTheme();
 
-  // Consolidação de métricas por vendedor no período filtrado
   const dadosVendedores = useMemo(() => {
     const mesInicioChave = dataInicio.substring(0, 7);
     const mesFimChave = dataFim.substring(0, 7);
 
     return vendedores.map((vendedor) => {
       let faturamentoTotal = 0;
-      let comissaoTotal = 0;
+      let comissaoTotalEmpresa = 0;
+      let comissaoTotalVendedor = 0;
       const vendasSet = new Set<string>();
 
       // Filtra as vendas vinculadas a este vendedor
@@ -72,8 +72,10 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
           const celula = venda.projecaoMensal[mesChave];
           if (celula && celula.valorVenda > 0 && celula.status !== 'Cancelada') {
             if (mesChave >= mesInicioChave && mesChave <= mesFimChave) {
-              const comissaoParcela = (celula.comissaoGerada || 0) * proporcao;
-              comissaoTotal += comissaoParcela;
+              const comissaoEmpresa = (celula.comissaoGerada || 0);
+              const comissaoVendedor = comissaoEmpresa * proporcao;
+              comissaoTotalEmpresa += comissaoEmpresa;
+              comissaoTotalVendedor += comissaoVendedor;
             }
           }
         });
@@ -93,7 +95,9 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
         vendedorNome: vendedor.nome,
         ativo: vendedor.ativo,
         faturamento: faturamentoTotal,
-        comissao: Number(comissaoTotal.toFixed(2)),
+        comissaoEmpresa: Number(comissaoTotalEmpresa.toFixed(2)),
+        comissaoVendedor: Number(comissaoTotalVendedor.toFixed(2)),
+        comissao: Number(comissaoTotalVendedor.toFixed(2)), // legacy fallback
         qtdVendas: vendasSet.size
       };
     });
@@ -322,7 +326,12 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
                       tickLine={false}
                     />
                     <ChartTooltip
-                      formatter={(value: any, name: any) => [formatarMoeda(value), name === 'faturamento' ? 'Total Faturado' : 'Comissão Gerada']}
+                      formatter={(value: any, name: any) => {
+                        if (name === 'faturamento') return [formatarMoeda(value), 'Total Faturado'];
+                        if (name === 'comissaoEmpresa') return [formatarMoeda(value), 'Comissão da Empresa (Gera)'];
+                        if (name === 'comissaoVendedor') return [formatarMoeda(value), 'Comissão do Vendedor (Paga)'];
+                        return [formatarMoeda(value), name];
+                      }}
                       contentStyle={{
                         backgroundColor: theme.palette.mode === 'dark' ? '#0f172a' : '#ffffff',
                         borderColor: theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0',
@@ -330,22 +339,40 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
                         color: theme.palette.mode === 'dark' ? '#f1f5f9' : '#0f172a'
                       }}
                     />
-                    <Legend verticalAlign="top" height={36} iconType="circle" formatter={(value) => value === 'faturamento' ? 'Total Faturado' : 'Comissão Gerada'} />
+                    <Legend 
+                      verticalAlign="top" 
+                      height={36} 
+                      iconType="circle" 
+                      formatter={(value) => {
+                        if (value === 'faturamento') return 'Total Faturado (VGV)';
+                        if (value === 'comissaoEmpresa') return 'Receita (Comissão da Empresa)';
+                        if (value === 'comissaoVendedor') return 'Despesa (Comissão Paga ao Vendedor)';
+                        return value;
+                      }} 
+                    />
                     <Bar
                       yAxisId="left"
                       dataKey="faturamento"
                       name="faturamento"
                       fill={theme.palette.primary.main}
                       radius={[4, 4, 0, 0]}
-                      maxBarSize={50}
+                      maxBarSize={40}
                     />
                     <Bar
                       yAxisId="right"
-                      dataKey="comissao"
-                      name="comissao"
+                      dataKey="comissaoEmpresa"
+                      name="comissaoEmpresa"
+                      fill={theme.palette.info.main}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={40}
+                    />
+                    <Bar
+                      yAxisId="right"
+                      dataKey="comissaoVendedor"
+                      name="comissaoVendedor"
                       fill={theme.palette.success.main}
                       radius={[4, 4, 0, 0]}
-                      maxBarSize={50}
+                      maxBarSize={40}
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -380,15 +407,16 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
                   <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Vendedor / Corretor</TableCell>
                   <TableCell sx={{ fontWeight: 700, py: 1.5, width: 140 }} align="center">Status</TableCell>
                   <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Qtd Vendas</TableCell>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Total Faturado</TableCell>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Comissão Gerada</TableCell>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5, width: 300 }}>Performance Relativa</TableCell>
+                  <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Faturado (VGV)</TableCell>
+                  <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Comissão (Empresa)</TableCell>
+                  <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Comissão (Vendedor)</TableCell>
+                  <TableCell sx={{ fontWeight: 700, py: 1.5, width: 250 }}>Performance Relativa</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {ranking.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 6, color: '#64748b' }}>
+                    <TableCell colSpan={8} align="center" sx={{ py: 6, color: '#64748b' }}>
                       Nenhuma venda ativa registrada no período para cálculo de ranking.
                     </TableCell>
                   </TableRow>
@@ -436,8 +464,11 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
                         <TableCell align="right" sx={{ fontWeight: 700, color: 'text.primary' }}>
                           {formatarMoeda(linha.faturamento)}
                         </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700, color: 'info.main' }}>
+                          {formatarMoeda(linha.comissaoEmpresa)}
+                        </TableCell>
                         <TableCell align="right" sx={{ fontWeight: 700, color: 'success.main' }}>
-                          {formatarMoeda(linha.comissao)}
+                          {formatarMoeda(linha.comissaoVendedor)}
                         </TableCell>
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
