@@ -21,8 +21,19 @@ import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import PeopleIcon from '@mui/icons-material/People';
 import HistoryIcon from '@mui/icons-material/History';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as ChartTooltip,
+  Legend
+} from 'recharts';
 import { type LancamentoVenda, type Vendedor } from '../types';
-import { formatarMoeda, formatarChaveMesExibicao } from '../utils/formatters';
+import { formatarMoeda, formatarMoedaEixo, formatarChaveMesExibicao } from '../utils/formatters';
 
 interface RelatorioRetencaoLTVProps {
   vendas: LancamentoVenda[];
@@ -38,6 +49,7 @@ interface DadosClienteLTV {
   dataVenda: string;
   statusCliente: string;
   ltvRealizado: number;
+  valorVendaCancelada: number;
   parcelasPagasNomes: string[];
   mesCancelamento: string | null;
 }
@@ -100,6 +112,7 @@ export const RelatorioRetencaoLTV: React.FC<RelatorioRetencaoLTVProps> = ({
           dataVenda: dataDaVenda,
           statusCliente: cancelou ? 'Cancelado' : 'Ativo',
           ltvRealizado: ltvDesteCliente,
+          valorVendaCancelada: cancelou ? (Number(v.valorVenda) || 0) : 0,
           parcelasPagasNomes: parcelasPagas,
           mesCancelamento: mesCancelamentoEncontrado || (cancelou ? 'Indefinido' : null)
         });
@@ -129,6 +142,50 @@ export const RelatorioRetencaoLTV: React.FC<RelatorioRetencaoLTVProps> = ({
   }, [vendas, vendedores, dataInicio, dataFim]);
 
   const listaCancelados = listaClientes.filter(c => c.statusCliente === 'Cancelado');
+
+  // Cálculo para o gráfico de cancelamentos por mês
+  const dadosCancelamentoMes = useMemo(() => {
+    // Pegar o intervalo de meses baseado em dataInicio e dataFim
+    const dInicioValid = (dataInicio && dataInicio.length >= 10 && !dataInicio.includes('d')) ? dataInicio : '2026-01-01';
+    const dFimValid = (dataFim && dataFim.length >= 10 && !dataFim.includes('d')) ? dataFim : '2026-12-31';
+
+    const dataI = new Date(dInicioValid + 'T00:00:00');
+    const dataF = new Date(dFimValid + 'T00:00:00');
+
+    let meses: string[] = [];
+    if (!isNaN(dataI.getTime()) && !isNaN(dataF.getTime()) && dataI <= dataF) {
+      let dataAtual = new Date(dataI.getFullYear(), dataI.getMonth(), 15);
+      const dataLimite = new Date(dataF.getFullYear(), dataF.getMonth(), 15);
+
+      while (dataAtual <= dataLimite) {
+        const ano = dataAtual.getFullYear();
+        const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+        meses.push(`${ano}-${mes}`);
+        dataAtual.setMonth(dataAtual.getMonth() + 1);
+      }
+    }
+    
+    if (meses.length === 0) meses = ['2026-01'];
+
+    return meses.map(mesChave => {
+      const canceladosNoMes = listaCancelados.filter(c => 
+        // Se cancelou em um mês específico, contabiliza nesse mês
+        // Se está "Indefinido", contabiliza no mês da venda para não perder o dado
+        (c.mesCancelamento !== 'Indefinido' && c.mesCancelamento === mesChave) ||
+        (c.mesCancelamento === 'Indefinido' && c.dataVenda.substring(0, 7) === mesChave)
+      );
+
+      const quantidadeCancelada = canceladosNoMes.length;
+      const valorCancelado = canceladosNoMes.reduce((acc, curr) => acc + curr.valorVendaCancelada, 0);
+
+      return {
+        mes: mesChave,
+        nomeMes: formatarChaveMesExibicao(mesChave),
+        quantidadeCancelada,
+        valorCancelado
+      };
+    });
+  }, [listaCancelados, dataInicio, dataFim]);
 
   return (
     <Box sx={{ p: 1 }}>
@@ -254,6 +311,104 @@ export const RelatorioRetencaoLTV: React.FC<RelatorioRetencaoLTVProps> = ({
               </Typography>
             </CardContent>
           </Card>
+        </Grid>
+      </Grid>
+
+      {/* Gráfico Mensal de Cancelamentos */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid size={{ xs: 12 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              borderRadius: 4,
+              border: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`,
+              background: theme.palette.mode === 'dark' ? '#111827' : '#ffffff'
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+              <TrendingDownIcon sx={{ color: 'error.main', mr: 1.5 }} />
+              <Typography variant="h6" sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
+                Evolução Mensal de Cancelamentos (Quantidade e Valor)
+              </Typography>
+            </Box>
+            
+            <Box sx={{ width: '100%', height: 350 }}>
+              {dadosCancelamentoMes.length === 0 ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                  <Typography sx={{ color: '#64748b' }}>Sem dados no período</Typography>
+                </Box>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={dadosCancelamentoMes} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'} vertical={false} />
+                    <XAxis
+                      dataKey="nomeMes"
+                      stroke={theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'}
+                      fontSize={11}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      yAxisId="left"
+                      stroke={theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'}
+                      fontSize={11}
+                      tickFormatter={formatarMoedaEixo}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      stroke={theme.palette.error.main}
+                      fontSize={11}
+                      tickFormatter={(val) => `${val}`}
+                      tickLine={false}
+                    />
+                    <ChartTooltip
+                      formatter={(value: any, name: any) => {
+                        if (name === 'valorCancelado') return [formatarMoeda(value), 'Valor Cancelado (VGV)'];
+                        if (name === 'quantidadeCancelada') return [`${value} cotas`, 'Qtd. Cancelada'];
+                        return [value, name];
+                      }}
+                      contentStyle={{
+                        backgroundColor: theme.palette.mode === 'dark' ? '#0f172a' : '#ffffff',
+                        borderColor: theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0',
+                        borderRadius: 8,
+                        color: theme.palette.mode === 'dark' ? '#f1f5f9' : '#0f172a'
+                      }}
+                    />
+                    <Legend 
+                      verticalAlign="top" 
+                      height={36} 
+                      iconType="circle" 
+                      formatter={(value) => {
+                        if (value === 'valorCancelado') return 'Valor Cancelado (R$)';
+                        if (value === 'quantidadeCancelada') return 'Quantidade de Cotas';
+                        return value;
+                      }} 
+                    />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="valorCancelado"
+                      name="valorCancelado"
+                      fill={theme.palette.error.main}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={50}
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="quantidadeCancelada"
+                      name="quantidadeCancelada"
+                      stroke="#f59e0b"
+                      strokeWidth={3}
+                      dot={{ r: 4, strokeWidth: 1, fill: '#f59e0b' }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )}
+            </Box>
+          </Paper>
         </Grid>
       </Grid>
 
