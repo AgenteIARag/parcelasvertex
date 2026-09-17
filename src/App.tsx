@@ -105,7 +105,8 @@ const migrarDadosStatusRecebida = async (
           venda.tipoTabela,
           venda.percentualAdesao,
           venda.percentualMensal,
-          venda.percentuaisParcelas
+          venda.percentuaisParcelas,
+          venda.valorParcela
         );
         const vendaNova = {
           ...venda,
@@ -603,7 +604,8 @@ function App() {
             regraEditada.tipoTabela || 'Linear',
             regraEditada.percentualAdesao,
             regraEditada.percentualMensal,
-            regraEditada.percentuaisParcelas
+            regraEditada.percentuaisParcelas,
+            venda.valorParcela
           );
 
           const vendaAtualizada = {
@@ -639,7 +641,8 @@ function App() {
             venda.tipoTabela || 'Linear',
             venda.percentualAdesao,
             venda.percentualMensal,
-            venda.percentuaisParcelas
+            venda.percentuaisParcelas,
+            venda.valorParcela
           );
           const vendaAtualizada = {
             ...venda,
@@ -745,7 +748,8 @@ function App() {
               regraMae.tipoTabela || 'Linear',
               difAdesao,
               difMensal,
-              gradeDiferencial
+              gradeDiferencial,
+              novaVenda.valorParcela
             );
 
           // A empresa mãe deve ver apenas as parcelas geradas pelas diferenças de tabelas (onde comissão > 0)
@@ -812,7 +816,8 @@ function App() {
             v.tipoTabela || 'Linear',
             v.percentualAdesao,
             v.percentualMensal,
-            v.percentuaisParcelas
+            v.percentuaisParcelas,
+            vendaAtualizada.valorParcela
           );
 
         // A empresa mãe deve ver apenas as parcelas geradas pelas diferenças de tabelas (onde comissão > 0)

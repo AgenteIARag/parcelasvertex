@@ -324,7 +324,8 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
       tipoTabelaInput,
       percentualAdesaoInput,
       percentualMensalInput,
-      percentuaisParcelasInput
+      percentuaisParcelasInput,
+      valorParcelaV
     );
 
     const novaVenda: LancamentoVenda = {

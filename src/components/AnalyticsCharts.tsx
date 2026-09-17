@@ -63,17 +63,28 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
     let totalComissaoMes = 0;
 
     vendas.forEach((v) => {
-      // Receita de comissão da parcela correspondente a mesChave
+      // Ignora cotas canceladas ou que não possuem parcelas ativas
+      const cotaCancelada =
+        v.statusCliente?.toLowerCase() === 'cancelado' ||
+        (v.projecaoMensal &&
+          Object.values(v.projecaoMensal).length > 0 &&
+          !Object.values(v.projecaoMensal).some((p) => p.status?.toLowerCase() !== 'cancelada' && (p.valorVenda || 0) > 0));
+
+      if (cotaCancelada) {
+        return;
+      }
+
+      // Receita de comissão da parcela correspondente a mesChave (ignora parcelas canceladas)
       if (v.projecaoMensal) {
         const celula = v.projecaoMensal[mesChave];
-        if (celula && celula.status !== 'Cancelada') {
+        if (celula && celula.status?.toLowerCase() !== 'cancelada') {
           totalComissaoMes += Number(celula.comissaoGerada || 0);
         }
       }
 
       // Volume de vendas (VGV) no mês da contratação/venda
       const mesVenda = v.dataVenda ? v.dataVenda.substring(0, 7) : (v.mesInicio || '');
-      if (mesVenda === mesChave && v.statusCliente !== 'Cancelado') {
+      if (mesVenda === mesChave) {
         totalVendaMes += Number(v.valorVenda || 0);
       }
     });
@@ -93,7 +104,13 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
   };
 
   vendas.forEach((v) => {
-    if (v.statusCliente !== 'Cancelado') {
+    const cotaCancelada =
+      v.statusCliente?.toLowerCase() === 'cancelado' ||
+      (v.projecaoMensal &&
+        Object.values(v.projecaoMensal).length > 0 &&
+        !Object.values(v.projecaoMensal).some((p) => p.status?.toLowerCase() !== 'cancelada' && (p.valorVenda || 0) > 0));
+
+    if (!cotaCancelada) {
       const mesVenda = v.dataVenda ? v.dataVenda.substring(0, 7) : (v.mesInicio || '');
       if (!mesInicioChave || !mesFimChave || (mesVenda >= mesInicioChave && mesVenda <= mesFimChave)) {
         const seg = v.segmento || 'Imóveis';

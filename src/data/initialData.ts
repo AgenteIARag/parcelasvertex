@@ -66,7 +66,8 @@ export const calcularTotaisLinha = (
   tipoTabela: TipoTabela = 'Linear',
   percentualAdesao?: number,
   percentualMensalRestante?: number,
-  percentuaisParcelas?: number[]
+  percentuaisParcelas?: number[],
+  valorParcelaOriginal?: number
 ): { totalVendas: number; totalComissoes: number; projecaoAtualizada: ProjecaoMensalType } => {
   let totalVendas = 0;
   let totalComissoes = 0;
@@ -105,8 +106,12 @@ export const calcularTotaisLinha = (
         comissao = valor * (percParcela / 100);
       } else if (isAdesao) {
         if (indiceParcela === 0) {
-          // 1ª Parcela (Adesão): recebe o percentual de adesão
-          comissao = valor * (pAdesao / 100);
+          // 1ª Parcela (Adesão): recebe o percentual de adesão aplicando proporcionalidade da parcela se houver
+          let proporcao = 1;
+          if (valorParcelaOriginal && valorParcelaOriginal > 0 && celula.valorParcela !== undefined) {
+             proporcao = celula.valorParcela / valorParcelaOriginal;
+          }
+          comissao = (valor * (pAdesao / 100)) * proporcao;
         } else {
           // Parcelas restantes (2..N): percentual mensal fracionado
           comissao = valor * ((pMensal / parcelasRestantes) / 100);
@@ -175,7 +180,12 @@ export const gerarVendaMock = (
   const { totalVendas, totalComissoes, projecaoAtualizada } = calcularTotaisLinha(
     proj,
     percentualComissao,
-    qtdParcelas
+    qtdParcelas,
+    'Linear',
+    undefined,
+    undefined,
+    undefined,
+    valorParcelaMock
   );
 
   // Calcula a data da segunda parcela para o fluxo de simulação mockada

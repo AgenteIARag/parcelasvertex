@@ -249,7 +249,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       venda.tipoTabela || 'Linear',
       venda.percentualAdesao,
       venda.percentualMensal,
-      venda.percentuaisParcelas
+      venda.percentuaisParcelas,
+      venda.valorParcela
     );
 
     const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.valorVenda > 0);
@@ -298,7 +299,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       venda.tipoTabela || 'Linear',
       venda.percentualAdesao,
       venda.percentualMensal,
-      venda.percentuaisParcelas
+      venda.percentuaisParcelas,
+      venda.valorParcela
     );
 
     const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.valorVenda > 0);
@@ -341,7 +343,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       venda.tipoTabela || 'Linear',
       venda.percentualAdesao,
       venda.percentualMensal,
-      venda.percentuaisParcelas
+      venda.percentuaisParcelas,
+      venda.valorParcela
     );
 
     const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.valorVenda > 0);
@@ -385,7 +388,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       venda.tipoTabela || 'Linear',
       venda.percentualAdesao,
       venda.percentualMensal,
-      venda.percentuaisParcelas
+      venda.percentuaisParcelas,
+      venda.valorParcela
     );
 
     onAtualizarVenda({
@@ -421,7 +425,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       venda.tipoTabela || 'Linear',
       venda.percentualAdesao,
       venda.percentualMensal,
-      venda.percentuaisParcelas
+      venda.percentuaisParcelas,
+      venda.valorParcela
     );
     const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.valorVenda > 0);
     onAtualizarVenda({ ...venda, projecaoMensal: projFina, totalVendas, totalComissoes, statusCliente: temParcelasAtivas ? 'Ativo' : 'Cancelado' });
@@ -3120,7 +3125,8 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       tipoTabelaInput,
       percentualAdesaoInput,
       percentualMensalInput,
-      percentuaisParcelasInput
+      percentuaisParcelasInput,
+      valorParcelaV
     );
 
     const vendaAtualizada: LancamentoVenda = {
