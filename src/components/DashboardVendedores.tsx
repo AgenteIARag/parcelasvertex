@@ -22,8 +22,18 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import GroupIcon from '@mui/icons-material/Group';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as ChartTooltip,
+  Legend
+} from 'recharts';
 import { type LancamentoVenda, type Vendedor } from '../types';
-import { formatarMoeda } from '../utils/formatters';
+import { formatarMoeda, formatarMoedaEixo } from '../utils/formatters';
 
 interface DashboardVendedoresProps {
   vendas: LancamentoVenda[];
@@ -254,6 +264,94 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
               </Typography>
             </CardContent>
           </Card>
+        </Grid>
+      </Grid>
+
+      {/* Gráfico Comparativo de Vendedores */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid size={{ xs: 12 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              borderRadius: 4,
+              border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+              background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff'
+            }}
+          >
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 700,
+                fontFamily: 'Outfit, sans-serif',
+                mb: 3,
+                color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a'
+              }}
+            >
+              Faturamento vs Comissão (Top 10 Vendedores)
+            </Typography>
+            <Box sx={{ width: '100%', height: 350 }}>
+              {ranking.length === 0 ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                  <Typography sx={{ color: '#64748b' }}>Sem dados suficientes para gerar gráficos</Typography>
+                </Box>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={ranking.slice(0, 10)} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'} vertical={false} />
+                    <XAxis
+                      dataKey="vendedorNome"
+                      stroke={theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'}
+                      fontSize={11}
+                      tickLine={false}
+                      tick={{ fill: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }}
+                    />
+                    <YAxis
+                      yAxisId="left"
+                      stroke={theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'}
+                      fontSize={11}
+                      tickFormatter={formatarMoedaEixo}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      stroke={theme.palette.success.main}
+                      fontSize={11}
+                      tickFormatter={formatarMoedaEixo}
+                      tickLine={false}
+                    />
+                    <ChartTooltip
+                      formatter={(value: any, name: any) => [formatarMoeda(value), name === 'faturamento' ? 'Total Faturado' : 'Comissão Gerada']}
+                      contentStyle={{
+                        backgroundColor: theme.palette.mode === 'dark' ? '#0f172a' : '#ffffff',
+                        borderColor: theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0',
+                        borderRadius: 8,
+                        color: theme.palette.mode === 'dark' ? '#f1f5f9' : '#0f172a'
+                      }}
+                    />
+                    <Legend verticalAlign="top" height={36} iconType="circle" formatter={(value) => value === 'faturamento' ? 'Total Faturado' : 'Comissão Gerada'} />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="faturamento"
+                      name="faturamento"
+                      fill={theme.palette.primary.main}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={50}
+                    />
+                    <Bar
+                      yAxisId="right"
+                      dataKey="comissao"
+                      name="comissao"
+                      fill={theme.palette.success.main}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={50}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </Box>
+          </Paper>
         </Grid>
       </Grid>
 
