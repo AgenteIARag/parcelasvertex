@@ -1788,6 +1788,7 @@ function App() {
                   vendas={vendasFiltradas}
                   regras={regrasParaExibicao}
                   vendedores={vendedoresFiltrados}
+                  clientes={clientes}
                   onAdicionarVenda={handleAdicionarVenda}
                   onAtualizarVenda={handleAtualizarVenda}
                   onExcluirVenda={handleExcluirVenda}
@@ -1916,7 +1917,8 @@ function App() {
                       empresaAtualId={usuarioLogado?.empresaId}
                       isSuperMaster={isSuperMaster}
                       administradoras={administradoras}
-                    />
+          clientes={clientes}
+        />
                   )}
 
                   {/* Tabelas das Filhas */}
@@ -1925,7 +1927,8 @@ function App() {
                       empresas={empresas}
                       regrasMaster={regras}
                       administradoras={administradoras}
-                    />
+          clientes={clientes}
+        />
                   )}
 
                   {/* Módulo de Cadastro de Administradoras (Super Master) */}
@@ -2124,7 +2127,8 @@ function App() {
         regras={regrasParaExibicao}
         ciclos={ciclos}
         administradoras={administradoras}
-      />
+          clientes={clientes}
+        />
     </ThemeProvider>
   );
 }

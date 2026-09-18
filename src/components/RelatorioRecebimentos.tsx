@@ -2782,6 +2782,7 @@ export const RelatorioRecebimentos = ({
           regras={regras}
           ciclos={ciclos}
           administradoras={administradoras}
+          clientes={[]}
         />
       )}
 

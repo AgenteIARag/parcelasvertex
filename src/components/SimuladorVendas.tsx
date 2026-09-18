@@ -161,6 +161,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   ciclos,
   administradoras = [],
   isMaster,
+  clientes = [],
 }) => {
   const theme = useTheme();
 
@@ -2632,6 +2633,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           regras={regras}
           ciclos={ciclos}
           administradoras={administradoras}
+          clientes={clientes}
         />
       )}
 
@@ -2653,7 +2655,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         regras={regras}
         ciclos={ciclos}
         administradoras={administradoras}
-      />
+          clientes={clientes}
+        />
 
       {/* Dialog de Edição Individual de Parcela */}
       {editandoParcela && (() => {
@@ -2849,6 +2852,7 @@ interface EditarVendaDialogProps {
   regras: RegraMaster[];
   ciclos: Record<string, [number, number]>;
   administradoras?: Administradora[];
+  clientes?: import('../types').Cliente[];
 }
 
 export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
@@ -2859,7 +2863,8 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
   vendedores,
   regras,
   ciclos,
-  administradoras = []
+  administradoras = [],
+  clientes = []
 }) => {
   const theme = useTheme();
   const [clienteSelecionado, setClienteSelecionado] = useState<import('../types').Cliente | null>(null);
@@ -3207,14 +3212,27 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       <DialogContent>
         <Grid container spacing={3} sx={{ mt: 0.5 }}>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
-              fullWidth
-              label="Cliente / Projeto"
-              placeholder="Ex: Condomínio Jardim Real"
-              value={cliente}
-              onChange={(e) => setCliente(e.target.value)}
-              error={!!errors.cliente}
-              helperText={errors.cliente}
+            <Autocomplete
+              options={clientes}
+              getOptionLabel={(option) => option.nome}
+              value={clienteSelecionado}
+              onChange={(_event, newValue) => {
+                setClienteSelecionado(newValue);
+                if (errors.cliente) {
+                  setErrors((prev) => ({ ...prev, cliente: '' }));
+                }
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Cliente / Projeto"
+                  placeholder="Selecione um cliente..."
+                  error={!!errors.cliente}
+                  helperText={errors.cliente || "Caso não encontre, cadastre em 'Clientes'"}
+                />
+              )}
+              isOptionEqualToValue={(option, value) => option.id === value?.id}
+              noOptionsText="Nenhum cliente encontrado"
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
@@ -3534,3 +3552,4 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
     </Dialog>
   );
 };
+

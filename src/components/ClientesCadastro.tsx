@@ -33,7 +33,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 
-import { Cliente, LancamentoVenda } from '../types';
+import type { Cliente, LancamentoVenda } from '../types';
 import { formatarMoeda } from '../utils/formatters';
 
 interface ClientesCadastroProps {
@@ -152,13 +152,15 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
         value={termoBusca}
         onChange={(e) => setTermoBusca(e.target.value)}
         sx={{ mb: 3, maxWidth: 500 }}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon sx={{ color: 'text.secondary' }} />
-            </InputAdornment>
-          ),
-          sx: { borderRadius: 3 }
+        slotProps={{
+          input: {
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: 'text.secondary' }} />
+              </InputAdornment>
+            ),
+            sx: { borderRadius: 3 }
+          }
         }}
       />
 
@@ -206,13 +208,13 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
         </Table>
       </TableContainer>
 
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { borderRadius: 3 } } }}>
         <DialogTitle sx={{ fontWeight: 700 }}>
           {editingId ? 'Editar Cliente' : 'Novo Cliente'}
         </DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2}>
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <TextField
                 fullWidth
                 label="Nome Completo"
@@ -222,7 +224,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
                 helperText={errors.nome}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="CPF ou CNPJ"
@@ -231,7 +233,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
                 placeholder="Apenas números"
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Telefone (WhatsApp)"
@@ -240,7 +242,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
                 placeholder="(00) 00000-0000"
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <TextField
                 fullWidth
                 label="E-mail"
@@ -249,7 +251,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
                 placeholder="email@exemplo.com"
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <TextField
                 fullWidth
                 label="Observações"
@@ -340,7 +342,7 @@ const RowCliente = ({ cliente, vendas, onEdit, onDelete, theme }: any) => {
         </TableCell>
         <TableCell>
           {cliente.telefone || '-'}
-          {cliente.email && <Typography variant="caption" display="block" color="text.secondary">{cliente.email}</Typography>}
+          {cliente.email && <Typography variant="caption" sx={{ display: 'block' }} color="text.secondary">{cliente.email}</Typography>}
         </TableCell>
         <TableCell>
           {cliente.cpfCnpj || '-'}

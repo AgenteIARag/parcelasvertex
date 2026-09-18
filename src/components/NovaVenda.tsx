@@ -42,7 +42,7 @@ const calcularDataPrevisaoRecebimento = (dataVencimentoParcela: string, _ciclos?
   return `${ano}-${mes}-${dia}`;
 };
 
-export const BotaoNovaVendaWrapper = ({ theme, permissoes, onAdicionarVenda, vendedores, regras, ciclos, administradoras, mostrarSnackbar }: any) => {
+export const BotaoNovaVendaWrapper = ({ theme, permissoes, onAdicionarVenda, vendedores, regras, ciclos, administradoras, clientes, mostrarSnackbar }: any) => {
   const [open, setOpen] = React.useState(false);
   return (
     <>
@@ -69,12 +69,13 @@ export const BotaoNovaVendaWrapper = ({ theme, permissoes, onAdicionarVenda, ven
         onSave={(novaVenda) => {
           onAdicionarVenda(novaVenda);
           setOpen(false);
-          mostrarSnackbar('✅ Venda lançada com sucesso!');
+          mostrarSnackbar('✨ Venda lançada com sucesso!');
         }}
         vendedores={vendedores}
         regras={regras}
         ciclos={ciclos}
         administradoras={administradoras}
+        clientes={clientes}
       />
     </>
   );
@@ -421,7 +422,7 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
                 options={clientes}
                 getOptionLabel={(option) => option.nome}
                 value={clienteSelecionado}
-                onChange={(event, newValue) => {
+                onChange={(_event, newValue) => {
                   setClienteSelecionado(newValue);
                   if (errors.cliente) {
                     setErrors((prev) => ({ ...prev, cliente: '' }));
