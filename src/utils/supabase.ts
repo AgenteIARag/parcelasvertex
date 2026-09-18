@@ -344,6 +344,7 @@ export const obterVendasSupabase = async (): Promise<LancamentoVenda[]> => {
     return {
       id: v.id,
       cliente: v.cliente,
+      clienteId: v.cliente_id || undefined,
       administradoraId,
       administradoraNome,
       pac,
@@ -391,6 +392,7 @@ export const salvarVendaSupabase = async (venda: LancamentoVenda): Promise<void>
   const payload: Record<string, unknown> = {
     id: venda.id,
     cliente: venda.cliente,
+    cliente_id: venda.clienteId || null,
     administradora_id: venda.administradoraId || null,
     administradora_nome: venda.administradoraNome || null,
     vendedor_id: venda.vendedorId,
@@ -747,6 +749,137 @@ export const migrarTabelasHierarquia = async (): Promise<void> => {
       `
     });
   } catch { /* silencioso */ }
+};
+
+export const migrarTabelaClientes = async (): Promise<void> => {
+  const sql = `
+    CREATE TABLE IF NOT EXISTS clientes (
+      id TEXT PRIMARY KEY,
+      nome TEXT NOT NULL,
+      cpf_cnpj TEXT,
+      telefone TEXT,
+      email TEXT,
+      observacoes TEXT,
+      empresa_id TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    ALTER TABLE vendas ADD COLUMN IF NOT EXISTS cliente_id TEXT;
+  `;
+  try {
+    await supabase.rpc('exec_sql', { sql });
+  } catch (err) {
+    console.error('Erro ao migrar tabela de clientes:', err);
+  }
+};
+
+// ==========================================
+// CLIENTES
+// ==========================================
+
+export const obterClientesLocais = (): import('../types').Cliente[] => {
+  try {
+    const saved = localStorage.getItem('apex_clientes');
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.error('Erro ao ler apex_clientes:', e);
+  }
+  return [];
+};
+
+export const salvarClienteLocal = (cliente: import('../types').Cliente): import('../types').Cliente[] => {
+  const atuais = obterClientesLocais();
+  const index = atuais.findIndex(c => c.id === cliente.id);
+  let novos;
+  if (index >= 0) {
+    novos = [...atuais];
+    novos[index] = cliente;
+  } else {
+    novos = [...atuais, cliente];
+  }
+  localStorage.setItem('apex_clientes', JSON.stringify(novos));
+  return novos;
+};
+
+export const excluirClienteLocal = (id: string): import('../types').Cliente[] => {
+  const atuais = obterClientesLocais();
+  const novos = atuais.filter(c => c.id !== id);
+  localStorage.setItem('apex_clientes', JSON.stringify(novos));
+  return novos;
+};
+
+export const obterClientesSupabase = async (): Promise<import('../types').Cliente[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('clientes')
+      .select('*')
+      .order('nome', { ascending: true });
+
+    if (error) {
+      console.warn('Supabase clientes indisponível, usando localStorage:', error.message);
+      return obterClientesLocais();
+    }
+
+    if (data) {
+      const remotas: import('../types').Cliente[] = data.map((c: any) => ({
+        id: c.id,
+        nome: c.nome,
+        cpfCnpj: c.cpf_cnpj || undefined,
+        telefone: c.telefone || undefined,
+        email: c.email || undefined,
+        observacoes: c.observacoes || undefined,
+        empresaId: c.empresa_id || undefined,
+        createdAt: c.created_at || undefined
+      }));
+      localStorage.setItem('apex_clientes', JSON.stringify(remotas));
+      return remotas;
+    }
+    return obterClientesLocais();
+  } catch (err) {
+    console.warn('Erro ao conectar Supabase clientes:', err);
+    return obterClientesLocais();
+  }
+};
+
+export const salvarClienteSupabase = async (cliente: import('../types').Cliente): Promise<void> => {
+  salvarClienteLocal(cliente);
+  try {
+    const { error } = await supabase
+      .from('clientes')
+      .upsert({
+        id: cliente.id,
+        nome: cliente.nome,
+        cpf_cnpj: cliente.cpfCnpj || null,
+        telefone: cliente.telefone || null,
+        email: cliente.email || null,
+        observacoes: cliente.observacoes || null,
+        empresa_id: cliente.empresaId || null
+      });
+
+    if (error) {
+      console.warn('Aviso ao salvar cliente no Supabase (salvo localmente):', error.message);
+    }
+  } catch (err) {
+    console.warn('Erro Supabase clientes (salvo localmente):', err);
+  }
+};
+
+export const excluirClienteSupabase = async (id: string): Promise<void> => {
+  excluirClienteLocal(id);
+  try {
+    const { error } = await supabase
+      .from('clientes')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.warn('Aviso ao excluir cliente no Supabase (removido localmente):', error.message);
+    }
+  } catch (err) {
+    console.warn('Erro Supabase excluir cliente (removido localmente):', err);
+  }
 };
 
 export const migrarTabelaEmpresas = async (): Promise<void> => {

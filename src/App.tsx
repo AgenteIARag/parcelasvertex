@@ -35,7 +35,7 @@ import { AdministradorasCadastro } from './components/AdministradorasCadastro';
 import { NovaVendaDialog } from './components/NovaVenda';
 import { formatarData } from './utils/formatters';
 
-import { type RegraMaster, type RegraFilha, type LancamentoVenda, type Vendedor, type Usuario, type StatusComissao, type Empresa, type Administradora } from './types';
+import { type RegraMaster, type RegraFilha, type LancamentoVenda, type Vendedor, type Usuario, type StatusComissao, type Empresa, type Administradora, type Cliente } from './types';
 import { INITIAL_VENDEDORES, calcularTotaisLinha } from './data/initialData';
 import { KPISection } from './components/KPISection';
 import { SimuladorVendas } from './components/SimuladorVendas';
@@ -44,6 +44,7 @@ import { AnalyticsCharts } from './components/AnalyticsCharts';
 import { Login } from './components/Login';
 import { UsuariosCadastro } from './components/UsuariosCadastro';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { ClientesCadastro } from './components/ClientesCadastro';
 import { RelatorioRetencaoLTV } from './components/RelatorioRetencaoLTV';
 import { ComissoesVendedores } from './components/ComissoesVendedores';
 import { RelatorioRecebimentos } from './components/RelatorioRecebimentos';
@@ -65,7 +66,11 @@ import {
   inicializarEmpresasPadrao,
   obterAdministradorasLocais,
   obterAdministradorasSupabase,
-  inicializarAdministradorasPadrao
+  inicializarAdministradorasPadrao,
+  migrarTabelaClientes,
+  obterClientesSupabase,
+  salvarClienteSupabase,
+  excluirClienteSupabase
 } from './utils/supabase';
 import CloudQueueIcon from '@mui/icons-material/CloudQueue';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
@@ -246,7 +251,12 @@ function App() {
     return lista.map(v => ({ ...v, empresaId: v.empresaId || 'emp_vertex' }));
   });
 
-  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'dashboard_vendedores' | 'vendas' | 'comissoes' | 'relatorio' | 'relatorio_comissoes' | 'configuracoes' | 'retencao_ltv'>('dashboard');
+  const [clientes, setClientes] = useState<Cliente[]>(() => {
+    const saved = localStorage.getItem('apex_clientes');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'dashboard_vendedores' | 'vendas' | 'clientes' | 'comissoes' | 'relatorio' | 'relatorio_comissoes' | 'configuracoes' | 'retencao_ltv'>('dashboard');
   const [subAbaAtiva, setSubAbaAtiva] = useState<'regras' | 'regras_filha' | 'vendedores' | 'acessos' | 'empresas' | 'administradoras'>('regras');
 
   // Multi-tenant: empresas
@@ -489,6 +499,9 @@ function App() {
         const emps = await inicializarEmpresasPadrao();
         setEmpresas(emps);
 
+        // Migração da tabela clientes
+        await migrarTabelaClientes();
+
         // Inicializa e carrega as administradoras de consórcio
         try {
           const adms = await inicializarAdministradorasPadrao();
@@ -498,14 +511,68 @@ function App() {
           setAdministradoras(admsLocais);
         }
 
-        const [vend, reg, vendasData] = await Promise.all([
+        const [vend, reg, vendasData, clientesData] = await Promise.all([
           obterVendedoresSupabase(),
           obterRegrasSupabase(),
-          obterVendasSupabase()
+          obterVendasSupabase(),
+          obterClientesSupabase()
         ]);
         
         setVendedores(vend.map(v => ({ ...v, empresaId: v.empresaId || 'emp_vertex' })));
         setRegras(reg);
+
+        // --- MIGRAÇÃO AUTOMÁTICA DE CLIENTES ---
+        // Se houver vendas sem clienteId, cria o cadastro de cliente agrupando pelo nome normalizado
+        const vendasSemClienteId = vendasData.filter(v => !v.clienteId && v.cliente);
+        let clientesAtualizados = [...clientesData];
+        let precisaAtualizarVendas = false;
+
+        if (vendasSemClienteId.length > 0) {
+          const mapNomes = new Map<string, Cliente>(); // Chave = nome normalizado (minúsculo, sem acentos base)
+          
+          clientesAtualizados.forEach(c => {
+            const normalized = c.nome.toLowerCase().trim();
+            mapNomes.set(normalized, c);
+          });
+
+          const vendasParaSalvar: LancamentoVenda[] = [];
+
+          for (const venda of vendasSemClienteId) {
+            const rawName = venda.cliente || 'Cliente Desconhecido';
+            const normalized = rawName.toLowerCase().trim();
+            
+            let clienteAlvo = mapNomes.get(normalized);
+            
+            if (!clienteAlvo) {
+              // Cria novo cliente
+              clienteAlvo = {
+                id: `cli_mig_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                nome: rawName,
+                empresaId: venda.empresaId || 'emp_vertex',
+                createdAt: new Date().toISOString()
+              };
+              mapNomes.set(normalized, clienteAlvo);
+              clientesAtualizados.push(clienteAlvo);
+              
+              // Salva no banco (não aguarda cada um pra ser rápido, salva em background)
+              salvarClienteSupabase(clienteAlvo).catch(e => console.warn('Erro na migração de cliente:', e));
+            }
+            
+            // Vincula a venda ao cliente encontrado/criado
+            venda.clienteId = clienteAlvo.id;
+            vendasParaSalvar.push(venda);
+            precisaAtualizarVendas = true;
+          }
+
+          if (precisaAtualizarVendas) {
+            // Salva as vendas atualizadas no banco em background
+            vendasParaSalvar.forEach(v => {
+              salvarVendaSupabase(v).catch(e => console.warn('Erro vinculando venda ao cliente na migração:', e));
+            });
+          }
+        }
+
+        setClientes(clientesAtualizados);
 
         // Carregar regras filha
         try {
@@ -573,6 +640,35 @@ function App() {
   }, [usuarioLogado]);
 
 
+
+  // Ações de Clientes
+  const handleAdicionarCliente = (cliente: Cliente) => {
+    setClientes(prev => [...prev, cliente]);
+    salvarClienteSupabase(cliente).catch(err => console.error('Erro ao salvar cliente:', err));
+  };
+
+  const handleAtualizarCliente = (cliente: Cliente) => {
+    setClientes(prev => prev.map(c => c.id === cliente.id ? cliente : c));
+    salvarClienteSupabase(cliente).catch(err => console.error('Erro ao atualizar cliente:', err));
+    
+    // Propagar mudança de nome para as vendas
+    setVendas(prev => {
+      const novasVendas = prev.map(v => {
+        if (v.clienteId === cliente.id && v.cliente !== cliente.nome) {
+          const vendaAtualizada = { ...v, cliente: cliente.nome };
+          salvarVendaSupabase(vendaAtualizada).catch(err => console.error('Erro atualizar venda:', err));
+          return vendaAtualizada;
+        }
+        return v;
+      });
+      return novasVendas;
+    });
+  };
+
+  const handleExcluirCliente = (id: string) => {
+    setClientes(prev => prev.filter(c => c.id !== id));
+    excluirClienteSupabase(id).catch(err => console.error('Erro ao excluir cliente:', err));
+  };
 
   // Ações de Regras
   const handleAdicionarRegra = (novaRegra: Omit<RegraMaster, 'id'>) => {
@@ -1372,6 +1468,7 @@ function App() {
               {abaAtiva === 'dashboard' && 'Dashboard de Performance'}
               {abaAtiva === 'dashboard_vendedores' && 'Dashboard de Vendedores'}
               {abaAtiva === 'vendas' && 'Painel de Vendas / Simulador'}
+              {abaAtiva === 'clientes' && 'Cadastro de Clientes'}
               {abaAtiva === 'comissoes' && 'Comissões de Corretores'}
               {abaAtiva === 'relatorio' && 'Relatório de Previsão de Recebimentos'}
               {abaAtiva === 'relatorio_comissoes' && 'Relatório de Comissões'}
@@ -1672,6 +1769,16 @@ function App() {
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <DashboardVendedores vendas={vendasFiltradas} vendedores={vendedoresFiltrados} dataInicio={dataInicio} dataFim={dataFim} />
               </Box>
+            )}
+
+            {abaAtiva === 'clientes' && (
+              <ClientesCadastro
+                clientes={clientes}
+                vendas={vendasFiltradas} // Passar vendasFiltradas para respeitar o tenant atual
+                onAdicionar={handleAdicionarCliente}
+                onAtualizar={handleAtualizarCliente}
+                onExcluir={handleExcluirCliente}
+              />
             )}
 
             {abaAtiva === 'vendas' && (

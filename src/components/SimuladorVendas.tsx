@@ -17,6 +17,7 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  Autocomplete,
   Select,
   MenuItem,
   FormControl,
@@ -133,6 +134,7 @@ interface SimuladorVendasProps {
   vendas: LancamentoVenda[];
   regras: RegraMaster[];
   vendedores: Vendedor[];
+  clientes: import('../types').Cliente[];
   onAdicionarVenda: (venda: LancamentoVenda) => void;
   onAtualizarVenda: (venda: LancamentoVenda) => void;
   onExcluirVenda: (id: string) => void;
@@ -2860,7 +2862,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
   administradoras = []
 }) => {
   const theme = useTheme();
-  const [cliente, setCliente] = useState('');
+  const [clienteSelecionado, setClienteSelecionado] = useState<import('../types').Cliente | null>(null);
   const [pac, setPac] = useState('');
   const [vendedorId, setVendedorId] = useState('');
   const [administradoraIdInput, setAdministradoraIdInput] = useState('');
@@ -2901,7 +2903,8 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
 
   useEffect(() => {
     if (venda) {
-      setCliente(venda.cliente);
+      const cliEncontrado = clientes.find(c => c.id === venda.clienteId || (c.nome && venda.cliente && c.nome.toLowerCase().trim() === venda.cliente.toLowerCase().trim()));
+        setClienteSelecionado(cliEncontrado || null);
       setPac(venda.pac || '');
       setVendedorId(venda.vendedorId || '');
       
@@ -3008,7 +3011,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
     if (!venda) return;
 
     const tempErrors: Record<string, string> = {};
-    if (!cliente.trim()) tempErrors.cliente = 'Nome do cliente é obrigatório.';
+    if (!clienteSelecionado) tempErrors.cliente = 'A seleção do cliente é obrigatória.';
     if (!vendedorId) tempErrors.vendedorId = 'Selecione o vendedor.';
     if (!segmento) tempErrors.segmento = 'Selecione o segmento.';
     if (!tabela) tempErrors.tabela = 'Selecione a tabela.';
@@ -3131,7 +3134,8 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
 
     const vendaAtualizada: LancamentoVenda = {
       ...venda,
-      cliente: cliente.trim(),
+      cliente: clienteSelecionado!.nome,
+        clienteId: clienteSelecionado!.id,
       administradoraId: administradoraIdInput || undefined,
       administradoraNome: administradoraNomeInput || undefined,
       pac: pac.trim(),

@@ -99,9 +99,21 @@ export interface Vendedor {
   empresaId?: string; // ID da empresa à qual o vendedor pertence
 }
 
+export interface Cliente {
+  id: string;
+  nome: string;
+  cpfCnpj?: string;
+  telefone?: string;
+  email?: string;
+  observacoes?: string;
+  empresaId?: string;
+  createdAt?: string;
+}
+
 export interface LancamentoVenda {
   id: string;
   cliente: string;
+  clienteId?: string; // Referência ao cadastro do cliente
   administradoraId?: string; // ID da administradora do consórcio
   administradoraNome?: string; // Nome da administradora do consórcio
   vendedorId?: string;

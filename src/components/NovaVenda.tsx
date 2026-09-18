@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '@mui/material/styles';
 import {
   Box, Typography, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Select, MenuItem, FormControl, InputLabel, Alert
+  TextField, Select, MenuItem, FormControl, InputLabel, Alert, Autocomplete
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import AddIcon from '@mui/icons-material/Add';
@@ -12,7 +12,7 @@ import PercentIcon from '@mui/icons-material/Percent';
 
 import { gerarProjecaoVazia, getStatusInicial, calcularTotaisLinha } from '../data/initialData';
 
-import type { LancamentoVenda, Vendedor, RegraMaster, TipoTabela, SegmentoType, ProjecaoMensalType, Administradora } from '../types';
+import type { LancamentoVenda, Vendedor, RegraMaster, TipoTabela, SegmentoType, ProjecaoMensalType, Administradora, Cliente } from '../types';
 
 const extrairValorCru = (valorFormatado: string): number => {
   const apenasNumeros = valorFormatado.replace(/\D/g, '');
@@ -89,6 +89,7 @@ export interface NovaVendaDialogProps {
   regras: RegraMaster[];
   ciclos: Record<string, [number, number]>;
   administradoras?: Administradora[];
+  clientes: Cliente[];
 }
 
 export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
@@ -98,10 +99,11 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
   vendedores,
   regras,
   ciclos,
-  administradoras = []
+  administradoras = [],
+  clientes = []
 }) => {
   const theme = useTheme();
-  const [cliente, setCliente] = useState('');
+  const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null);
   const [pac, setPac] = useState('');
   const [vendedorId, setVendedorId] = useState('');
   const [administradoraIdInput, setAdministradoraIdInput] = useState('');
@@ -217,7 +219,7 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
 
   const handleSalvarVenda = () => {
     const tempErrors: Record<string, string> = {};
-    if (!cliente.trim()) tempErrors.cliente = 'Nome do cliente é obrigatório.';
+    if (!clienteSelecionado) tempErrors.cliente = 'A seleção do cliente é obrigatória.';
     if (!vendedorId) tempErrors.vendedorId = 'Selecione o vendedor.';
     if (!segmento) tempErrors.segmento = 'Selecione o segmento.';
     if (!tabela) tempErrors.tabela = 'Selecione a tabela.';
@@ -330,7 +332,8 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
 
     const novaVenda: LancamentoVenda = {
       id: `v_${Date.now()}`,
-      cliente: cliente.trim(),
+      cliente: clienteSelecionado!.nome,
+      clienteId: clienteSelecionado!.id,
       administradoraId: administradoraIdInput || undefined,
       administradoraNome: administradoraNomeInput || undefined,
       pac: pac.trim(),
@@ -359,7 +362,7 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
 
     onSave(novaVenda);
     
-    setCliente('');
+    setClienteSelecionado(null);
     setPac('');
     setVendedorId('');
     setAdministradoraIdInput('');
@@ -412,19 +415,32 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
         </IconButton>
       </DialogTitle>
       <DialogContent>
-        <Grid container spacing={3} sx={{ mt: 0.5 }}>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
-              fullWidth
-              label="Cliente / Projeto"
-              placeholder="Ex: Condomínio Jardim Real"
-              value={cliente}
-              onChange={(e) => setCliente(e.target.value)}
-              error={!!errors.cliente}
-              helperText={errors.cliente}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
+          <Grid container spacing={3} sx={{ mt: 0.5 }}>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <Autocomplete
+                options={clientes}
+                getOptionLabel={(option) => option.nome}
+                value={clienteSelecionado}
+                onChange={(event, newValue) => {
+                  setClienteSelecionado(newValue);
+                  if (errors.cliente) {
+                    setErrors((prev) => ({ ...prev, cliente: '' }));
+                  }
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Cliente / Projeto"
+                    placeholder="Selecione um cliente..."
+                    error={!!errors.cliente}
+                    helperText={errors.cliente || "Caso não encontre, cadastre em 'Clientes'"}
+                  />
+                )}
+                isOptionEqualToValue={(option, value) => option.id === value?.id}
+                noOptionsText="Nenhum cliente encontrado"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth error={!!errors.vendedorId}>
               <InputLabel id="vend-venda-label">Vendedor Responsável</InputLabel>
               <Select
