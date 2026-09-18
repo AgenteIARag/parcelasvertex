@@ -354,6 +354,21 @@ function App() {
     return base;
   }, [vendas, usuarioLogado, empresaFiltroMaster, canFilterCompany, empresaAtualEhFilha]);
 
+  // Clientes filtrados por empresa
+  const clientesFiltrados = useMemo(() => {
+    if (!usuarioLogado) return clientes;
+    let base = clientes;
+    if (canFilterCompany) {
+      if (empresaFiltroMaster) {
+        base = base.filter(c => (c.empresaId || 'emp_vertex') === empresaFiltroMaster);
+      }
+    } else {
+      const empId = usuarioLogado.empresaId || 'emp_vertex';
+      base = base.filter(c => (c.empresaId || 'emp_vertex') === empId);
+    }
+    return base;
+  }, [clientes, usuarioLogado, empresaFiltroMaster, canFilterCompany]);
+
   const vendedoresFiltrados = useMemo(() => {
     if (!usuarioLogado) return vendedores;
     let base = vendedores;
@@ -1801,9 +1816,10 @@ function App() {
 
             {abaAtiva === 'clientes' && (
               <ClientesCadastro
-                clientes={clientes}
-                vendas={vendasFiltradas} // Passar vendasFiltradas para respeitar o tenant atual
-                onAdicionar={handleAdicionarCliente}
+                  clientes={clientesFiltrados}
+                  vendas={vendasFiltradas}
+                  empresas={empresas}
+                  onAdicionar={handleAdicionarCliente}
                 onAtualizar={handleAtualizarCliente}
                 onExcluir={handleExcluirCliente}
               />

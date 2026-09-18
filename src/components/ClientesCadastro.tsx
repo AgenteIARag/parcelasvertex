@@ -33,11 +33,12 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 
-import type { Cliente, LancamentoVenda } from '../types';
+import type { Cliente, LancamentoVenda, Empresa } from '../types';
 import { formatarMoeda } from '../utils/formatters';
 
 interface ClientesCadastroProps {
   clientes: Cliente[];
+  empresas: Empresa[];
   vendas: LancamentoVenda[];
   onAdicionar: (cliente: Cliente) => void;
   onAtualizar: (cliente: Cliente) => void;
@@ -46,6 +47,7 @@ interface ClientesCadastroProps {
 
 export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
   clientes,
+  empresas,
   vendas,
   onAdicionar,
   onAtualizar,
@@ -179,7 +181,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
               <TableCell width={50}></TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Nome do Cliente</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Contato</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Documento</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="center">Total de Contratos</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="right">Lucro Total (LTV)</TableCell>
               <TableCell align="center" width={100} sx={{ fontWeight: 600 }}>Ações</TableCell>
@@ -197,7 +199,8 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
                 <RowCliente 
                   key={cliente.id} 
                   cliente={cliente} 
-                  vendas={vendas} 
+                  vendas={vendas}
+                  empresas={empresas} 
                   onEdit={() => handleOpenDialog(cliente)}
                   onDelete={() => onExcluir(cliente.id)}
                   theme={theme}
@@ -277,7 +280,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
   );
 };
 
-const RowCliente = ({ cliente, vendas, onEdit, onDelete, theme }: any) => {
+const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme }: any) => {
   const [open, setOpen] = useState(false);
   
   // Filtrar as vendas vinculadas a este cliente
@@ -338,14 +341,30 @@ const RowCliente = ({ cliente, vendas, onEdit, onDelete, theme }: any) => {
           </IconButton>
         </TableCell>
         <TableCell sx={{ fontWeight: 500 }}>
-          {cliente.nome}
+          <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{cliente.nome}</Typography>
+            <Chip 
+              label={empresas?.find((e: Empresa) => e.id === (cliente.empresaId || 'emp_vertex'))?.nome || 'Matriz'} 
+              size="small" 
+              sx={{ width: 'fit-content', height: 18, fontSize: '0.65rem', mt: 0.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }} 
+            />
+          </Box>
         </TableCell>
         <TableCell>
           {cliente.telefone || '-'}
           {cliente.email && <Typography variant="caption" sx={{ display: 'block' }} color="text.secondary">{cliente.email}</Typography>}
         </TableCell>
         <TableCell>
-          {cliente.cpfCnpj || '-'}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            {totais.ativos > 0 ? (
+              <Chip label="Ativo" size="small" color="success" sx={{ width: 'fit-content', height: 20, fontSize: '0.7rem' }} />
+            ) : (
+              <Chip label="Inativo" size="small" color="default" sx={{ width: 'fit-content', height: 20, fontSize: '0.7rem' }} />
+            )}
+            <Typography variant="caption" color="text.secondary">
+              {totais.ativos} ativas / {totais.cancelados} inativas
+            </Typography>
+          </Box>
         </TableCell>
         <TableCell align="center">
           <Chip 
