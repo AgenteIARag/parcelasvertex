@@ -1212,6 +1212,34 @@ function App() {
               </Button>
             </Tooltip>
 
+            <Tooltip title="Clientes" placement="right" disableHoverListener={!sidebarContraida}>
+              <Button
+                variant={abaAtiva === 'clientes' ? 'contained' : 'text'}
+                startIcon={!sidebarContraida ? <GroupIcon /> : undefined}
+                onClick={() => setAbaAtiva('clientes')}
+                fullWidth
+                sx={{
+                  justifyContent: sidebarContraida ? 'center' : 'flex-start',
+                  py: 1.25,
+                  px: sidebarContraida ? 0 : 2,
+                  minWidth: sidebarContraida ? 48 : undefined,
+                  borderRadius: 2,
+                  fontWeight: 600,
+                  fontFamily: 'Outfit, sans-serif',
+                  fontSize: '0.9rem',
+                  color: abaAtiva === 'clientes' ? '#ffffff' : 'text.secondary',
+                  background: abaAtiva === 'clientes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'transparent',
+                  boxShadow: abaAtiva === 'clientes' ? '0 4px 12px rgba(99, 102, 241, 0.25)' : 'none',
+                  '&:hover': {
+                    background: abaAtiva === 'clientes' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(99, 102, 241, 0.08)',
+                    color: abaAtiva === 'clientes' ? '#ffffff' : 'primary.main'
+                  }
+                }}
+              >
+                {sidebarContraida ? <GroupIcon /> : 'Clientes'}
+              </Button>
+            </Tooltip>
+
             {usuarioLogado?.role !== 'vendedor' && (
               <Tooltip title="Comissões Vendedores" placement="right" disableHoverListener={!sidebarContraida}>
                 <Button
