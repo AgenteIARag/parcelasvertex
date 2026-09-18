@@ -1917,7 +1917,7 @@ function App() {
                       empresaAtualId={usuarioLogado?.empresaId}
                       isSuperMaster={isSuperMaster}
                       administradoras={administradoras}
-          clientes={clientes}
+          
         />
                   )}
 
@@ -1927,7 +1927,7 @@ function App() {
                       empresas={empresas}
                       regrasMaster={regras}
                       administradoras={administradoras}
-          clientes={clientes}
+          
         />
                   )}
 
