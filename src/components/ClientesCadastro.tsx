@@ -21,7 +21,10 @@ import {
   Collapse,
   Chip,
   InputAdornment,
-  MenuItem
+  MenuItem,
+  Card,
+  CardContent,
+  Avatar
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -33,6 +36,9 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import AssignmentIcon from '@mui/icons-material/Assignment';
+import GroupIcon from '@mui/icons-material/Group';
+import PaymentsIcon from '@mui/icons-material/Payments';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 
 import type { Cliente, LancamentoVenda, Empresa } from '../types';
 import { formatarMoeda } from '../utils/formatters';
@@ -188,6 +194,80 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
     });
   }, [clientes, vendas, termoBusca, filtroStatus, filtroAdministradora, filtroVendedor]);
 
+  // Métricas consolidadas para os cards totalizadores (respondem aos filtros)
+  const metricas = useMemo(() => {
+    let clientesAtivos = 0;
+    let clientesInativos = 0;
+    let totalContratos = 0;
+    let contratosAtivos = 0;
+    let contratosCancelados = 0;
+    let vgvTotal = 0;
+    let vgvAtivo = 0;
+    let lucroComissaoTotal = 0;
+
+    clientesFiltrados.forEach(c => {
+      // Contratos do cliente
+      let contratos = vendas.filter(v => 
+        v.clienteId === c.id || 
+        (!v.clienteId && v.cliente && v.cliente.toLowerCase().trim() === c.nome.toLowerCase().trim())
+      );
+
+      // Se há filtro por administradora ou vendedor, aplicamos nas cotas
+      if (filtroAdministradora !== 'Todas') {
+        contratos = contratos.filter(v => v.administradoraNome === filtroAdministradora);
+      }
+      if (filtroVendedor !== 'Todos') {
+        contratos = contratos.filter(v => v.vendedorNome === filtroVendedor);
+      }
+
+      let temContratoAtivo = false;
+
+      contratos.forEach(v => {
+        totalContratos++;
+        const valorVenda = Number(v.valorVenda) || 0;
+        vgvTotal += valorVenda;
+
+        let mesCancelamento: string | null = null;
+        Object.keys(v.projecaoMensal || {}).sort().forEach(mes => {
+          const celula = v.projecaoMensal[mes];
+          if (celula.status === 'Paga') {
+            lucroComissaoTotal += (celula.comissaoGerada || 0);
+          }
+          if (celula.status === 'Cancelada' && !mesCancelamento) {
+            mesCancelamento = mes;
+          }
+        });
+
+        const isCancelado = v.statusCliente?.toLowerCase() === 'cancelado' || mesCancelamento !== null;
+        if (isCancelado) {
+          contratosCancelados++;
+        } else {
+          contratosAtivos++;
+          vgvAtivo += valorVenda;
+          temContratoAtivo = true;
+        }
+      });
+
+      if (temContratoAtivo) {
+        clientesAtivos++;
+      } else {
+        clientesInativos++;
+      }
+    });
+
+    return {
+      totalClientes: clientesFiltrados.length,
+      clientesAtivos,
+      clientesInativos,
+      totalContratos,
+      contratosAtivos,
+      contratosCancelados,
+      vgvAtivo,
+      vgvTotal,
+      lucroComissaoTotal
+    };
+  }, [clientesFiltrados, vendas, filtroAdministradora, filtroVendedor]);
+
   return (
     <Box sx={{ p: 1 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
@@ -273,6 +353,149 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
               <MenuItem key={opt} value={opt}>{opt}</MenuItem>
             ))}
           </TextField>
+        </Grid>
+      </Grid>
+
+      {/* Cards Totalizadores de Valores e Quantidades (Respondem aos Filtros) */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        {/* 1. Quantidade de Clientes */}
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Card
+            elevation={0}
+            sx={{
+              borderRadius: 3,
+              border: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`,
+              background: theme.palette.mode === 'dark' ? '#111827' : '#ffffff',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              '&:hover': { 
+                transform: 'translateY(-2px)',
+                boxShadow: theme.palette.mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.5)' : '0 4px 20px rgba(0,0,0,0.05)'
+              }
+            }}
+          >
+            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Total de Clientes
+                </Typography>
+                <Avatar sx={{ bgcolor: 'rgba(99, 102, 241, 0.12)', color: 'primary.main', width: 34, height: 34 }}>
+                  <GroupIcon sx={{ fontSize: 19 }} />
+                </Avatar>
+              </Box>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: 'text.primary', lineHeight: 1.2 }}>
+                {metricas.totalClientes} {metricas.totalClientes === 1 ? 'cliente' : 'clientes'}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5, fontSize: '0.73rem' }}>
+                <Box component="span" sx={{ color: 'success.main', fontWeight: 600 }}>{metricas.clientesAtivos} ativos</Box>
+                {' • '}
+                <Box component="span" sx={{ color: 'text.secondary' }}>{metricas.clientesInativos} inativos</Box>
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* 2. Quantidade de Contratos (PACs) */}
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Card
+            elevation={0}
+            sx={{
+              borderRadius: 3,
+              border: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`,
+              background: theme.palette.mode === 'dark' ? '#111827' : '#ffffff',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              '&:hover': { 
+                transform: 'translateY(-2px)',
+                boxShadow: theme.palette.mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.5)' : '0 4px 20px rgba(0,0,0,0.05)'
+              }
+            }}
+          >
+            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Total de Contratos (PACs)
+                </Typography>
+                <Avatar sx={{ bgcolor: 'rgba(59, 130, 246, 0.12)', color: 'info.main', width: 34, height: 34 }}>
+                  <AssignmentIcon sx={{ fontSize: 19 }} />
+                </Avatar>
+              </Box>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: 'text.primary', lineHeight: 1.2 }}>
+                {metricas.totalContratos} {metricas.totalContratos === 1 ? 'cota' : 'cotas'}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5, fontSize: '0.73rem' }}>
+                <Box component="span" sx={{ color: 'info.main', fontWeight: 600 }}>{metricas.contratosAtivos} ativas</Box>
+                {' • '}
+                <Box component="span" sx={{ color: 'error.main' }}>{metricas.contratosCancelados} canceladas</Box>
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* 3. Valor VGV Ativo em Carteira */}
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Card
+            elevation={0}
+            sx={{
+              borderRadius: 3,
+              border: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`,
+              background: theme.palette.mode === 'dark' ? '#111827' : '#ffffff',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              '&:hover': { 
+                transform: 'translateY(-2px)',
+                boxShadow: theme.palette.mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.5)' : '0 4px 20px rgba(0,0,0,0.05)'
+              }
+            }}
+          >
+            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  VGV Ativo em Carteira
+                </Typography>
+                <Avatar sx={{ bgcolor: 'rgba(245, 158, 11, 0.12)', color: 'warning.main', width: 34, height: 34 }}>
+                  <AccountBalanceWalletIcon sx={{ fontSize: 19 }} />
+                </Avatar>
+              </Box>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: 'text.primary', lineHeight: 1.2 }}>
+                {formatarMoeda(metricas.vgvAtivo)}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5, fontSize: '0.73rem' }}>
+                Crédito total em cotas ativas
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* 4. Valor Lucro Total da Comissão (LTV) */}
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Card
+            elevation={0}
+            sx={{
+              borderRadius: 3,
+              border: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`,
+              background: theme.palette.mode === 'dark' ? '#111827' : '#ffffff',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              '&:hover': { 
+                transform: 'translateY(-2px)',
+                boxShadow: theme.palette.mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.5)' : '0 4px 20px rgba(0,0,0,0.05)'
+              }
+            }}
+          >
+            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Lucro da Comissão (LTV)
+                </Typography>
+                <Avatar sx={{ bgcolor: 'rgba(16, 185, 129, 0.12)', color: 'success.main', width: 34, height: 34 }}>
+                  <PaymentsIcon sx={{ fontSize: 19 }} />
+                </Avatar>
+              </Box>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: 'success.main', lineHeight: 1.2 }}>
+                {formatarMoeda(metricas.lucroComissaoTotal)}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5, fontSize: '0.73rem' }}>
+                Total de comissões recebidas
+              </Typography>
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
 
