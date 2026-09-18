@@ -285,16 +285,16 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
           background: theme.palette.mode === 'dark' ? '#111827' : '#ffffff' 
         }}
       >
-        <Table>
+        <Table size="small">
           <TableHead>
-            <TableRow>
-              <TableCell width={50}></TableCell>
+            <TableRow sx={{ '& th': { py: 1, whiteSpace: 'nowrap', fontSize: '0.8rem' } }}>
+              <TableCell width={40} sx={{ px: 1 }}></TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Nome do Cliente</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Contato</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="center">Total de Contratos</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="right">Lucro Total (LTV)</TableCell>
-              <TableCell align="center" width={100} sx={{ fontWeight: 600 }}>Ações</TableCell>
+              <TableCell align="center" width={90} sx={{ fontWeight: 600, px: 1 }}>Ações</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -441,62 +441,88 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
 
   return (
     <React.Fragment>
-      <TableRow sx={{ '& > *': { borderBottom: 'unset' } }}>
-        <TableCell>
+      <TableRow 
+        hover
+        sx={{ 
+          '& > *': { 
+            borderBottom: 'unset',
+            py: 0.75,
+            whiteSpace: 'nowrap'
+          },
+          '&:hover': {
+            bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'
+          }
+        }}
+      >
+        <TableCell width={40} sx={{ py: 0.75, px: 1 }}>
           <IconButton
             aria-label="expand row"
             size="small"
             onClick={() => setOpen(!open)}
+            sx={{ p: 0.5 }}
           >
-            {open ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+            {open ? <KeyboardArrowUpIcon fontSize="small" /> : <KeyboardArrowDownIcon fontSize="small" />}
           </IconButton>
         </TableCell>
-        <TableCell sx={{ fontWeight: 500 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>{cliente.nome}</Typography>
+        <TableCell sx={{ py: 0.75, fontWeight: 500 }}>
+          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.85rem' }}>{cliente.nome}</Typography>
             <Chip 
               label={empresas?.find((e: Empresa) => e.id === (cliente.empresaId || 'emp_vertex'))?.nome || 'Matriz'} 
               size="small" 
-              sx={{ width: 'fit-content', height: 18, fontSize: '0.65rem', mt: 0.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }} 
+              sx={{ 
+                height: 18, 
+                fontSize: '0.65rem', 
+                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                fontWeight: 500
+              }} 
             />
           </Box>
         </TableCell>
-        <TableCell>
-          {cliente.telefone || '-'}
-          {cliente.email && <Typography variant="caption" sx={{ display: 'block' }} color="text.secondary">{cliente.email}</Typography>}
-        </TableCell>
-        <TableCell>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {totais.ativos > 0 ? (
-              <Chip label="Ativo" size="small" color="success" sx={{ width: 'fit-content', height: 20, fontSize: '0.7rem' }} />
-            ) : (
-              <Chip label="Inativo" size="small" color="default" sx={{ width: 'fit-content', height: 20, fontSize: '0.7rem' }} />
+        <TableCell sx={{ py: 0.75 }}>
+          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, fontSize: '0.82rem' }}>
+            <span>{cliente.telefone || '-'}</span>
+            {cliente.email && (
+              <Typography component="span" variant="caption" color="text.secondary" sx={{ fontSize: '0.78rem' }}>
+                • {cliente.email}
+              </Typography>
             )}
-            <Typography variant="caption" color="text.secondary">
-              {totais.ativos} ativas / {totais.cancelados} inativas
+          </Box>
+        </TableCell>
+        <TableCell sx={{ py: 0.75 }}>
+          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+            {totais.ativos > 0 ? (
+              <Chip label="Ativo" size="small" color="success" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 600 }} />
+            ) : (
+              <Chip label="Inativo" size="small" color="default" sx={{ height: 20, fontSize: '0.68rem' }} />
+            )}
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+              ({totais.ativos} ativ. / {totais.cancelados} inat.)
             </Typography>
           </Box>
         </TableCell>
-        <TableCell align="center">
+        <TableCell align="center" sx={{ py: 0.75 }}>
           <Chip 
             label={`${totais.totalContratos} PAC(s)`} 
             size="small" 
             sx={{ 
+              height: 20,
+              fontSize: '0.72rem',
               fontWeight: 600, 
               bgcolor: totais.ativos > 0 ? 'rgba(59, 130, 246, 0.1)' : 'rgba(148, 163, 184, 0.1)',
               color: totais.ativos > 0 ? 'info.main' : 'text.secondary'
             }} 
           />
         </TableCell>
-        <TableCell align="right" sx={{ fontWeight: 600, color: 'success.main' }}>
+        <TableCell align="right" sx={{ py: 0.75, fontWeight: 700, color: 'success.main', fontSize: '0.85rem' }}>
           {formatarMoeda(totais.lucro)}
         </TableCell>
-        <TableCell align="center">
-          <IconButton size="small" onClick={onEdit} color="primary">
+        <TableCell align="center" sx={{ py: 0.75, px: 1, whiteSpace: 'nowrap' }}>
+          <IconButton size="small" onClick={onEdit} color="primary" sx={{ p: 0.5 }}>
             <EditIcon fontSize="small" />
           </IconButton>
           {isSuperMaster && (
-            <IconButton size="small" onClick={onDelete} color="error">
+            <IconButton size="small" onClick={onDelete} color="error" sx={{ p: 0.5, ml: 0.5 }}>
               <DeleteIcon fontSize="small" />
             </IconButton>
           )}
@@ -505,78 +531,97 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
       <TableRow>
         <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={7}>
           <Collapse in={open} timeout="auto" unmountOnExit>
-            <Box sx={{ margin: 2, p: 3, bgcolor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.5)' : '#f8fafc', borderRadius: 3 }}>
+            <Box sx={{ margin: 1.5, p: 2.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.5)' : '#f8fafc', borderRadius: 3, border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#e2e8f0'}` }}>
               
-              <Box sx={{ display: 'flex', gap: 3, mb: 3 }}>
-                <Box>
+              {/* Resumo do Cliente com Lucro Totalizado */}
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2.5, alignItems: 'center' }}>
+                <Box sx={{ p: 1, px: 1.8, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : '#ffffff', border: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e2e8f0'}` }}>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <CheckCircleIcon sx={{ fontSize: 16, color: 'success.main' }} /> Ativos
+                    <CheckCircleIcon sx={{ fontSize: 15, color: 'success.main' }} /> Ativos
                   </Typography>
                   <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{totais.ativos} cotas</Typography>
                 </Box>
-                <Box>
+                <Box sx={{ p: 1, px: 1.8, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : '#ffffff', border: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e2e8f0'}` }}>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <CancelIcon sx={{ fontSize: 16, color: 'error.main' }} /> Cancelados
+                    <CancelIcon sx={{ fontSize: 15, color: 'error.main' }} /> Cancelados
                   </Typography>
                   <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{totais.cancelados} cotas</Typography>
                 </Box>
-                <Box>
+                <Box sx={{ p: 1, px: 1.8, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : '#ffffff', border: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e2e8f0'}` }}>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <MonetizationOnIcon sx={{ fontSize: 16, color: 'primary.main' }} /> VGV Ativo
+                    <MonetizationOnIcon sx={{ fontSize: 15, color: 'primary.main' }} /> VGV Ativo
                   </Typography>
                   <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{formatarMoeda(totais.vgvAtivo)}</Typography>
                 </Box>
+                <Box sx={{ p: 1, px: 2, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4', border: '1px solid', borderColor: theme.palette.mode === 'dark' ? 'rgba(34, 197, 94, 0.25)' : '#bbf7d0' }}>
+                  <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'success.main', fontWeight: 600 }}>
+                    <MonetizationOnIcon sx={{ fontSize: 15, color: 'success.main' }} /> Lucro Total da Comissão (LTV)
+                  </Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'success.main', fontSize: '0.95rem' }}>
+                    {formatarMoeda(totais.lucro)}
+                  </Typography>
+                </Box>
                 {cliente.observacoes && (
-                  <Box sx={{ ml: 'auto', maxWidth: 400 }}>
+                  <Box sx={{ ml: { xs: 0, sm: 'auto' }, maxWidth: 350, p: 1, px: 1.5, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)' }}>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <AssignmentIcon sx={{ fontSize: 16 }} /> Observações
+                      <AssignmentIcon sx={{ fontSize: 14 }} /> Observações:
                     </Typography>
-                    <Typography variant="caption" sx={{ fontStyle: 'italic' }}>"{cliente.observacoes}"</Typography>
+                    <Typography variant="caption" sx={{ fontStyle: 'italic', display: 'block' }}>"{cliente.observacoes}"</Typography>
                   </Box>
                 )}
               </Box>
 
-              <Typography variant="subtitle2" gutterBottom component="div" sx={{ fontWeight: 600 }}>
+              <Typography variant="subtitle2" gutterBottom component="div" sx={{ fontWeight: 600, fontSize: '0.85rem' }}>
                 Histórico de Contratos (PACs)
               </Typography>
               <Table size="small" aria-label="contratos">
                 <TableHead>
-                  <TableRow>
+                  <TableRow sx={{ '& th': { py: 0.8, whiteSpace: 'nowrap', fontSize: '0.78rem' } }}>
                     <TableCell>PAC</TableCell>
                     <TableCell>Segmento</TableCell>
                     <TableCell>Data da Venda</TableCell>
                     <TableCell align="right">Valor (Crédito)</TableCell>
+                    <TableCell align="right">Lucro da Comissão</TableCell>
                     <TableCell align="center">Status</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {contratos.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} align="center" sx={{ py: 2, color: 'text.secondary' }}>Nenhum contrato lançado</TableCell>
+                      <TableCell colSpan={6} align="center" sx={{ py: 2, color: 'text.secondary' }}>Nenhum contrato lançado</TableCell>
                     </TableRow>
                   ) : contratos.map((venda: LancamentoVenda) => {
                     let mesCancelamento: string | null = null;
+                    let lucroDesteContrato = 0;
                     Object.keys(venda.projecaoMensal || {}).sort().forEach(mes => {
-                      if (venda.projecaoMensal[mes].status === 'Cancelada' && !mesCancelamento) {
+                      const celula = venda.projecaoMensal[mes];
+                      if (celula.status === 'Paga') {
+                        lucroDesteContrato += (celula.comissaoGerada || 0);
+                      }
+                      if (celula.status === 'Cancelada' && !mesCancelamento) {
                         mesCancelamento = mes;
                       }
                     });
                     const isCancelado = venda.statusCliente?.toLowerCase() === 'cancelado' || mesCancelamento !== null;
 
                     return (
-                      <TableRow key={venda.id}>
-                        <TableCell component="th" scope="row">
+                      <TableRow key={venda.id} hover sx={{ '& td': { py: 0.6 } }}>
+                        <TableCell component="th" scope="row" sx={{ fontWeight: 500 }}>
                           {venda.pac || '-'}
                         </TableCell>
                         <TableCell>{venda.segmento}</TableCell>
                         <TableCell>{venda.dataVenda ? new Date(venda.dataVenda + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</TableCell>
                         <TableCell align="right">{formatarMoeda(venda.valorVenda)}</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600, color: 'success.main' }}>
+                          {formatarMoeda(lucroDesteContrato)}
+                        </TableCell>
                         <TableCell align="center">
                           <Chip 
                             label={isCancelado ? 'Cancelado' : 'Ativo'} 
                             size="small"
                             color={isCancelado ? 'error' : 'success'}
                             variant="outlined"
+                            sx={{ height: 18, fontSize: '0.65rem' }}
                           />
                         </TableCell>
                       </TableRow>
