@@ -20,7 +20,8 @@ import {
   useTheme,
   Collapse,
   Chip,
-  InputAdornment
+  InputAdornment,
+  MenuItem
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -43,6 +44,7 @@ interface ClientesCadastroProps {
   onAdicionar: (cliente: Cliente) => void;
   onAtualizar: (cliente: Cliente) => void;
   onExcluir: (id: string) => void;
+  isSuperMaster?: boolean;
 }
 
 export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
@@ -51,7 +53,8 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
   vendas,
   onAdicionar,
   onAtualizar,
-  onExcluir
+  onExcluir,
+  isSuperMaster
 }) => {
   const theme = useTheme();
   
@@ -66,6 +69,21 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
   
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [termoBusca, setTermoBusca] = useState('');
+  const [filtroStatus, setFiltroStatus] = useState<string>('Todos');
+  const [filtroAdministradora, setFiltroAdministradora] = useState<string>('Todas');
+  const [filtroVendedor, setFiltroVendedor] = useState<string>('Todos');
+
+  const administradorasUnicas = useMemo(() => {
+    const adms = vendas.map(v => v.administradoraNome).filter(Boolean);
+    const unicas = Array.from(new Set(adms)) as string[];
+    return ['Todas', ...unicas.sort()];
+  }, [vendas]);
+
+  const vendedoresUnicos = useMemo(() => {
+    const vends = vendas.map(v => v.vendedorNome).filter(Boolean);
+    const unicos = Array.from(new Set(vends)) as string[];
+    return ['Todos', ...unicos.sort()];
+  }, [vendas]);
 
   const handleOpenDialog = (cliente?: Cliente) => {
     if (cliente) {
@@ -117,11 +135,58 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
     handleCloseDialog();
   };
 
-  const clientesFiltrados = clientes.filter(c => 
-    c.nome.toLowerCase().includes(termoBusca.toLowerCase()) ||
-    (c.cpfCnpj && c.cpfCnpj.includes(termoBusca)) ||
-    (c.telefone && c.telefone.includes(termoBusca))
-  );
+  const clientesFiltrados = useMemo(() => {
+    return clientes.filter(c => {
+      // Filtro de texto
+      const busca = termoBusca.toLowerCase();
+      const bateuTexto = 
+        c.nome.toLowerCase().includes(busca) ||
+        (c.cpfCnpj && c.cpfCnpj.includes(busca)) ||
+        (c.telefone && c.telefone.includes(busca));
+
+      if (!bateuTexto) return false;
+
+      // Obtém os contratos do cliente
+      const contratos = vendas.filter(v => 
+        v.clienteId === c.id || 
+        (!v.clienteId && v.cliente && v.cliente.toLowerCase().trim() === c.nome.toLowerCase().trim())
+      );
+
+      // Status
+      if (filtroStatus !== 'Todos') {
+        let ativos = 0;
+        contratos.forEach(v => {
+          let mesCancelamento: string | null = null;
+          const mesesProjecao = Object.keys(v.projecaoMensal || {}).sort();
+          mesesProjecao.forEach(mes => {
+            if (v.projecaoMensal[mes].status === 'Cancelada' && !mesCancelamento) {
+              mesCancelamento = mes;
+            }
+          });
+          const isCancelado = v.statusCliente?.toLowerCase() === 'cancelado' || mesCancelamento !== null;
+          if (!isCancelado) ativos++;
+        });
+        const clienteAtivo = ativos > 0;
+        
+        if (filtroStatus === 'Ativos' && !clienteAtivo) return false;
+        if (filtroStatus === 'Inativos' && clienteAtivo) return false;
+      }
+
+      // Administradora
+      if (filtroAdministradora !== 'Todas') {
+        const temAdministradora = contratos.some(v => v.administradoraNome === filtroAdministradora);
+        if (!temAdministradora) return false;
+      }
+
+      // Vendedor
+      if (filtroVendedor !== 'Todos') {
+        const temVendedor = contratos.some(v => v.vendedorNome === filtroVendedor);
+        if (!temVendedor) return false;
+      }
+
+      return true;
+    });
+  }, [clientes, vendas, termoBusca, filtroStatus, filtroAdministradora, filtroVendedor]);
 
   return (
     <Box sx={{ p: 1 }}>
@@ -148,23 +213,68 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
         </Button>
       </Box>
 
-      <TextField
-        fullWidth
-        placeholder="Buscar por nome, CPF/CNPJ ou telefone..."
-        value={termoBusca}
-        onChange={(e) => setTermoBusca(e.target.value)}
-        sx={{ mb: 3, maxWidth: 500 }}
-        slotProps={{
-          input: {
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon sx={{ color: 'text.secondary' }} />
-              </InputAdornment>
-            ),
-            sx: { borderRadius: 3 }
-          }
-        }}
-      />
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid size={{ xs: 12, md: 4 }}>
+          <TextField
+            fullWidth
+            placeholder="Buscar por nome, CPF/CNPJ ou telefone..."
+            value={termoBusca}
+            onChange={(e) => setTermoBusca(e.target.value)}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
+                sx: { borderRadius: 3 }
+              }
+            }}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 4, md: 2 }}>
+          <TextField
+            select
+            fullWidth
+            label="Status"
+            value={filtroStatus}
+            onChange={(e) => setFiltroStatus(e.target.value)}
+            slotProps={{ input: { sx: { borderRadius: 3 } } }}
+          >
+            {['Todos', 'Ativos', 'Inativos'].map(opt => (
+              <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+            ))}
+          </TextField>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 4, md: 3 }}>
+          <TextField
+            select
+            fullWidth
+            label="Administradora"
+            value={filtroAdministradora}
+            onChange={(e) => setFiltroAdministradora(e.target.value)}
+            slotProps={{ input: { sx: { borderRadius: 3 } } }}
+          >
+            {administradorasUnicas.map(opt => (
+              <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+            ))}
+          </TextField>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 4, md: 3 }}>
+          <TextField
+            select
+            fullWidth
+            label="Vendedor"
+            value={filtroVendedor}
+            onChange={(e) => setFiltroVendedor(e.target.value)}
+            slotProps={{ input: { sx: { borderRadius: 3 } } }}
+          >
+            {vendedoresUnicos.map(opt => (
+              <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+            ))}
+          </TextField>
+        </Grid>
+      </Grid>
 
       <TableContainer 
         component={Paper} 
@@ -204,6 +314,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
                   onEdit={() => handleOpenDialog(cliente)}
                   onDelete={() => onExcluir(cliente.id)}
                   theme={theme}
+                  isSuperMaster={isSuperMaster}
                 />
               ))
             )}
@@ -280,7 +391,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
   );
 };
 
-const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme }: any) => {
+const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSuperMaster }: any) => {
   const [open, setOpen] = useState(false);
   
   // Filtrar as vendas vinculadas a este cliente
@@ -384,9 +495,11 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme }: any)
           <IconButton size="small" onClick={onEdit} color="primary">
             <EditIcon fontSize="small" />
           </IconButton>
-          <IconButton size="small" onClick={onDelete} color="error">
-            <DeleteIcon fontSize="small" />
-          </IconButton>
+          {isSuperMaster && (
+            <IconButton size="small" onClick={onDelete} color="error">
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          )}
         </TableCell>
       </TableRow>
       <TableRow>

@@ -1822,6 +1822,7 @@ function App() {
                   onAdicionar={handleAdicionarCliente}
                 onAtualizar={handleAtualizarCliente}
                 onExcluir={handleExcluirCliente}
+                isSuperMaster={usuarioLogado?.role === 'super_master'}
               />
             )}
 
