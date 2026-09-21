@@ -72,6 +72,7 @@ export interface MesProjecao {
   numeroRelatorioRecebimento?: string; // Nº do relatório da administradora referente ao recebimento da comissão
   dataRelatorioRecebimento?: string; // Data do relatório da administradora referente ao recebimento da comissão (YYYY-MM-DD)
   notaFiscalRecebimento?: string; // Nº ou código da Nota Fiscal relativa ao recebimento da comissão
+  dataCancelamento?: string; // Data de cancelamento da parcela (YYYY-MM-DD)
 }
 
 export type MesesAno =
@@ -183,7 +184,7 @@ export const NOMES_MESES_EXIBICAO: Record<MesesAno, string> = {
   dezembro: 'Dez/26'
 };
 
-export type UserRole = 'super_master' | 'master' | 'editor' | 'visualizador' | 'financeiro' | 'financeiro_master' | 'vendedor';
+export type UserRole = 'super_master' | 'master' | 'editor' | 'visualizador' | 'financeiro' | 'financeiro_master' | 'vendedor' | 'representante';
 
 export interface UserPermissions {
   visualizar: boolean;

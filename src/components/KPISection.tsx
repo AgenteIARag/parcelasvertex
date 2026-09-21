@@ -16,9 +16,10 @@ interface KPISectionProps {
   vendas: LancamentoVenda[];
   dataInicio: string;
   dataFim: string;
+  podeVerFinanceiro?: boolean;
 }
 
-export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, dataFim }) => {
+export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, dataFim, podeVerFinanceiro = true }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
@@ -177,6 +178,10 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
     }
   ];
 
+  const kpisVisiveis = podeVerFinanceiro ? kpis : kpis.filter(k => 
+    ['Cancelados do Mês', 'Volume Geral de Vendas', 'Clientes Ativos'].includes(k.title)
+  );
+
   return (
     <Box sx={{ mb: 4 }}>
       {/* Banner claro de período ativo */}
@@ -217,7 +222,7 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
 
       {/* Grid de KPIs */}
       <Grid container spacing={2}>
-        {kpis.map((kpi, index) => (
+        {kpisVisiveis.map((kpi, index) => (
           <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={index}>
             <Paper
               elevation={0}

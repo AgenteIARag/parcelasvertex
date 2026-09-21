@@ -95,9 +95,9 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       const isSuperMaster = data.email.toLowerCase() === 'master@apex.com' || data.role === 'super_master';
       const permissoesSeguras = data.permissoes ?? {
         visualizar: true,
-        editarVendas: isSuperMaster || data.role === 'master' || data.role === 'editor',
-        cadastrarVendedores: isSuperMaster || data.role === 'master' || data.role === 'editor',
-        cadastrarRegras: isSuperMaster || data.role === 'master' || data.role === 'editor'
+        editarVendas: isSuperMaster || data.role === 'master' || data.role === 'editor' || data.role === 'representante',
+        cadastrarVendedores: isSuperMaster || data.role === 'master' || data.role === 'editor' || data.role === 'representante',
+        cadastrarRegras: isSuperMaster || data.role === 'master' || data.role === 'editor' || data.role === 'representante'
       };
       onLoginSuccess({
         id: data.id,

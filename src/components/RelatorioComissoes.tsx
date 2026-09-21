@@ -368,6 +368,7 @@ const SubGrupoDataComissao = ({
   selecionadas,
   onToggleSelecionar,
   onToggleSelecionarData,
+  podeVerFinanceiro = true,
 }: {
   dataPagamento: string;
   itens: ParcelaComissaoLinha[];
@@ -379,6 +380,7 @@ const SubGrupoDataComissao = ({
   selecionadas: string[];
   onToggleSelecionar: (id: string) => void;
   onToggleSelecionarData: (ids: string[], marcar: boolean) => void;
+  podeVerFinanceiro?: boolean;
 }) => {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
@@ -409,8 +411,10 @@ const SubGrupoDataComissao = ({
     { label: 'Tabela', field: 'tabela' },
     { label: 'Status Venda', field: 'status' },
     { label: 'Parcela Nº', field: 'parcelaIndex' },
-    { label: 'Comissão Vendedor', field: 'comissaoVendedor' },
-    { label: 'Status Comissão', field: 'statusComissao' },
+    ...(podeVerFinanceiro ? [
+      { label: 'Comissão Vendedor', field: 'comissaoVendedor' },
+      { label: 'Status Comissão', field: 'statusComissao' },
+    ] : []),
   ];
 
   const itensOrdenados = useMemo(() => {
@@ -477,14 +481,16 @@ const SubGrupoDataComissao = ({
 
         {/* Métricas do sub-grupo */}
         <Box sx={{ display: 'flex', gap: 3, flexGrow: 1 }}>
-          <Box>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block' }}>
-              Comissão Vendedores
-            </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 800, color: '#f59e0b', fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem' }}>
-              {formatarMoeda(totalComissoes)}
-            </Typography>
-          </Box>
+          {podeVerFinanceiro && (
+            <Box>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block' }}>
+                Comissão Vendedores
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 800, color: '#f59e0b', fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem' }}>
+                {formatarMoeda(totalComissoes)}
+              </Typography>
+            </Box>
+          )}
           <Box>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block' }}>
               Crédito Total
@@ -704,21 +710,25 @@ const SubGrupoDataComissao = ({
                       <TableCell sx={{ py: 0.8, fontSize: '0.75rem', textAlign: 'center', color: 'text.secondary' }}>
                         {item.parcelaIndex}/{item.qtdParcelas}
                       </TableCell>
-                      <TableCell sx={{ py: 0.8, fontWeight: 800, color: '#f59e0b', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                        {formatarMoeda(item.comissaoVendedor)}
-                      </TableCell>
-                      <TableCell sx={{ py: 0.8 }}>
-                        <StatusComissaoBadge
-                          status={item.statusComissao}
-                          podeEditar={podeEditarComissao}
-                          onToggle={() => {
-                            const ciclo: StatusComissao[] = ['A pagar', 'Paga', 'Contestada'];
-                            const idxC = ciclo.indexOf(item.statusComissao);
-                            const proximo = ciclo[(idxC + 1) % ciclo.length];
-                            onAlterarStatusComissao(item.vendaId, item.mesChave, proximo);
-                          }}
-                        />
-                      </TableCell>
+                      {podeVerFinanceiro && (
+                        <>
+                          <TableCell sx={{ py: 0.8, fontWeight: 800, color: '#f59e0b', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                            {formatarMoeda(item.comissaoVendedor)}
+                          </TableCell>
+                          <TableCell sx={{ py: 0.8 }}>
+                            <StatusComissaoBadge
+                              status={item.statusComissao}
+                              podeEditar={podeEditarComissao}
+                              onToggle={() => {
+                                const ciclo: StatusComissao[] = ['A pagar', 'Paga', 'Contestada'];
+                                const idxC = ciclo.indexOf(item.statusComissao);
+                                const proximo = ciclo[(idxC + 1) % ciclo.length];
+                                onAlterarStatusComissao(item.vendaId, item.mesChave, proximo);
+                              }}
+                            />
+                          </TableCell>
+                        </>
+                      )}
                     </TableRow>
                   );
                 })}
@@ -889,14 +899,16 @@ const GrupoPagamentoComissao = ({
 
         {/* Métricas resumidas */}
         <Box sx={{ display: 'flex', gap: 4, flexGrow: 1, flexWrap: 'wrap' }}>
-          <Box>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block' }}>
-              Comissões a Pagar
-            </Typography>
-            <Typography variant="body1" sx={{ fontWeight: 800, color: '#f59e0b', fontFamily: 'Outfit, sans-serif' }}>
-              {formatarMoeda(grupo.totalComissoesVendedores)}
-            </Typography>
-          </Box>
+          {podeVerFinanceiro && (
+            <Box>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block' }}>
+                Comissões a Pagar
+              </Typography>
+              <Typography variant="body1" sx={{ fontWeight: 800, color: '#f59e0b', fontFamily: 'Outfit, sans-serif' }}>
+                {formatarMoeda(grupo.totalComissoesVendedores)}
+              </Typography>
+            </Box>
+          )}
           <Box>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block' }}>
               Valor do Crédito Comercial
@@ -978,6 +990,7 @@ const GrupoPagamentoComissao = ({
                 selecionadas={selecionados}
                 onToggleSelecionar={handleToggleSelecionar}
                 onToggleSelecionarData={handleToggleSelecionarData}
+                podeVerFinanceiro={podeVerFinanceiro}
               />
             );
           })}
@@ -999,6 +1012,7 @@ interface RelatorioComissoesProps {
   ciclos: Record<string, [number, number]>;
   onAlterarStatusComissao: (vendaId: string, mesChave: string, novoStatus: StatusComissao) => void;
   podeEditarComissao?: boolean;
+  podeVerFinanceiro?: boolean;
 }
 
 export const RelatorioComissoes = ({
@@ -1009,6 +1023,7 @@ export const RelatorioComissoes = ({
   ciclos,
   onAlterarStatusComissao,
   podeEditarComissao = false,
+  podeVerFinanceiro = true,
 }: RelatorioComissoesProps) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -1252,81 +1267,83 @@ export const RelatorioComissoes = ({
       </Box>
 
       {/* ── KPIs ── */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: '1fr 1fr 1fr 1fr 1fr' }, gap: 2 }}>
-        {[
-          {
-            label: 'Total de Comissões',
-            value: formatarMoeda(totalComissoesVendedores),
-            sub: `${totalQtdParcelas} parcela(s)`,
-            icon: <AccountBalanceWalletIcon />,
-            color: '#f59e0b',
-            bg: 'rgba(245,158,11,0.12)',
-          },
-          {
-            label: 'Comissões Pagas ao Parceiro',
-            value: formatarMoeda(totalComissoesPagas),
-            sub: `${qtdComissoesPagas} paga(s)`,
-            icon: <CheckCircleIcon />,
-            color: '#10b981',
-            bg: 'rgba(16,185,129,0.12)',
-          },
-          {
-            label: 'Comissões a Pagar',
-            value: formatarMoeda(totalComissoesAPagar),
-            sub: null,
-            icon: <HourglassEmptyIcon />,
-            color: '#f97316',
-            bg: 'rgba(249,115,22,0.12)',
-          },
-          {
-            label: 'Contestadas',
-            value: formatarMoeda(totalComissoesContestadas),
-            sub: null,
-            icon: <CancelIcon />,
-            color: totalComissoesContestadas > 0 ? '#a855f7' : '#94a3b8',
-            bg: totalComissoesContestadas > 0 ? 'rgba(168,85,247,0.12)' : 'rgba(148,163,184,0.08)',
-          },
-          {
-            label: 'Próximo Pagamento',
-            value: proximoLabel,
-            sub: proximoValor,
-            icon: <CalendarMonthIcon />,
-            color: '#6366f1',
-            bg: 'rgba(99,102,241,0.12)',
-          },
-        ].map((kpi) => (
-          <Paper
-            key={kpi.label}
-            elevation={0}
-            sx={{
-              p: 2.5,
-              borderRadius: 2.5,
-              border: `1px solid ${isDark ? '#1f2937' : '#e5e7eb'}`,
-              bgcolor: isDark ? '#111827' : '#ffffff',
-              display: 'flex',
-              gap: 2,
-              alignItems: 'flex-start',
-            }}
-          >
-            <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: kpi.bg, color: kpi.color, display: 'flex' }}>
-              {kpi.icon}
-            </Box>
-            <Box>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.72rem', display: 'block' }}>
-                {kpi.label}
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 800, color: kpi.color, fontFamily: 'Outfit, sans-serif', lineHeight: 1.2 }}>
-                {kpi.value}
-              </Typography>
-              {kpi.sub && (
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem' }}>
-                  {kpi.sub}
+      {podeVerFinanceiro && (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: '1fr 1fr 1fr 1fr 1fr' }, gap: 2 }}>
+          {[
+            {
+              label: 'Total de Comissões',
+              value: formatarMoeda(totalComissoesVendedores),
+              sub: `${totalQtdParcelas} parcela(s)`,
+              icon: <AccountBalanceWalletIcon />,
+              color: '#f59e0b',
+              bg: 'rgba(245,158,11,0.12)',
+            },
+            {
+              label: 'Comissões Pagas ao Parceiro',
+              value: formatarMoeda(totalComissoesPagas),
+              sub: `${qtdComissoesPagas} paga(s)`,
+              icon: <CheckCircleIcon />,
+              color: '#10b981',
+              bg: 'rgba(16,185,129,0.12)',
+            },
+            {
+              label: 'Comissões a Pagar',
+              value: formatarMoeda(totalComissoesAPagar),
+              sub: null,
+              icon: <HourglassEmptyIcon />,
+              color: '#f97316',
+              bg: 'rgba(249,115,22,0.12)',
+            },
+            {
+              label: 'Contestadas',
+              value: formatarMoeda(totalComissoesContestadas),
+              sub: null,
+              icon: <CancelIcon />,
+              color: totalComissoesContestadas > 0 ? '#a855f7' : '#94a3b8',
+              bg: totalComissoesContestadas > 0 ? 'rgba(168,85,247,0.12)' : 'rgba(148,163,184,0.08)',
+            },
+            {
+              label: 'Próximo Pagamento',
+              value: proximoLabel,
+              sub: proximoValor,
+              icon: <CalendarMonthIcon />,
+              color: '#6366f1',
+              bg: 'rgba(99,102,241,0.12)',
+            },
+          ].map((kpi) => (
+            <Paper
+              key={kpi.label}
+              elevation={0}
+              sx={{
+                p: 2.5,
+                borderRadius: 2.5,
+                border: `1px solid ${isDark ? '#1f2937' : '#e5e7eb'}`,
+                bgcolor: isDark ? '#111827' : '#ffffff',
+                display: 'flex',
+                gap: 2,
+                alignItems: 'flex-start',
+              }}
+            >
+              <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: kpi.bg, color: kpi.color, display: 'flex' }}>
+                {kpi.icon}
+              </Box>
+              <Box>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.72rem', display: 'block' }}>
+                  {kpi.label}
                 </Typography>
-              )}
-            </Box>
-          </Paper>
-        ))}
-      </Box>
+                <Typography variant="h6" sx={{ fontWeight: 800, color: kpi.color, fontFamily: 'Outfit, sans-serif', lineHeight: 1.2 }}>
+                  {kpi.value}
+                </Typography>
+                {kpi.sub && (
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem' }}>
+                    {kpi.sub}
+                  </Typography>
+                )}
+              </Box>
+            </Paper>
+          ))}
+        </Box>
+      )}
 
       {/* Subtotal de parcelas */}
       <Box sx={{ px: 0.5 }}>
@@ -1465,6 +1482,7 @@ export const RelatorioComissoes = ({
               isPast={grupo.mesPeriodo < mesAtual}
               onAlterarStatusComissao={onAlterarStatusComissao}
               podeEditarComissao={podeEditarComissao}
+              podeVerFinanceiro={podeVerFinanceiro}
             />
           ))}
         </Box>

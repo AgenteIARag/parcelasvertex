@@ -36,6 +36,7 @@ interface ComissoesVendedoresProps {
   vendedores: Vendedor[];
   dataInicio: string;
   dataFim: string;
+  podeVerFinanceiro?: boolean;
 }
 
 interface LinhaComissao {
@@ -59,7 +60,8 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
   vendas,
   vendedores,
   dataInicio,
-  dataFim
+  dataFim,
+  podeVerFinanceiro = true
 }) => {
   const theme = useTheme();
   const [vendedorId, setVendedorId] = useState<string>('');
@@ -348,82 +350,84 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {/* Cards de Resumo do Vendedor Selecionado */}
-          <Grid container spacing={3}>
-            <Grid size={{ xs: 12, md: 4 }}>
-              <Card
-                elevation={0}
-                sx={{
-                  borderRadius: 3.5,
-                  border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                  bgcolor: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff'
-                }}
-              >
-                <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Avatar sx={{ bgcolor: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
-                    <ReceiptIcon />
-                  </Avatar>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                      Comissão Acumulada Ativa
-                    </Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary', fontFamily: 'Outfit, sans-serif' }}>
-                      {formatarMoeda(resumoFinanceiro.comissaoTotal)}
-                    </Typography>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
+          {podeVerFinanceiro && (
+            <Grid container spacing={3}>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <Card
+                  elevation={0}
+                  sx={{
+                    borderRadius: 3.5,
+                    border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                    bgcolor: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff'
+                  }}
+                >
+                  <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Avatar sx={{ bgcolor: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
+                      <ReceiptIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                        Comissão Acumulada Ativa
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary', fontFamily: 'Outfit, sans-serif' }}>
+                        {formatarMoeda(resumoFinanceiro.comissaoTotal)}
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
 
-            <Grid size={{ xs: 12, md: 4 }}>
-              <Card
-                elevation={0}
-                sx={{
-                  borderRadius: 3.5,
-                  border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                  bgcolor: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff'
-                }}
-              >
-                <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Avatar sx={{ bgcolor: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
-                    <CheckCircleIcon />
-                  </Avatar>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                      Parcelas Recebidas / Pagas
-                    </Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 800, color: 'success.main', fontFamily: 'Outfit, sans-serif' }}>
-                      {formatarMoeda(resumoFinanceiro.comissaoPaga)}
-                    </Typography>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <Card
+                  elevation={0}
+                  sx={{
+                    borderRadius: 3.5,
+                    border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                    bgcolor: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff'
+                  }}
+                >
+                  <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Avatar sx={{ bgcolor: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+                      <CheckCircleIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                        Parcelas Recebidas / Pagas
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 800, color: 'success.main', fontFamily: 'Outfit, sans-serif' }}>
+                        {formatarMoeda(resumoFinanceiro.comissaoPaga)}
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
 
-            <Grid size={{ xs: 12, md: 4 }}>
-              <Card
-                elevation={0}
-                sx={{
-                  borderRadius: 3.5,
-                  border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                  bgcolor: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff'
-                }}
-              >
-                <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Avatar sx={{ bgcolor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>
-                    <HourglassEmptyIcon />
-                  </Avatar>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                      Parcelas a Vencer
-                    </Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 800, color: 'warning.main', fontFamily: 'Outfit, sans-serif' }}>
-                      {formatarMoeda(resumoFinanceiro.comissaoAVencer)}
-                    </Typography>
-                  </Box>
-                </CardContent>
-              </Card>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <Card
+                  elevation={0}
+                  sx={{
+                    borderRadius: 3.5,
+                    border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                    bgcolor: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff'
+                  }}
+                >
+                  <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Avatar sx={{ bgcolor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>
+                      <HourglassEmptyIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                        Parcelas a Vencer
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 800, color: 'warning.main', fontFamily: 'Outfit, sans-serif' }}>
+                        {formatarMoeda(resumoFinanceiro.comissaoAVencer)}
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
             </Grid>
-          </Grid>
+          )}
 
           {/* Abas internas para alternar visualizações */}
           <Box sx={{ borderBottom: 1, borderColor: theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0' }}>
@@ -459,10 +463,14 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                     <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Segmento / Tabela</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700, py: 1.5 }}>Parcela</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700, py: 1.5 }}>Valor Parcela</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700, py: 1.5 }}>Comissão Master (Empresa)</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700, py: 1.5, color: theme.palette.primary.main }}>
-                      Comissão Corretor ({Number(vendedorSelecionado.percentualComissao || 0).toFixed(2).replace('.', ',')}%)
-                    </TableCell>
+                    {podeVerFinanceiro && (
+                      <>
+                        <TableCell align="right" sx={{ fontWeight: 700, py: 1.5 }}>Comissão Master (Empresa)</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700, py: 1.5, color: theme.palette.primary.main }}>
+                          Comissão Corretor ({Number(vendedorSelecionado.percentualComissao || 0).toFixed(2).replace('.', ',')}%)
+                        </TableCell>
+                      </>
+                    )}
                     <TableCell align="center" sx={{ fontWeight: 700, py: 1.5 }}>Status</TableCell>
                   </TableRow>
                 </TableHead>
@@ -522,12 +530,16 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                         <TableCell align="right">
                           {formatarMoeda(linha.valorParcela)}
                         </TableCell>
-                        <TableCell align="right" sx={{ color: 'text.secondary' }}>
-                          {formatarMoeda(linha.comissaoMaster)}
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
-                          {formatarMoeda(linha.comissaoVendedor)}
-                        </TableCell>
+                        {podeVerFinanceiro && (
+                          <>
+                            <TableCell align="right" sx={{ color: 'text.secondary' }}>
+                              {formatarMoeda(linha.comissaoMaster)}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
+                              {formatarMoeda(linha.comissaoVendedor)}
+                            </TableCell>
+                          </>
+                        )}
                         <TableCell align="center">
                           {getStatusChip(linha.status)}
                         </TableCell>
@@ -598,7 +610,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                     {listaMesesTimeline.map((mes) => (
                         <TableCell
                           key={mes}
-                          colSpan={2}
+                          colSpan={podeVerFinanceiro ? 2 : 1}
                           align="center"
                           sx={{
                             fontWeight: 700,
@@ -627,6 +639,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                       >
                       Total Vendas
                     </TableCell>
+                    {podeVerFinanceiro && (
                       <TableCell
                         rowSpan={2}
                         align="right"
@@ -640,6 +653,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                       >
                       Total Comissões
                     </TableCell>
+                    )}
                   </TableRow>
 
                   {/* Segunda linha do cabeçalho */}
@@ -659,18 +673,20 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                           >
                           Venda
                         </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            color: theme.palette.success.main,
-                            borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                            minWidth: 130, whiteSpace: 'nowrap'
-                          }}
-                        >
-                          Comissão
-                        </TableCell>
+                        {podeVerFinanceiro && (
+                          <TableCell
+                            align="right"
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              color: theme.palette.success.main,
+                              borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                              minWidth: 130, whiteSpace: 'nowrap'
+                            }}
+                          >
+                            Comissão
+                          </TableCell>
+                        )}
                       </React.Fragment>
                     ))}
                   </TableRow>
@@ -679,7 +695,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                 <TableBody>
                   {vendasDoVendedor.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4 + listaMesesTimeline.length * 2} align="center" sx={{ py: 6 }}>
+                      <TableCell colSpan={podeVerFinanceiro ? 4 + listaMesesTimeline.length * 2 : 3 + listaMesesTimeline.length} align="center" sx={{ py: 6 }}>
                         Nenhuma venda cadastrada para este corretor.
                       </TableCell>
                     </TableRow>
@@ -847,47 +863,49 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                 </TableCell>
 
                                 {/* Comissão Vendedor com Status */}
-                                <TableCell
-                                  align="right"
-                                  sx={{
-                                    borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                                    p: 0.5,
-                                    bgcolor: celula?.status === 'Cancelada' 
-                                      ? 'rgba(239, 68, 68, 0.02)' 
-                                      : (!possuiDados 
-                                        ? (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.015)' : 'rgba(0, 0, 0, 0.01)')
-                                        : 'inherit'),
-                                    opacity: !possuiDados ? 0.35 : 1
-                                  }}
-                                >
-                                  {possuiDados ? (
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', whiteSpace: 'nowrap' }}>
-                                        <span style={{ fontWeight: 600, color: celula.status === 'Cancelada' ? '#ef4444' : theme.palette.primary.main }}>
-                                          {formatarMoeda(comissaoVendedorCalculada)}
-                                        </span>
+                                {podeVerFinanceiro && (
+                                  <TableCell
+                                    align="right"
+                                    sx={{
+                                      borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                                      p: 0.5,
+                                      bgcolor: celula?.status === 'Cancelada' 
+                                        ? 'rgba(239, 68, 68, 0.02)' 
+                                        : (!possuiDados 
+                                          ? (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.015)' : 'rgba(0, 0, 0, 0.01)')
+                                          : 'inherit'),
+                                      opacity: !possuiDados ? 0.35 : 1
+                                    }}
+                                  >
+                                    {possuiDados ? (
+                                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', whiteSpace: 'nowrap' }}>
+                                          <span style={{ fontWeight: 600, color: celula.status === 'Cancelada' ? '#ef4444' : theme.palette.primary.main }}>
+                                            {formatarMoeda(comissaoVendedorCalculada)}
+                                          </span>
+                                        </Box>
+                                        {/* Status Badge */}
+                                        <Box
+                                          sx={{
+                                            fontSize: '0.62rem',
+                                            fontWeight: 700,
+                                            py: 0.1,
+                                            px: 0.5,
+                                            borderRadius: 0.5,
+                                            color: celula.status === 'Cancelada' ? '#ef4444' :
+                                                   (celula.recebida || (celula.status as string) === 'Recebida') ? '#f97316' :
+                                                   celula.status === 'Paga' ? '#34d399' :
+                                                   celula.status === 'Vencida' ? '#ef4444' : '#3b82f6',
+                                            background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                                            display: 'inline-block'
+                                          }}
+                                        >
+                                          {(celula.recebida || (celula.status as string) === 'Recebida') ? 'Recebida' : celula.status}
+                                        </Box>
                                       </Box>
-                                      {/* Status Badge */}
-                                      <Box
-                                        sx={{
-                                          fontSize: '0.62rem',
-                                          fontWeight: 700,
-                                          py: 0.1,
-                                          px: 0.5,
-                                          borderRadius: 0.5,
-                                          color: celula.status === 'Cancelada' ? '#ef4444' :
-                                                 (celula.recebida || (celula.status as string) === 'Recebida') ? '#f97316' :
-                                                 celula.status === 'Paga' ? '#34d399' :
-                                                 celula.status === 'Vencida' ? '#ef4444' : '#3b82f6',
-                                          background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-                                          display: 'inline-block'
-                                        }}
-                                      >
-                                        {(celula.recebida || (celula.status as string) === 'Recebida') ? 'Recebida' : celula.status}
-                                      </Box>
-                                    </Box>
-                                  ) : ''}
-                                </TableCell>
+                                    ) : ''}
+                                  </TableCell>
+                                )}
                               </React.Fragment>
                             );
                           })}
@@ -910,9 +928,11 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                 <TableCell align="right" sx={{ borderLeft: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`, fontWeight: 700, fontSize: '0.85rem', bgcolor: theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.05)' : 'rgba(99, 102, 241, 0.02)' }}>
                                   {venda.statusCliente === 'Cancelado' ? '-' : formatarMoeda(totaisVenda.vendas)}
                                 </TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.85rem', color: theme.palette.success.main, bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(16, 185, 129, 0.02)' }}>
-                                  {venda.statusCliente === 'Cancelado' ? '-' : formatarMoeda(totaisVenda.comissoes)}
-                                </TableCell>
+                                {podeVerFinanceiro && (
+                                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.85rem', color: theme.palette.success.main, bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(16, 185, 129, 0.02)' }}>
+                                    {venda.statusCliente === 'Cancelado' ? '-' : formatarMoeda(totaisVenda.comissoes)}
+                                  </TableCell>
+                                )}
                               </React.Fragment>
                             );
                           })()}
@@ -974,21 +994,23 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                             >
                               {tot.faturamento > 0 ? formatarMoeda(tot.faturamento) : '-'}
                             </TableCell>
-                            <TableCell
-                              align="right"
-                              sx={{
-                                fontWeight: 700,
-                                color: theme.palette.success.main,
-                                borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
-                                fontSize: '0.8rem',
-                                position: 'sticky',
-                                bottom: 0,
-                                zIndex: 2,
-                                background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
-                              }}
-                            >
-                              {tot.comissao > 0 ? formatarMoeda(tot.comissao) : '-'}
-                            </TableCell>
+                            {podeVerFinanceiro && (
+                              <TableCell
+                                align="right"
+                                sx={{
+                                  fontWeight: 700,
+                                  color: theme.palette.success.main,
+                                  borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                                  fontSize: '0.8rem',
+                                  position: 'sticky',
+                                  bottom: 0,
+                                  zIndex: 2,
+                                  background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
+                                }}
+                              >
+                                {tot.comissao > 0 ? formatarMoeda(tot.comissao) : '-'}
+                              </TableCell>
+                            )}
                           </React.Fragment>
                         );
                       })}
@@ -1039,21 +1061,23 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                             >
                               {formatarMoeda(totalGeralVendas)}
                             </TableCell>
-                            <TableCell
-                              align="right"
-                              sx={{
-                                fontWeight: 800,
-                                color: theme.palette.success.main,
-                                borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
-                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.05)',
-                                fontSize: '0.85rem',
-                                position: 'sticky',
-                                bottom: 0,
-                                zIndex: 2,
-                              }}
-                            >
-                              {formatarMoeda(totalGeralComissoes)}
-                            </TableCell>
+                            {podeVerFinanceiro && (
+                              <TableCell
+                                align="right"
+                                sx={{
+                                  fontWeight: 800,
+                                  color: theme.palette.success.main,
+                                  borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.05)',
+                                  fontSize: '0.85rem',
+                                  position: 'sticky',
+                                  bottom: 0,
+                                  zIndex: 2,
+                                }}
+                              >
+                                {formatarMoeda(totalGeralComissoes)}
+                              </TableCell>
+                            )}
                           </React.Fragment>
                         );
                       })()}

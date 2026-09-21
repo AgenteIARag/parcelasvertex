@@ -46,13 +46,15 @@ interface DashboardVendedoresProps {
   vendedores: Vendedor[];
   dataInicio: string;
   dataFim: string;
+  podeVerFinanceiro?: boolean;
 }
 
 export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
   vendas,
   vendedores,
   dataInicio,
-  dataFim
+  dataFim,
+  podeVerFinanceiro = true
 }) => {
   const theme = useTheme();
   
@@ -260,35 +262,37 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card
-            elevation={0}
-            sx={{
-              borderRadius: 3.5,
-              border: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`,
-              background: theme.palette.mode === 'dark' ? '#111827' : '#ffffff',
-              transition: 'transform 0.2s',
-              '&:hover': { transform: 'translateY(-2px)' }
-            }}
-          >
-            <CardContent sx={{ p: 2.25, '&:last-child': { pb: 2.25 } }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase' }}>
-                  Comissões a Pagar
+        {podeVerFinanceiro && (
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <Card
+              elevation={0}
+              sx={{
+                borderRadius: 3.5,
+                border: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`,
+                background: theme.palette.mode === 'dark' ? '#111827' : '#ffffff',
+                transition: 'transform 0.2s',
+                '&:hover': { transform: 'translateY(-2px)' }
+              }}
+            >
+              <CardContent sx={{ p: 2.25, '&:last-child': { pb: 2.25 } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase' }}>
+                    Comissões a Pagar
+                  </Typography>
+                  <Avatar sx={{ bgcolor: 'rgba(16, 185, 129, 0.15)', color: 'success.main', width: 36, height: 36 }}>
+                    <PaymentsIcon sx={{ fontSize: 20 }} />
+                  </Avatar>
+                </Box>
+                <Typography variant="h6" sx={{ fontWeight: 800, color: 'success.main' }}>
+                  {formatarMoeda(kpis.comissaoGlobal)}
                 </Typography>
-                <Avatar sx={{ bgcolor: 'rgba(16, 185, 129, 0.15)', color: 'success.main', width: 36, height: 36 }}>
-                  <PaymentsIcon sx={{ fontSize: 20 }} />
-                </Avatar>
-              </Box>
-              <Typography variant="h6" sx={{ fontWeight: 800, color: 'success.main' }}>
-                {formatarMoeda(kpis.comissaoGlobal)}
-              </Typography>
-              <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block', mt: 0.5 }}>
-                Comissão gerada no período filtrado
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+                <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block', mt: 0.5 }}>
+                  Comissão gerada no período filtrado
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card
@@ -352,116 +356,118 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
       </Grid>
 
       {/* Gráfico Comparativo de Vendedores */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid size={{ xs: 12 }}>
-          <Paper
-            elevation={0}
-            sx={{
-              p: 3,
-              borderRadius: 4,
-              border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-              background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff'
-            }}
-          >
-            <Typography
-              variant="h6"
+      {podeVerFinanceiro && (
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid size={{ xs: 12 }}>
+            <Paper
+              elevation={0}
               sx={{
-                fontWeight: 700,
-                fontFamily: 'Outfit, sans-serif',
-                mb: 3,
-                color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a'
+                p: 3,
+                borderRadius: 4,
+                border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff'
               }}
             >
-              Faturamento vs Comissão (Top 10 Vendedores)
-            </Typography>
-            <Box sx={{ width: '100%', height: 350 }}>
-              {ranking.length === 0 ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                  <Typography sx={{ color: '#64748b' }}>Sem dados suficientes para gerar gráficos</Typography>
-                </Box>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={ranking.slice(0, 10)} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'} vertical={false} />
-                    <XAxis
-                      dataKey="vendedorNome"
-                      stroke={theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'}
-                      fontSize={11}
-                      tickLine={false}
-                      tick={{ fill: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }}
-                    />
-                    <YAxis
-                      yAxisId="left"
-                      stroke={theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'}
-                      fontSize={11}
-                      tickFormatter={formatarMoedaEixo}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      stroke={theme.palette.success.main}
-                      fontSize={11}
-                      tickFormatter={formatarMoedaEixo}
-                      tickLine={false}
-                    />
-                    <ChartTooltip
-                      formatter={(value: any, name: any, props: any) => {
-                        const qtd = props.payload.qtdVendas;
-                        if (name === 'faturamento') return [`${formatarMoeda(value)} (${qtd} cotas)`, 'Total Faturado'];
-                        if (name === 'comissaoEmpresa') return [formatarMoeda(value), 'Comissão da Empresa (Gera)'];
-                        if (name === 'comissaoVendedor') return [formatarMoeda(value), 'Comissão do Vendedor (Paga)'];
-                        return [formatarMoeda(value), name];
-                      }}
-                      contentStyle={{
-                        backgroundColor: theme.palette.mode === 'dark' ? '#0f172a' : '#ffffff',
-                        borderColor: theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0',
-                        borderRadius: 8,
-                        color: theme.palette.mode === 'dark' ? '#f1f5f9' : '#0f172a'
-                      }}
-                    />
-                    <Legend 
-                      verticalAlign="top" 
-                      height={36} 
-                      iconType="circle" 
-                      formatter={(value) => {
-                        if (value === 'faturamento') return 'Total Faturado (VGV)';
-                        if (value === 'comissaoEmpresa') return 'Receita (Comissão da Empresa)';
-                        if (value === 'comissaoVendedor') return 'Despesa (Comissão Paga ao Vendedor)';
-                        return value;
-                      }} 
-                    />
-                    <Bar
-                      yAxisId="left"
-                      dataKey="faturamento"
-                      name="faturamento"
-                      fill={theme.palette.primary.main}
-                      radius={[4, 4, 0, 0]}
-                      maxBarSize={40}
-                    />
-                    <Bar
-                      yAxisId="right"
-                      dataKey="comissaoEmpresa"
-                      name="comissaoEmpresa"
-                      fill={theme.palette.info.main}
-                      radius={[4, 4, 0, 0]}
-                      maxBarSize={40}
-                    />
-                    <Bar
-                      yAxisId="right"
-                      dataKey="comissaoVendedor"
-                      name="comissaoVendedor"
-                      fill={theme.palette.success.main}
-                      radius={[4, 4, 0, 0]}
-                      maxBarSize={40}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </Box>
-          </Paper>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 700,
+                  fontFamily: 'Outfit, sans-serif',
+                  mb: 3,
+                  color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a'
+                }}
+              >
+                Faturamento vs Comissão (Top 10 Vendedores)
+              </Typography>
+              <Box sx={{ width: '100%', height: 350 }}>
+                {ranking.length === 0 ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                    <Typography sx={{ color: '#64748b' }}>Sem dados suficientes para gerar gráficos</Typography>
+                  </Box>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={ranking.slice(0, 10)} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'} vertical={false} />
+                      <XAxis
+                        dataKey="vendedorNome"
+                        stroke={theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'}
+                        fontSize={11}
+                        tickLine={false}
+                        tick={{ fill: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569' }}
+                      />
+                      <YAxis
+                        yAxisId="left"
+                        stroke={theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'}
+                        fontSize={11}
+                        tickFormatter={formatarMoedaEixo}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        stroke={theme.palette.success.main}
+                        fontSize={11}
+                        tickFormatter={formatarMoedaEixo}
+                        tickLine={false}
+                      />
+                      <ChartTooltip
+                        formatter={(value: any, name: any, props: any) => {
+                          const qtd = props.payload.qtdVendas;
+                          if (name === 'faturamento') return [`${formatarMoeda(value)} (${qtd} cotas)`, 'Total Faturado'];
+                          if (name === 'comissaoEmpresa') return [formatarMoeda(value), 'Comissão da Empresa (Gera)'];
+                          if (name === 'comissaoVendedor') return [formatarMoeda(value), 'Comissão do Vendedor (Paga)'];
+                          return [formatarMoeda(value), name];
+                        }}
+                        contentStyle={{
+                          backgroundColor: theme.palette.mode === 'dark' ? '#0f172a' : '#ffffff',
+                          borderColor: theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0',
+                          borderRadius: 8,
+                          color: theme.palette.mode === 'dark' ? '#f1f5f9' : '#0f172a'
+                        }}
+                      />
+                      <Legend 
+                        verticalAlign="top" 
+                        height={36} 
+                        iconType="circle" 
+                        formatter={(value) => {
+                          if (value === 'faturamento') return 'Total Faturado (VGV)';
+                          if (value === 'comissaoEmpresa') return 'Receita (Comissão da Empresa)';
+                          if (value === 'comissaoVendedor') return 'Despesa (Comissão Paga ao Vendedor)';
+                          return value;
+                        }} 
+                      />
+                      <Bar
+                        yAxisId="left"
+                        dataKey="faturamento"
+                        name="faturamento"
+                        fill={theme.palette.primary.main}
+                        radius={[4, 4, 0, 0]}
+                        maxBarSize={40}
+                      />
+                      <Bar
+                        yAxisId="right"
+                        dataKey="comissaoEmpresa"
+                        name="comissaoEmpresa"
+                        fill={theme.palette.info.main}
+                        radius={[4, 4, 0, 0]}
+                        maxBarSize={40}
+                      />
+                      <Bar
+                        yAxisId="right"
+                        dataKey="comissaoVendedor"
+                        name="comissaoVendedor"
+                        fill={theme.palette.success.main}
+                        radius={[4, 4, 0, 0]}
+                        maxBarSize={40}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </Box>
+            </Paper>
+          </Grid>
         </Grid>
-      </Grid>
+      )}
 
       {/* Gráfico de Desempenho e Cancelamentos por Vendedor */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
@@ -621,15 +627,15 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
                   <TableCell sx={{ fontWeight: 700, py: 1.5, width: 140 }} align="center">Status</TableCell>
                   <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Qtd Vendas</TableCell>
                   <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Faturado (VGV)</TableCell>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Comissão (Empresa)</TableCell>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Comissão (Vendedor)</TableCell>
+                  {podeVerFinanceiro && <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Comissão (Empresa)</TableCell>}
+                  {podeVerFinanceiro && <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Comissão (Vendedor)</TableCell>}
                   <TableCell sx={{ fontWeight: 700, py: 1.5, width: 250 }}>Performance Relativa</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {ranking.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 6, color: '#64748b' }}>
+                    <TableCell colSpan={podeVerFinanceiro ? 8 : 6} align="center" sx={{ py: 6, color: '#64748b' }}>
                       Nenhuma venda ativa registrada no período para cálculo de ranking.
                     </TableCell>
                   </TableRow>
@@ -677,12 +683,16 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
                         <TableCell align="right" sx={{ fontWeight: 700, color: 'text.primary' }}>
                           {formatarMoeda(linha.faturamento)}
                         </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700, color: 'info.main' }}>
-                          {formatarMoeda(linha.comissaoEmpresa)}
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700, color: 'success.main' }}>
-                          {formatarMoeda(linha.comissaoVendedor)}
-                        </TableCell>
+                        {podeVerFinanceiro && (
+                          <TableCell align="right" sx={{ fontWeight: 700, color: 'info.main' }}>
+                            {formatarMoeda(linha.comissaoEmpresa)}
+                          </TableCell>
+                        )}
+                        {podeVerFinanceiro && (
+                          <TableCell align="right" sx={{ fontWeight: 700, color: 'success.main' }}>
+                            {formatarMoeda(linha.comissaoVendedor)}
+                          </TableCell>
+                        )}
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                             <Box sx={{ width: '100%', mr: 1 }}>

@@ -428,6 +428,9 @@ export const salvarVendaSupabase = async (venda: LancamentoVenda): Promise<void>
       console.warn('Alguma coluna nova não existe no Supabase. Fazendo fallback removendo colunas recentes...', error.message);
       
       const safePayload = { ...payload };
+      delete safePayload.cliente_id;
+      delete safePayload.administradora_id;
+      delete safePayload.administradora_nome;
       delete safePayload.percentual_adesao;
       delete safePayload.percentual_mensal;
       delete safePayload.percentuais_parcelas;

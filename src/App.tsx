@@ -274,8 +274,9 @@ function App() {
   });
 
   const isSuperMaster = usuarioLogado?.role === 'super_master' || usuarioLogado?.email?.toLowerCase() === 'master@apex.com';
-  const isAdminOuMaster = isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor' || (usuarioLogado?.role as string) === 'admin';
+  const isAdminOuMaster = isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor' || usuarioLogado?.role === 'representante' || (usuarioLogado?.role as string) === 'admin';
   const canFilterCompany = isSuperMaster || usuarioLogado?.role === 'financeiro_master';
+  const podeVerFinanceiro = isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'financeiro' || usuarioLogado?.role === 'financeiro_master' || usuarioLogado?.role === 'representante';
   const [modalNovaVendaGlobal, setModalNovaVendaGlobal] = useState(false);
 
   // Empresa do usuário logado
@@ -1375,7 +1376,7 @@ function App() {
               </Tooltip>
             )}
 
-            {(isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
+            {(isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor' || usuarioLogado?.role === 'representante') && (
               <Tooltip title="Configurações" placement="right" disableHoverListener={!sidebarContraida}>
                 <Button
                   variant={abaAtiva === 'configuracoes' ? 'contained' : 'text'}
@@ -1801,7 +1802,7 @@ function App() {
                {abaAtiva === 'dashboard' && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {/* KPI Section */}
-                <KPISection vendas={vendasFiltradas} dataInicio={dataInicio} dataFim={dataFim} />
+                <KPISection vendas={vendasFiltradas} dataInicio={dataInicio} dataFim={dataFim} podeVerFinanceiro={podeVerFinanceiro} />
                 
                 {/* Gráficos Analíticos */}
                 <AnalyticsCharts vendas={vendasFiltradas} dataInicio={dataInicio} dataFim={dataFim} />
@@ -1810,7 +1811,7 @@ function App() {
 
             {abaAtiva === 'dashboard_vendedores' && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <DashboardVendedores vendas={vendasFiltradas} vendedores={vendedoresFiltrados} dataInicio={dataInicio} dataFim={dataFim} />
+                <DashboardVendedores vendas={vendasFiltradas} vendedores={vendedoresFiltrados} dataInicio={dataInicio} dataFim={dataFim} podeVerFinanceiro={podeVerFinanceiro} />
               </Box>
             )}
 
@@ -1843,12 +1844,13 @@ function App() {
                   ciclos={ciclos}
                   administradoras={administradoras}
                   isMaster={isAdminOuMaster}
+                  podeVerFinanceiro={podeVerFinanceiro}
                 />
               </Box>
             )}
 
             {abaAtiva === 'comissoes' && (
-              <ComissoesVendedores vendas={vendasFiltradas} vendedores={vendedoresFiltrados} dataInicio={dataInicio} dataFim={dataFim} />
+              <ComissoesVendedores vendas={vendasFiltradas} vendedores={vendedoresFiltrados} dataInicio={dataInicio} dataFim={dataFim} podeVerFinanceiro={podeVerFinanceiro} />
             )}
 
             {abaAtiva === 'relatorio' && (
@@ -1864,6 +1866,7 @@ function App() {
                 administradoras={administradoras}
                 permissoes={usuarioLogado?.permissoes ?? { visualizar: true, editarVendas: isAdminOuMaster, cadastrarVendedores: isAdminOuMaster, cadastrarRegras: false }}
                 isMaster={isAdminOuMaster}
+                podeVerFinanceiro={podeVerFinanceiro}
               />
             )}
 
@@ -1875,7 +1878,8 @@ function App() {
                 dataFim={dataFim}
                 ciclos={ciclos}
                 onAlterarStatusComissao={handleAlterarStatusComissao}
-                podeEditarComissao={isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'financeiro' || usuarioLogado?.role === 'financeiro_master'}
+                podeEditarComissao={isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'financeiro' || usuarioLogado?.role === 'financeiro_master' || usuarioLogado?.role === 'representante'}
+                podeVerFinanceiro={podeVerFinanceiro}
               />
             )}
 
@@ -1888,7 +1892,7 @@ function App() {
               />
             )}
 
-            {abaAtiva === 'configuracoes' && (isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor') && (
+            {abaAtiva === 'configuracoes' && (isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'editor' || usuarioLogado?.role === 'representante') && (
               <ErrorBoundary>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   {/* Header das Configurações */}
@@ -1990,6 +1994,7 @@ function App() {
                       usuarioLogado={usuarioLogado}
                       vendedores={vendedoresFiltrados}
                       onSalvarVendedor={handleAdicionarVendedor}
+                      podeVerFinanceiro={podeVerFinanceiro}
                     />
                   )}
 

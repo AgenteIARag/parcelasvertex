@@ -144,6 +144,7 @@ interface SimuladorVendasProps {
   ciclos: Record<string, [number, number]>;
   administradoras?: Administradora[];
   isMaster?: boolean;
+  podeVerFinanceiro?: boolean;
 }
 
 
@@ -162,6 +163,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   administradoras = [],
   isMaster,
   clientes = [],
+  podeVerFinanceiro = true,
 }) => {
   const theme = useTheme();
 
@@ -972,19 +974,21 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
               >
                 Total Vendas
               </TableCell>
-              <TableCell
-                rowSpan={2}
-                align="right"
-                sx={{
-                  fontWeight: 700,
-                  color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
-                  borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                  minWidth: 140,
-                  bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc'
-                }}
-              >
-                Total Comissões
-              </TableCell>
+              {podeVerFinanceiro && (
+                <TableCell
+                  rowSpan={2}
+                  align="right"
+                  sx={{
+                    fontWeight: 700,
+                    color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
+                    borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                    minWidth: 140,
+                    bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc'
+                  }}
+                >
+                  Total Comissões
+                </TableCell>
+              )}
 
             </TableRow>
 
@@ -1005,18 +1009,20 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                   >
                     Venda
                   </TableCell>
-                  <TableCell
-                    align="right"
-                    sx={{
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      color: theme.palette.success.main,
-                      borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                      minWidth: 130, whiteSpace: 'nowrap'
-                    }}
-                  >
-                    Comissão
-                  </TableCell>
+                  {podeVerFinanceiro && (
+                    <TableCell
+                      align="right"
+                      sx={{
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        color: theme.palette.success.main,
+                        borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                        minWidth: 130, whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Comissão
+                    </TableCell>
+                  )}
                 </React.Fragment>
               ))}
             </TableRow>
@@ -1568,174 +1574,175 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           )}
                         </TableCell>
 
-                        {/* Comissão Gerada - Apresenta o Valor, % do Mês, Seletor de Status e Botão de Cancelar */}
-                        <TableCell
-                          align="right"
-                          sx={{
-                            fontSize: '0.8rem',
-                            fontWeight: 600,
-                            borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                            color: dadosMes.status === 'Cancelada' ? '#ef4444' : (dadosMes.comissaoGerada > 0 ? theme.palette.success.main : theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'),
-                            bgcolor: dadosMes.status === 'Cancelada' 
-                              ? 'rgba(239, 68, 68, 0.02)' 
-                              : (dadosMes.valorVenda === 0 
-                                ? (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.015)' : 'rgba(0, 0, 0, 0.01)')
-                                : 'inherit'),
-                            opacity: dadosMes.valorVenda === 0 ? 0.35 : 1,
-                            p: 0.5
-                          }}
-                        >
-                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
-                            {dadosMes.comissaoGerada > 0 ? (
-                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', whiteSpace: 'nowrap' }}>
-                                <span style={{ textDecoration: dadosMes.status === 'Cancelada' ? 'line-through' : 'none' }}>
-                                  {formatarMoeda(dadosMes.comissaoGerada)}
-                                </span>
-                                <Typography
-                                  component="span"
-                                  sx={{
-                                    fontSize: '0.65rem',
-                                    color: dadosMes.status === 'Cancelada' ? '#ef4444' : (theme.palette.mode === 'dark' ? '#64748b' : '#94a3b8'),
-                                    ml: 0.5,
-                                    fontWeight: 500
-                                  }}
-                                >
-                                  ({pctMensal}%)
-                                </Typography>
-                              </Box>
-                            ) : ''}
-                            
-                            {/* Controle de Status da Parcela e Ação de Cancelar - Apenas exibidos se houver parcela ativa faturada no mês */}
-                            {(dadosMes.valorVenda > 0 || dadosMes.status !== 'Cancelada') && (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                  {/* Select para Comissão Recebida */}
-                                  {permissoes.receberParcelas ? (
-                                    <Select
-                                      value={dadosMes.recebida ? 'Recebida' : 'A receber'}
-                                      onChange={(e) => handleAlterarRecebidaParcela(venda.id, mesChaveReal, e.target.value === 'Recebida')}
-                                      variant="standard"
-                                      disableUnderline
-                                      sx={{
-                                        fontSize: '0.62rem',
-                                        fontWeight: 700,
-                                        color: dadosMes.recebida ? '#f97316' : '#64748b',
-                                        '& .MuiSelect-select': {
+                        {podeVerFinanceiro && (
+                          <TableCell
+                            align="right"
+                            sx={{
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+                              color: dadosMes.status === 'Cancelada' ? '#ef4444' : (dadosMes.comissaoGerada > 0 ? theme.palette.success.main : theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'),
+                              bgcolor: dadosMes.status === 'Cancelada' 
+                                ? 'rgba(239, 68, 68, 0.02)' 
+                                : (dadosMes.valorVenda === 0 
+                                  ? (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.015)' : 'rgba(0, 0, 0, 0.01)')
+                                  : 'inherit'),
+                              opacity: dadosMes.valorVenda === 0 ? 0.35 : 1,
+                              p: 0.5
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
+                              {dadosMes.comissaoGerada > 0 ? (
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', whiteSpace: 'nowrap' }}>
+                                  <span style={{ textDecoration: dadosMes.status === 'Cancelada' ? 'line-through' : 'none' }}>
+                                    {formatarMoeda(dadosMes.comissaoGerada)}
+                                  </span>
+                                  <Typography
+                                    component="span"
+                                    sx={{
+                                      fontSize: '0.65rem',
+                                      color: dadosMes.status === 'Cancelada' ? '#ef4444' : (theme.palette.mode === 'dark' ? '#64748b' : '#94a3b8'),
+                                      ml: 0.5,
+                                      fontWeight: 500
+                                    }}
+                                  >
+                                    ({pctMensal}%)
+                                  </Typography>
+                                </Box>
+                              ) : ''}
+                              
+                              {/* Controle de Status da Parcela e Ação de Cancelar - Apenas exibidos se houver parcela ativa faturada no mês */}
+                              {(dadosMes.valorVenda > 0 || dadosMes.status !== 'Cancelada') && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    {/* Select para Comissão Recebida */}
+                                    {permissoes.receberParcelas ? (
+                                      <Select
+                                        value={dadosMes.recebida ? 'Recebida' : 'A receber'}
+                                        onChange={(e) => handleAlterarRecebidaParcela(venda.id, mesChaveReal, e.target.value === 'Recebida')}
+                                        variant="standard"
+                                        disableUnderline
+                                        sx={{
+                                          fontSize: '0.62rem',
+                                          fontWeight: 700,
+                                          color: dadosMes.recebida ? '#f97316' : '#64748b',
+                                          '& .MuiSelect-select': {
+                                            py: 0.1,
+                                            px: 0.5,
+                                            borderRadius: 0.5,
+                                            background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'
+                                          }
+                                        }}
+                                      >
+                                        <MenuItem value="A receber" sx={{ fontSize: '0.7rem' }}>A receber</MenuItem>
+                                        <MenuItem value="Recebida" sx={{ fontSize: '0.7rem' }}>Recebida</MenuItem>
+                                      </Select>
+                                    ) : (
+                                      <Box
+                                        sx={{
+                                          fontSize: '0.62rem',
+                                          fontWeight: 700,
                                           py: 0.1,
                                           px: 0.5,
                                           borderRadius: 0.5,
-                                          background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'
-                                        }
-                                      }}
-                                    >
-                                      <MenuItem value="A receber" sx={{ fontSize: '0.7rem' }}>A receber</MenuItem>
-                                      <MenuItem value="Recebida" sx={{ fontSize: '0.7rem' }}>Recebida</MenuItem>
-                                    </Select>
-                                  ) : (
-                                    <Box
-                                      sx={{
-                                        fontSize: '0.62rem',
-                                        fontWeight: 700,
-                                        py: 0.1,
-                                        px: 0.5,
-                                        borderRadius: 0.5,
-                                        color: dadosMes.recebida ? '#f97316' : '#64748b',
-                                        background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-                                        display: 'inline-block'
-                                      }}
-                                    >
-                                      {dadosMes.recebida ? 'Recebida' : 'A receber'}
-                                    </Box>
-                                  )}
+                                          color: dadosMes.recebida ? '#f97316' : '#64748b',
+                                          background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                                          display: 'inline-block'
+                                        }}
+                                      >
+                                        {dadosMes.recebida ? 'Recebida' : 'A receber'}
+                                      </Box>
+                                    )}
 
-                                  {permissoes.editarVendas ? (
-                                    <Select
-                                      value={dadosMes.status}
-                                      onChange={(e) => handleAlterarStatusParcela(venda.id, mesChaveReal, e.target.value as StatusParcela)}
-                                      variant="standard"
-                                      disableUnderline
-                                      sx={{
-                                        fontSize: '0.62rem',
-                                        fontWeight: 700,
-                                        color: dadosMes.status === 'Cancelada' ? '#ef4444' :
-                                               dadosMes.recebida ? '#f97316' :
-                                               dadosMes.status === 'Paga' ? '#34d399' :
-                                               dadosMes.status === 'Vencida' ? '#ef4444' : '#3b82f6',
-                                        '& .MuiSelect-select': {
+                                    {permissoes.editarVendas ? (
+                                      <Select
+                                        value={dadosMes.status}
+                                        onChange={(e) => handleAlterarStatusParcela(venda.id, mesChaveReal, e.target.value as StatusParcela)}
+                                        variant="standard"
+                                        disableUnderline
+                                        sx={{
+                                          fontSize: '0.62rem',
+                                          fontWeight: 700,
+                                          color: dadosMes.status === 'Cancelada' ? '#ef4444' :
+                                                 dadosMes.recebida ? '#f97316' :
+                                                 dadosMes.status === 'Paga' ? '#34d399' :
+                                                 dadosMes.status === 'Vencida' ? '#ef4444' : '#3b82f6',
+                                          '& .MuiSelect-select': {
+                                            py: 0.1,
+                                            px: 0.5,
+                                            borderRadius: 0.5,
+                                            background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'
+                                          }
+                                        }}
+                                      >
+                                        {(permissoes.editarVendas || dadosMes.status === 'A vencer') && <MenuItem value="A vencer" sx={{ fontSize: '0.7rem' }}>A vencer</MenuItem>}
+                                        {(permissoes.editarVendas || dadosMes.status === 'Vencida') && <MenuItem value="Vencida" sx={{ fontSize: '0.7rem' }}>Vencida</MenuItem>}
+                                        {(permissoes.editarVendas || dadosMes.status === 'Paga') && <MenuItem value="Paga" sx={{ fontSize: '0.7rem' }}>Paga</MenuItem>}
+                                        {(permissoes.editarVendas || dadosMes.status === 'Cancelada') && <MenuItem value="Cancelada" sx={{ fontSize: '0.7rem' }}>Cancelada</MenuItem>}
+                                      </Select>
+                                    ) : (
+                                      <Box
+                                        sx={{
+                                          fontSize: '0.62rem',
+                                          fontWeight: 700,
                                           py: 0.1,
                                           px: 0.5,
                                           borderRadius: 0.5,
-                                          background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'
-                                        }
-                                      }}
-                                    >
-                                      {(permissoes.editarVendas || dadosMes.status === 'A vencer') && <MenuItem value="A vencer" sx={{ fontSize: '0.7rem' }}>A vencer</MenuItem>}
-                                      {(permissoes.editarVendas || dadosMes.status === 'Vencida') && <MenuItem value="Vencida" sx={{ fontSize: '0.7rem' }}>Vencida</MenuItem>}
-                                      {(permissoes.editarVendas || dadosMes.status === 'Paga') && <MenuItem value="Paga" sx={{ fontSize: '0.7rem' }}>Paga</MenuItem>}
-                                      {(permissoes.editarVendas || dadosMes.status === 'Cancelada') && <MenuItem value="Cancelada" sx={{ fontSize: '0.7rem' }}>Cancelada</MenuItem>}
-                                    </Select>
-                                  ) : (
-                                    <Box
-                                      sx={{
-                                        fontSize: '0.62rem',
-                                        fontWeight: 700,
-                                        py: 0.1,
-                                        px: 0.5,
-                                        borderRadius: 0.5,
-                                        color: dadosMes.status === 'Cancelada' ? '#ef4444' :
-                                               dadosMes.recebida ? '#f97316' :
-                                               dadosMes.status === 'Paga' ? '#34d399' :
-                                               dadosMes.status === 'Vencida' ? '#ef4444' : '#3b82f6',
-                                        background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-                                        display: 'inline-block'
-                                      }}
-                                    >
-                                      {dadosMes.recebida ? 'Recebida' : dadosMes.status}
-                                    </Box>
-                                  )}
+                                          color: dadosMes.status === 'Cancelada' ? '#ef4444' :
+                                                 dadosMes.recebida ? '#f97316' :
+                                                 dadosMes.status === 'Paga' ? '#34d399' :
+                                                 dadosMes.status === 'Vencida' ? '#ef4444' : '#3b82f6',
+                                          background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                                          display: 'inline-block'
+                                        }}
+                                      >
+                                        {dadosMes.recebida ? 'Recebida' : dadosMes.status}
+                                      </Box>
+                                    )}
 
-                                  {permissoes.editarVendas && dadosMes.status !== 'Cancelada' && (
-                                    <IconButton
-                                      size="small"
-                                      onClick={() => handleCancelarAPartirDoMes(venda.id, mesChaveReal)}
-                                      sx={{
-                                        p: 0.1,
-                                        color: theme.palette.error.main,
-                                        '&:hover': {
-                                          background: 'rgba(239, 68, 68, 0.15)'
-                                        }
-                                      }}
-                                      title="Cancelar esta e as demais parcelas"
-                                    >
-                                      <BlockIcon sx={{ fontSize: 10 }} />
-                                    </IconButton>
-                                      )}
-                                  {/* Botão de edição individual de parcela */}
-                                  {permissoes.editarParcelas && dadosMes.valorVenda > 0 && (
-                                    <IconButton
-                                      className="edit-parcela-btn"
-                                      size="small"
-                                      onClick={() => setEditandoParcela({ vendaId: venda.id, mesChave: mesChaveReal })}
-                                      sx={{
-                                        p: 0.1,
-                                        opacity: 0,
-                                        transition: 'opacity 0.2s',
-                                        color: theme.palette.primary.main,
-                                        '&:hover': {
-                                          background: 'rgba(99, 102, 241, 0.15)'
-                                        }
-                                      }}
-                                      title="Editar parcela individualmente"
-                                    >
-                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                      </svg>
-                                    </IconButton>
-                                  )}
-                              </Box>
-                            )}
-                          </Box>
-                        </TableCell>
+                                    {permissoes.editarVendas && dadosMes.status !== 'Cancelada' && (
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleCancelarAPartirDoMes(venda.id, mesChaveReal)}
+                                        sx={{
+                                          p: 0.1,
+                                          color: theme.palette.error.main,
+                                          '&:hover': {
+                                            background: 'rgba(239, 68, 68, 0.15)'
+                                          }
+                                        }}
+                                        title="Cancelar esta e as demais parcelas"
+                                      >
+                                        <BlockIcon sx={{ fontSize: 10 }} />
+                                      </IconButton>
+                                        )}
+                                    {/* Botão de edição individual de parcela */}
+                                    {permissoes.editarParcelas && dadosMes.valorVenda > 0 && (
+                                      <IconButton
+                                        className="edit-parcela-btn"
+                                        size="small"
+                                        onClick={() => setEditandoParcela({ vendaId: venda.id, mesChave: mesChaveReal })}
+                                        sx={{
+                                          p: 0.1,
+                                          opacity: 0,
+                                          transition: 'opacity 0.2s',
+                                          color: theme.palette.primary.main,
+                                          '&:hover': {
+                                            background: 'rgba(99, 102, 241, 0.15)'
+                                          }
+                                        }}
+                                        title="Editar parcela individualmente"
+                                      >
+                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                        </svg>
+                                      </IconButton>
+                                    )}
+                                </Box>
+                              )}
+                            </Box>
+                          </TableCell>
+                        )}
                       </React.Fragment>
                     );
                   })}
@@ -1756,16 +1763,18 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                         >
                           {formatarMoeda(totalVendasPeriodo)}
                         </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{
-                            fontWeight: 700,
-                            color: theme.palette.success.main,
-                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(16, 185, 129, 0.02)'
-                          }}
-                        >
-                          {formatarMoeda(totalComissoesPeriodo)}
-                        </TableCell>
+                        {podeVerFinanceiro && (
+                          <TableCell
+                            align="right"
+                            sx={{
+                              fontWeight: 700,
+                              color: theme.palette.success.main,
+                              bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(16, 185, 129, 0.02)'
+                            }}
+                          >
+                            {formatarMoeda(totalComissoesPeriodo)}
+                          </TableCell>
+                        )}
                       </React.Fragment>
                     );
                   })()}
@@ -1829,21 +1838,23 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                         {formatarMoeda(mVal.vendas)}
                       </TableCell>
                       {/* Comissões do Mês */}
-                      <TableCell
-                        align="right"
-                        sx={{
-                          fontWeight: 700,
-                          color: theme.palette.success.main,
-                          borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
-                          fontSize: '0.8rem',
-                          position: 'sticky',
-                          bottom: 0,
-                          zIndex: 2,
-                          background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
-                        }}
-                      >
-                        {formatarMoeda(mVal.comissoes)}
-                      </TableCell>
+                      {podeVerFinanceiro && (
+                        <TableCell
+                          align="right"
+                          sx={{
+                            fontWeight: 700,
+                            color: theme.palette.success.main,
+                            borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                            fontSize: '0.8rem',
+                            position: 'sticky',
+                            bottom: 0,
+                            zIndex: 2,
+                            background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
+                          }}
+                        >
+                          {formatarMoeda(mVal.comissoes)}
+                        </TableCell>
+                      )}
                     </React.Fragment>
                   );
                 })}
@@ -1865,21 +1876,23 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 >
                   {formatarMoeda(totaisGerais.totalGeralVendas)}
                 </TableCell>
-                <TableCell
-                  align="right"
-                  sx={{
-                    fontWeight: 800,
-                    color: theme.palette.success.main,
-                    borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
-                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.05)',
-                    fontSize: '0.85rem',
-                    position: 'sticky',
-                    bottom: 0,
-                    zIndex: 2,
-                  }}
-                >
-                  {formatarMoeda(totaisGerais.totalGeralComissoes)}
-                </TableCell>
+                {podeVerFinanceiro && (
+                  <TableCell
+                    align="right"
+                    sx={{
+                      fontWeight: 800,
+                      color: theme.palette.success.main,
+                      borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                      bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.05)',
+                      fontSize: '0.85rem',
+                      position: 'sticky',
+                      bottom: 0,
+                      zIndex: 2,
+                    }}
+                  >
+                    {formatarMoeda(totaisGerais.totalGeralComissoes)}
+                  </TableCell>
+                )}
 
 
               </TableRow>
@@ -1968,7 +1981,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                         whiteSpace: 'nowrap'
                       }}
                     >
-                      {formatarChaveMesExibicao(mes)} (V / C)
+                      {formatarChaveMesExibicao(mes)} {podeVerFinanceiro ? '(V / C)' : '(V)'}
                     </TableCell>
                   ))}
 
@@ -1985,17 +1998,19 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                   >
                     Total Vendas
                   </TableCell>
-                  <TableCell
-                    align="right"
-                    sx={{
-                      fontWeight: 700, fontSize: '0.75rem',
-                      color: theme.palette.success.main,
-                      borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
-                      minWidth: 130
-                    }}
-                  >
-                    Total Comissões
-                  </TableCell>
+                  {podeVerFinanceiro && (
+                    <TableCell
+                      align="right"
+                      sx={{
+                        fontWeight: 700, fontSize: '0.75rem',
+                        color: theme.palette.success.main,
+                        borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                        minWidth: 130
+                      }}
+                    >
+                      Total Comissões
+                    </TableCell>
+                  )}
 
                   {/* Ações */}
                   {permissoes.editarVendas && (
@@ -2168,10 +2183,14 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                 <span style={{ fontWeight: 600, color: dadosMes.status === 'Cancelada' ? '#ef4444' : 'inherit' }}>
                                   {formatarMoeda(dadosMes.valorVenda)}
                                 </span>
-                                <span style={{ color: theme.palette.text.secondary }}>/</span>
-                                <span style={{ color: theme.palette.success.main, fontWeight: 700 }}>
-                                  {formatarMoeda(dadosMes.comissaoGerada)}
-                                </span>
+                                {podeVerFinanceiro && (
+                                  <>
+                                    <span style={{ color: theme.palette.text.secondary }}>/</span>
+                                    <span style={{ color: theme.palette.success.main, fontWeight: 700 }}>
+                                      {formatarMoeda(dadosMes.comissaoGerada)}
+                                    </span>
+                                  </>
+                                )}
                               </Box>
                             ) : (
                               <span style={{ color: theme.palette.text.secondary, fontSize: '0.8rem' }}>—</span>
@@ -2193,17 +2212,19 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           {formatarMoeda(totalVendasPeriodo)}
                         </Typography>
                       </TableCell>
-                      <TableCell
-                        align="right"
-                        sx={{
-                          py: 0.8,
-                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.02)' : 'rgba(16, 185, 129, 0.01)'
-                        }}
-                      >
-                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 750, color: theme.palette.success.main }}>
-                          {formatarMoeda(totalComissoesPeriodo)}
-                        </Typography>
-                      </TableCell>
+                      {podeVerFinanceiro && (
+                        <TableCell
+                          align="right"
+                          sx={{
+                            py: 0.8,
+                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.02)' : 'rgba(16, 185, 129, 0.01)'
+                          }}
+                        >
+                          <Typography sx={{ fontSize: '0.85rem', fontWeight: 750, color: theme.palette.success.main }}>
+                            {formatarMoeda(totalComissoesPeriodo)}
+                          </Typography>
+                        </TableCell>
+                      )}
 
                       {/* Ações */}
                       {(permissoes.editarVendas || isMaster) && (
@@ -2284,8 +2305,12 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                         >
                           <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'right', whiteSpace: 'nowrap' }}>
                             <span style={{ fontWeight: 700 }}>{formatarMoeda(mVal.vendas)}</span>
-                            <span style={{ color: theme.palette.text.secondary }}>/</span>
-                            <span style={{ color: theme.palette.success.main, fontWeight: 800 }}>{formatarMoeda(mVal.comissoes)}</span>
+                            {podeVerFinanceiro && (
+                              <>
+                                <span style={{ color: theme.palette.text.secondary }}>/</span>
+                                <span style={{ color: theme.palette.success.main, fontWeight: 800 }}>{formatarMoeda(mVal.comissoes)}</span>
+                              </>
+                            )}
                           </Box>
                         </TableCell>
                       );
@@ -2304,17 +2329,19 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                     >
                       {formatarMoeda(totaisGerais.totalGeralVendas)}
                     </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{
-                        fontWeight: 800, fontSize: '0.88rem',
-                        color: theme.palette.success.main,
-                        borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
-                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.05)'
-                      }}
-                    >
-                      {formatarMoeda(totaisGerais.totalGeralComissoes)}
-                    </TableCell>
+                    {podeVerFinanceiro && (
+                      <TableCell
+                        align="right"
+                        sx={{
+                          fontWeight: 800, fontSize: '0.88rem',
+                          color: theme.palette.success.main,
+                          borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
+                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.05)'
+                        }}
+                      >
+                        {formatarMoeda(totaisGerais.totalGeralComissoes)}
+                      </TableCell>
+                    )}
                     {permissoes.editarVendas && (
                       <TableCell sx={{
                         borderTop: `2px solid ${theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'}`,
@@ -2369,9 +2396,11 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 <TableCell align="center" sx={{ fontWeight: 700, py: 1.5 }}>Vencimento</TableCell>
                 <TableCell align="center" sx={{ fontWeight: 700, py: 1.5, color: theme.palette.mode === 'dark' ? '#818cf8' : '#6366f1' }}>Prev. Recebimento</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700, py: 1.5 }}>Valor Parcela</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700, py: 1.5, color: theme.palette.success.main }}>
-                  Comissão Master (Empresa)
-                </TableCell>
+                {podeVerFinanceiro && (
+                  <TableCell align="right" sx={{ fontWeight: 700, py: 1.5, color: theme.palette.success.main }}>
+                    Comissão Master (Empresa)
+                  </TableCell>
+                )}
                 <TableCell align="center" sx={{ fontWeight: 700, py: 1.5 }}>Status</TableCell>
               </TableRow>
             </TableHead>
@@ -2446,9 +2475,11 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                     <TableCell align="right">
                       {formatarMoeda(linha.valorParcela)}
                     </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700, color: theme.palette.success.main }}>
-                      {formatarMoeda(linha.comissaoMaster)}
-                    </TableCell>
+                    {podeVerFinanceiro && (
+                      <TableCell align="right" sx={{ fontWeight: 700, color: theme.palette.success.main }}>
+                        {formatarMoeda(linha.comissaoMaster)}
+                      </TableCell>
+                    )}
                     <TableCell align="center">
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
                         {/* Select para Comissão Recebida na Timeline */}

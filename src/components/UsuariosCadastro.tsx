@@ -45,9 +45,10 @@ interface UsuariosCadastroProps {
   usuarioLogado?: Usuario | null;
   vendedores?: Vendedor[];
   onSalvarVendedor?: (vendedor: Vendedor) => void;
+  podeVerFinanceiro?: boolean;
 }
 
-export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogado, vendedores = [], onSalvarVendedor }) => {
+export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogado, vendedores = [], onSalvarVendedor, podeVerFinanceiro = true }) => {
   const theme = useTheme();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
@@ -126,7 +127,7 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
       setEmpresaId(user.empresaId || '');
       setVendedorIdForm(user.vendedorId || '');
       const vend = vendedores.find(v => (user.vendedorId && v.id === user.vendedorId) || v.email.toLowerCase() === user.email.toLowerCase());
-      setCadastrarVendedor(!!vend || user.role === 'vendedor' || user.role === 'editor');
+      setCadastrarVendedor(!!vend || user.role === 'vendedor' || user.role === 'editor' || user.role === 'representante');
       setPercentualComissao(vend?.percentualComissao ?? '');
       setPermissoes(user.permissoes || {
         visualizar: true,
@@ -176,7 +177,7 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
         visualizarDashboardVendedores: true,
         editarParcelas: true
       });
-    } else if (selectedRole === 'editor') {
+    } else if (selectedRole === 'editor' || selectedRole === 'representante') {
       setPermissoes({
         visualizar: true,
         editarVendas: true,
@@ -336,6 +337,7 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
       const roleName = user.role === 'super_master' ? 'Super Master' :
                        user.role === 'master' ? 'Master' :
                        user.role === 'editor' ? 'ADM' :
+                       user.role === 'representante' ? 'Representante' :
                        user.role === 'financeiro' ? 'Financeiro' :
                        user.role === 'financeiro_master' ? 'Financeiro Master' :
                        user.role === 'vendedor' ? 'Vendedor' : 'Visualizador';
@@ -429,9 +431,11 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
               <TableCell sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
                 Perfil / Função
               </TableCell>
-              <TableCell align="right" sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
-                Comissão Vendedor (%)
-              </TableCell>
+              {podeVerFinanceiro && (
+                <TableCell align="right" sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5 }}>
+                  Comissão Vendedor (%)
+                </TableCell>
+              )}
               <TableCell align="center" sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569', py: 1.5, width: 120 }}>
                 Ações
               </TableCell>
@@ -496,6 +500,7 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
                                   user.role === 'super_master' ? 'error' :
                                   user.role === 'master' ? 'primary' :
                                   user.role === 'editor' ? 'info' :
+                                  user.role === 'representante' ? 'primary' :
                                   user.role === 'vendedor' ? 'warning' :
                                   (user.role === 'financeiro' || user.role === 'financeiro_master') ? 'success' : 'default'
                                 }
@@ -503,9 +508,11 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
                                 sx={{ fontWeight: 600, fontSize: '0.75rem' }}
                               />
                             </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 650, color: theme.palette.success.main }}>
-                              {vend ? `${Number(vend.percentualComissao || 0).toFixed(2).replace('.', ',')}%` : '-'}
-                            </TableCell>
+                            {podeVerFinanceiro && (
+                              <TableCell align="right" sx={{ fontWeight: 650, color: theme.palette.success.main }}>
+                                {vend ? `${Number(vend.percentualComissao || 0).toFixed(2).replace('.', ',')}%` : '-'}
+                              </TableCell>
+                            )}
                             <TableCell align="center">
                               <IconButton
                                 size="small"
@@ -629,6 +636,7 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
                 >
                   <MenuItem value="visualizador">Visualizador (Apenas consulta)</MenuItem>
                   <MenuItem value="editor">ADM (Cadastrar, editar e cancelar vendas)</MenuItem>
+                  <MenuItem value="representante">Representante (Editor com acesso financeiro)</MenuItem>
                   <MenuItem value="financeiro">Financeiro (Apenas receber parcelas)</MenuItem>
                   <MenuItem value="financeiro_master">Financeiro Master (Receber parcelas e filtrar por empresa)</MenuItem>
                   <MenuItem value="vendedor">Vendedor (Acesso restrito às próprias vendas)</MenuItem>
@@ -708,7 +716,7 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
               )}
             </Grid>
 
-            {cadastrarVendedor && (
+            {cadastrarVendedor && podeVerFinanceiro && (
               <Grid size={{ xs: 12 }}>
                 <TextField
                   fullWidth
@@ -774,7 +782,7 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
                     <Checkbox
                       checked={!!permissoes.receberParcelas}
                       onChange={(e) => handleCheckboxChange('receberParcelas', e.target.checked)}
-                      disabled={role === 'master' || role === 'editor'}
+                      disabled={role === 'master' || role === 'editor' || role === 'representante'}
                     />
                   }
                   label="Permitir apenas marcar parcelas como Recebida"
@@ -794,7 +802,7 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
                     <Checkbox
                       checked={permissoes.cadastrarRegras}
                       onChange={(e) => handleCheckboxChange('cadastrarRegras', e.target.checked)}
-                      disabled={role === 'master' || role === 'editor'}
+                      disabled={role === 'master' || role === 'editor' || role === 'representante'}
                     />
                   }
                   label="Permitir Alterar o Banco de Regras (BD Master)"
@@ -804,7 +812,7 @@ export const UsuariosCadastro: React.FC<UsuariosCadastroProps> = ({ usuarioLogad
                     <Checkbox
                       checked={!!permissoes.editarParcelas}
                       onChange={(e) => handleCheckboxChange('editarParcelas', e.target.checked)}
-                      disabled={role === 'master' || role === 'editor'}
+                      disabled={role === 'master' || role === 'editor' || role === 'representante'}
                     />
                   }
                   label="Permitir editar parcelas individualmente (datas, valores, status)"

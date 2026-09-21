@@ -128,6 +128,7 @@ interface ParcelaLinha {
   numeroRelatorioRecebimento?: string; // Nº do relatório do recebimento da comissão
   notaFiscalRecebimento?: string;      // NF relativa ao recebimento da comissão
   dataRelatorioRecebimento?: string;    // Data de recebimento da comissão (YYYY-MM-DD)
+  dataCancelamento?: string;            // Data em que a parcela foi cancelada (YYYY-MM-DD)
   // Espelhamento
   grupoVisual: string;                 // Mês em que a linha será renderizada (YYYY-MM)
   isEspelho: boolean;                  // True se for a linha de caixa (gerada no mês do pagamento)
@@ -302,7 +303,7 @@ const StatusValorRow = ({ totais }: { totais: TotaisStatus }) => {
 // Sub-componente: Badging de Status e Recebimento
 // ──────────────────────────────────────────────────────────
 
-const StatusParcelaBadge = ({ status }: { status: StatusParcela }) => {
+const StatusParcelaBadge = ({ status, dataCancelamento }: { status: StatusParcela, dataCancelamento?: string }) => {
   const map: Record<StatusParcela, { color: string; bg: string; icon: React.ReactNode }> = {
     'A vencer':  { color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',   icon: <HourglassEmptyIcon sx={{ fontSize: 12 }} /> },
     'Vencida':   { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',    icon: <CancelIcon sx={{ fontSize: 12 }} /> },
@@ -310,7 +311,7 @@ const StatusParcelaBadge = ({ status }: { status: StatusParcela }) => {
     'Cancelada': { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',    icon: <CancelIcon sx={{ fontSize: 12 }} /> },
   };
   const s = map[status] || map['A vencer'];
-  return (
+  const badge = (
     <Box sx={{
       display: 'inline-flex', alignItems: 'center', gap: 0.4, px: 1, py: 0.25,
       borderRadius: 99, bgcolor: s.bg, color: s.color, fontWeight: 700, fontSize: '0.7rem'
@@ -318,6 +319,15 @@ const StatusParcelaBadge = ({ status }: { status: StatusParcela }) => {
       {s.icon} {status}
     </Box>
   );
+
+  if (status === 'Cancelada' && dataCancelamento) {
+    return (
+      <Tooltip title={`Cancelada em: ${formatarData(dataCancelamento)}`}>
+        {badge}
+      </Tooltip>
+    );
+  }
+  return badge;
 };
 
 const SituacaoRecebimentoBadge = ({ situacao }: { situacao: 'A receber' | 'Recebida' }) => {
@@ -542,6 +552,7 @@ const SubGrupoData = ({
   onDesfazerCancelar,
   permissoes,
   isMaster,
+  podeVerFinanceiro,
 }: {
   dataRecebimento: string;
   itens: ParcelaLinha[];
@@ -560,6 +571,7 @@ const SubGrupoData = ({
   onDesfazerCancelar?: (item: ParcelaLinha) => void;
   permissoes?: UserPermissions;
   isMaster?: boolean;
+  podeVerFinanceiro?: boolean;
   onAdicionarVenda?: (v: any) => void;
   administradoras?: any[];
 }) => {
@@ -596,7 +608,7 @@ const SubGrupoData = ({
     { label: 'Recebimento', field: 'situacaoRecebimento' },
     { label: 'DT. RECEB.', field: 'dataRelatorioRecebimento' },
     { label: 'Parcela Nº', field: 'parcelaIndex' },
-    { label: 'Comissão', field: 'comissao' },
+    ...(podeVerFinanceiro ? [{ label: 'Comissão', field: 'comissao' }] : []),
     { label: 'Ações', field: 'acoes' },
   ];
 
@@ -667,14 +679,16 @@ const SubGrupoData = ({
 
         {/* Métricas do sub-grupo */}
         <Box sx={{ display: 'flex', gap: 3, flexGrow: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Box>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block' }}>
-              Comissões
-            </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 800, color: '#10b981', fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem' }}>
-              {formatarMoeda(totalComissoes)}
-            </Typography>
-          </Box>
+          {podeVerFinanceiro && (
+            <Box>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block' }}>
+                Comissões
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 800, color: '#10b981', fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem' }}>
+                {formatarMoeda(totalComissoes)}
+              </Typography>
+            </Box>
+          )}
           <Box>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block' }}>
               Crédito
@@ -944,7 +958,7 @@ const SubGrupoData = ({
                       </TableCell>
                       <TableCell sx={{ bgcolor: rowBg, py: 0.8 }}>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
-                          <StatusParcelaBadge status={item.statusParcela} />
+                          <StatusParcelaBadge status={item.statusParcela} dataCancelamento={item.dataCancelamento} />
                           {!item.isEspelho && item.pagaForaCompetencia && item.statusParcela === 'Paga' && (
                             <Chip size="small" label="Paga Atrasada" sx={{ height: 14, fontSize: '0.5rem', bgcolor: 'rgba(234,179,8,0.15)', color: '#eab308', fontWeight: 800 }} />
                           )}
@@ -1004,9 +1018,11 @@ const SubGrupoData = ({
                           )}
                         </Box>
                       </TableCell>
-                      <TableCell sx={{ py: 0.8, fontWeight: 800, color: '#10b981', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                        {formatarMoeda(item.comissao)}
-                      </TableCell>
+                      {podeVerFinanceiro && (
+                        <TableCell sx={{ py: 0.8, fontWeight: 800, color: '#10b981', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                          {formatarMoeda(item.comissao)}
+                        </TableCell>
+                      )}
                       <TableCell sx={{ py: 0.8, textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.3 }}>
                           {/* Botão: Registrar Pagamento do Cliente (→ Paga) */}
@@ -1167,6 +1183,7 @@ const GrupoRecebimento = ({
   onDesfazerCancelar,
   permissoes,
   isMaster,
+  podeVerFinanceiro,
 }: {
   grupo: GrupoPeriodo;
   isAtual: boolean;
@@ -1343,14 +1360,16 @@ const GrupoRecebimento = ({
 
         {/* Métricas resumidas com Vendas do Mês e Recorrência em 1 única linha */}
         <Box sx={{ display: 'flex', gap: 1.8, flexGrow: 1, flexWrap: 'nowrap', alignItems: 'center' }}>
-          <Box sx={{ flexShrink: 0 }}>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block', whiteSpace: 'nowrap' }}>
-              Comissões a Receber
-            </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 800, color: '#10b981', fontFamily: 'Outfit, sans-serif', fontSize: '0.92rem', whiteSpace: 'nowrap' }}>
-              {formatarMoeda(grupo.totalComissoes)}
-            </Typography>
-          </Box>
+          {podeVerFinanceiro && (
+            <Box sx={{ flexShrink: 0 }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block', whiteSpace: 'nowrap' }}>
+                Comissões a Receber
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 800, color: '#10b981', fontFamily: 'Outfit, sans-serif', fontSize: '0.92rem', whiteSpace: 'nowrap' }}>
+                {formatarMoeda(grupo.totalComissoes)}
+              </Typography>
+            </Box>
+          )}
 
 
           <Box sx={{ flexShrink: 0 }}>
@@ -1423,9 +1442,11 @@ const GrupoRecebimento = ({
                   Vendas do Mês ({qtdNovasVendas})
                 </Typography>
               </Box>
-              <Typography variant="body2" sx={{ fontWeight: 800, color: '#0ea5e9', fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
-                {formatarMoeda(totalNovasVendasComissao)}
-              </Typography>
+              {podeVerFinanceiro && (
+                <Typography variant="body2" sx={{ fontWeight: 800, color: '#0ea5e9', fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                  {formatarMoeda(totalNovasVendasComissao)}
+                </Typography>
+              )}
             </Box>
           </Tooltip>
 
@@ -1446,9 +1467,11 @@ const GrupoRecebimento = ({
                   Recorrência ({qtdRecorrencia})
                 </Typography>
               </Box>
-              <Typography variant="body2" sx={{ fontWeight: 800, color: '#a855f7', fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
-                {formatarMoeda(totalRecorrenciaComissao)}
-              </Typography>
+              {podeVerFinanceiro && (
+                <Typography variant="body2" sx={{ fontWeight: 800, color: '#a855f7', fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                  {formatarMoeda(totalRecorrenciaComissao)}
+                </Typography>
+              )}
             </Box>
           </Tooltip>
 
@@ -1531,6 +1554,7 @@ const GrupoRecebimento = ({
                 onDesfazerCancelar={onDesfazerCancelar}
                 permissoes={permissoes}
                 isMaster={isMaster}
+                podeVerFinanceiro={podeVerFinanceiro}
               />
             );
           })}
@@ -1556,6 +1580,7 @@ interface RelatorioRecebimentosProps {
   administradoras?: Administradora[];
   permissoes?: UserPermissions;
   isMaster?: boolean;
+  podeVerFinanceiro?: boolean;
 }
 
 export const RelatorioRecebimentos = ({
@@ -1570,6 +1595,7 @@ export const RelatorioRecebimentos = ({
   administradoras = [],
   permissoes,
   isMaster = false,
+  podeVerFinanceiro = true,
 }: RelatorioRecebimentosProps) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -1580,6 +1606,7 @@ export const RelatorioRecebimentos = ({
   const [filtroStatus, setFiltroStatus] = useState<string[]>([]); 
   // Filtro: 'Todos' | 'Vendas' | 'Recorrência'
   const [filtroTipo, setFiltroTipo] = useState<'Todos' | 'Vendas' | 'Recorrência'>('Todos');
+  const [filtroDataRef, setFiltroDataRef] = useState<'Vencimento' | 'Pagamento'>('Vencimento');
 
   const [openNovaVenda, setOpenNovaVenda] = useState(false);
   const [openEditDialog, setOpenEditDialog] = useState(false);
@@ -1606,7 +1633,8 @@ export const RelatorioRecebimentos = ({
   const [modalCancelar, setModalCancelar] = useState<{
     open: boolean;
     item: ParcelaLinha | null;
-  }>({ open: false, item: null });
+    dataCancelamento: string;
+  }>({ open: false, item: null, dataCancelamento: new Date().toISOString().split('T')[0] });
 
   const handleAbrirModalPaga = (item: ParcelaLinha) => {
     setModalPaga({ open: true, item, dataPagamento: new Date().toISOString().split('T')[0] });
@@ -1623,7 +1651,7 @@ export const RelatorioRecebimentos = ({
   };
 
   const handleAbrirModalCancelar = (item: ParcelaLinha) => {
-    setModalCancelar({ open: true, item });
+    setModalCancelar({ open: true, item, dataCancelamento: new Date().toISOString().split('T')[0] });
   };
 
   const handleConfirmarPaga = async () => {
@@ -1633,16 +1661,13 @@ export const RelatorioRecebimentos = ({
     if (!venda) return;
     const celula = venda.projecaoMensal[item.mesReferencia];
     if (!celula) return;
+
+    const novaCelula = { ...celula, status: 'Paga' as StatusParcela, dataPagamentoCliente: dataPagamento };
     const vendaAtualizada: LancamentoVenda = {
       ...venda,
       projecaoMensal: {
         ...venda.projecaoMensal,
-        [item.mesReferencia]: {
-          ...celula,
-          status: 'Paga',
-          dataPagamentoCliente: dataPagamento,
-          dataRecebimento: dataPagamento,
-        },
+        [item.mesReferencia]: novaCelula,
       },
     };
     
@@ -1650,7 +1675,7 @@ export const RelatorioRecebimentos = ({
       await salvarVendaSupabase(vendaAtualizada);
       onAtualizarVenda(vendaAtualizada);
       setModalPaga({ open: false, item: null, dataPagamento: '' });
-      setSnackbarMsg(`✅ Parcela de ${item.cliente} marcada como Paga em ${formatarData(dataPagamento)}`);
+      setSnackbarMsg(`✅ Pagamento registrado para ${item.cliente}`);
     } catch (err: any) {
       console.error('Erro ao salvar no Supabase:', err);
       const msg = err?.message || err?.details || JSON.stringify(err);
@@ -1660,22 +1685,25 @@ export const RelatorioRecebimentos = ({
 
   const handleConfirmarRecebida = async () => {
     const { item, numeroRelatorio, dataRelatorio, notaFiscal } = modalRecebida;
-    if (!item || !numeroRelatorio || !dataRelatorio || !onAtualizarVenda) return;
+    if (!item || !onAtualizarVenda) return;
     const venda = vendas.find((v) => v.id === item.vendaId);
     if (!venda) return;
     const celula = venda.projecaoMensal[item.mesReferencia];
     if (!celula) return;
+
+    const novaCelula = {
+      ...celula,
+      recebida: true,
+      numeroRelatorioRecebimento: numeroRelatorio,
+      dataRelatorioRecebimento: dataRelatorio,
+      notaFiscalRecebimento: notaFiscal,
+    };
+
     const vendaAtualizada: LancamentoVenda = {
       ...venda,
       projecaoMensal: {
         ...venda.projecaoMensal,
-        [item.mesReferencia]: {
-          ...celula,
-          recebida: true,
-          numeroRelatorioRecebimento: numeroRelatorio,
-          dataRelatorioRecebimento: dataRelatorio,
-          notaFiscalRecebimento: notaFiscal,
-        },
+        [item.mesReferencia]: novaCelula,
       },
     };
 
@@ -1760,7 +1788,7 @@ export const RelatorioRecebimentos = ({
   };
 
   const handleConfirmarCancelar = async () => {
-    const { item } = modalCancelar;
+    const { item, dataCancelamento } = modalCancelar;
     if (!item || !onAtualizarVenda) return;
     const venda = vendas.find((v) => v.id === item.vendaId);
     if (!venda) return;
@@ -1773,7 +1801,7 @@ export const RelatorioRecebimentos = ({
     chavesCancelar.forEach((m) => {
       const cel = novaProjecao[m];
       if (cel && cel.status !== 'Paga') {
-        novaProjecao[m] = { ...cel, status: 'Cancelada' as StatusParcela };
+        novaProjecao[m] = { ...cel, status: 'Cancelada' as StatusParcela, dataCancelamento };
       }
     });
 
@@ -1781,7 +1809,7 @@ export const RelatorioRecebimentos = ({
     try {
       await salvarVendaSupabase(vendaAtualizada);
       onAtualizarVenda(vendaAtualizada);
-      setModalCancelar({ open: false, item: null });
+      setModalCancelar({ open: false, item: null, dataCancelamento: new Date().toISOString().split('T')[0] });
       setSnackbarMsg(`🚫 Parcela(s) de ${item.cliente} cancelada(s) a partir de ${formatarMesAno(item.mesReferencia + '-01')}`);
     } catch (err: any) {
       console.error('Erro ao cancelar parcela no Supabase:', err);
@@ -1799,6 +1827,7 @@ export const RelatorioRecebimentos = ({
     if (!celula) return;
 
     const novaCelula = { ...celula, status: 'A vencer' as StatusParcela };
+    delete novaCelula.dataCancelamento;
     const vendaAtualizada: LancamentoVenda = {
       ...venda,
       projecaoMensal: { ...venda.projecaoMensal, [item.mesReferencia]: novaCelula },
@@ -1916,12 +1945,23 @@ export const RelatorioRecebimentos = ({
           dataRelatorioRecebimento: celula.recebida
             ? (celula.dataRelatorioRecebimento || celula.dataRecebimento)
             : undefined,
+          dataCancelamento: celula.dataCancelamento,
         };
 
         // 1. Linha Original (Competência)
         let criarOriginal = true;
-        if (dataInicio && dtVenc < dataInicio) criarOriginal = false;
-        if (dataFim && dtVenc > dataFim) criarOriginal = false;
+        let dataRefFiltro = dtVenc;
+
+        if (filtroDataRef === 'Pagamento') {
+          if (!dtPag) {
+            criarOriginal = false;
+          } else {
+            dataRefFiltro = dtPag;
+          }
+        }
+
+        if (criarOriginal && dataInicio && dataRefFiltro < dataInicio) criarOriginal = false;
+        if (criarOriginal && dataFim && dataRefFiltro > dataFim) criarOriginal = false;
 
         // Filtro de tipo: Vendas (1ª parcela) vs Recorrência (2ª em diante)
         if (filtroTipo === 'Vendas' && parcelaIndex !== 1) criarOriginal = false;
@@ -1961,7 +2001,7 @@ export const RelatorioRecebimentos = ({
     });
 
     return lista;
-  }, [vendas, dataInicio, dataFim, ciclos, busca, buscaRelatorio, filtroStatus, filtroTipo]);
+  }, [vendas, dataInicio, dataFim, ciclos, busca, buscaRelatorio, filtroStatus, filtroTipo, filtroDataRef]);
 
 
   // 2. Agrupa por grupoVisual (que é o Mês/Ano onde a linha deve aparecer)
@@ -2194,73 +2234,82 @@ export const RelatorioRecebimentos = ({
       </Box>
 
       {/* ── KPIs ── */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
-        {[
-          {
-            label: 'Total a Receber',
-            value: formatarMoeda(totalComissoes),
-            sub: `${totalQtd} parcela(s)`,
-            icon: <AccountBalanceWalletIcon />,
-            color: '#10b981',
-            bg: 'rgba(16,185,129,0.12)',
-          },
-          {
-            label: 'Vendas do Mês',
-            value: formatarMoeda(totalNovasVendasGeral.comissao),
-            sub: `${totalNovasVendasGeral.qtd} venda(s) novas`,
-            icon: <FlashOnIcon />,
-            color: '#0ea5e9',
-            bg: 'rgba(14,165,233,0.12)',
-          },
-          {
-            label: 'Crédito de Vendas',
-            value: formatarMoeda(totalNovasVendasGeral.credito),
-            sub: `${totalNovasVendasGeral.qtd} contrato(s)`,
-            icon: <FlashOnIcon />,
-            color: '#0284c7', // um tom diferente de azul
-            bg: 'rgba(2,132,199,0.12)',
-          },
-          {
-            label: 'Recorrência Carteira',
-            value: formatarMoeda(totalRecorrenciaGeral.credito),
-            sub: `${totalRecorrenciaGeral.qtd} parcela(s) recorrentes`,
-            icon: <AutorenewIcon />,
-            color: '#a855f7',
-            bg: 'rgba(168,85,247,0.12)',
-          },
-          {
-            label: 'Valor do Crédito',
-            value: formatarMoeda(totalCredito),
-            sub: 'Volume total',
-            icon: <TrendingUpIcon />,
-            color: '#6366f1',
-            bg: 'rgba(99,102,241,0.12)',
-          },
-          {
-            label: 'Próximo Corte',
-            value: proximoLabel,
-            sub: proximoValor,
-            icon: <CalendarMonthIcon />,
-            color: '#f59e0b',
-            bg: 'rgba(245,158,11,0.12)',
-          },
-          {
-            label: 'Créditos Vencidos',
-            value: formatarMoeda(totalCreditosVencidos.credito),
-            sub: `${totalCreditosVencidos.qtd} PAC(s) com parcelas vencidas`,
-            icon: <HourglassEmptyIcon />,
-            color: totalCreditosVencidos.credito > 0 ? '#ef4444' : '#94a3b8',
-            bg: totalCreditosVencidos.credito > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(148,163,184,0.08)',
-          },
-          {
-            label: 'Canceladas',
-            value: formatarMoeda(totalCreditosCancelados.credito),
-            sub: `${totalCreditosCancelados.qtd} PAC(s) cancelados`,
-            icon: <BlockIcon />,
-            color: '#64748b',
-            bg: 'rgba(100,116,139,0.12)',
-          },
-        ].map((kpi) => (
+        {/* 📊 KPIs 📊 */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
+          {[
+            {
+              label: 'Total a Receber',
+              value: formatarMoeda(totalComissoes),
+              sub: `${totalQtd} parcela(s)`,
+              icon: <AccountBalanceWalletIcon />,
+              color: '#10b981',
+              bg: 'rgba(16,185,129,0.12)',
+              show: podeVerFinanceiro
+            },
+            {
+              label: 'Vendas do Mês',
+              value: formatarMoeda(totalNovasVendasGeral.comissao),
+              sub: `${totalNovasVendasGeral.qtd} venda(s) novas`,
+              icon: <FlashOnIcon />,
+              color: '#0ea5e9',
+              bg: 'rgba(14,165,233,0.12)',
+              show: podeVerFinanceiro
+            },
+            {
+              label: 'Crédito de Vendas',
+              value: formatarMoeda(totalNovasVendasGeral.credito),
+              sub: `${totalNovasVendasGeral.qtd} contrato(s)`,
+              icon: <FlashOnIcon />,
+              color: '#0284c7', // um tom diferente de azul
+              bg: 'rgba(2,132,199,0.12)',
+              show: true
+            },
+            {
+              label: 'Recorrência Carteira',
+              value: formatarMoeda(totalRecorrenciaGeral.credito),
+              sub: `${totalRecorrenciaGeral.qtd} parcela(s) recorrentes`,
+              icon: <AutorenewIcon />,
+              color: '#a855f7',
+              bg: 'rgba(168,85,247,0.12)',
+              show: true
+            },
+            {
+              label: 'Valor do Crédito',
+              value: formatarMoeda(totalCredito),
+              sub: 'Volume total',
+              icon: <TrendingUpIcon />,
+              color: '#6366f1',
+              bg: 'rgba(99,102,241,0.12)',
+              show: true
+            },
+            {
+              label: 'Próximo Corte',
+              value: proximoLabel,
+              sub: proximoValor,
+              icon: <CalendarMonthIcon />,
+              color: '#f59e0b',
+              bg: 'rgba(245,158,11,0.12)',
+              show: true
+            },
+            {
+              label: 'Créditos Vencidos',
+              value: formatarMoeda(totalCreditosVencidos.credito),
+              sub: `${totalCreditosVencidos.qtd} PAC(s) com parcelas vencidas`,
+              icon: <HourglassEmptyIcon />,
+              color: totalCreditosVencidos.credito > 0 ? '#ef4444' : '#94a3b8',
+              bg: totalCreditosVencidos.credito > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(148,163,184,0.08)',
+              show: true
+            },
+            {
+              label: 'Canceladas',
+              value: formatarMoeda(totalCreditosCancelados.credito),
+              sub: `${totalCreditosCancelados.qtd} PAC(s) cancelados`,
+              icon: <BlockIcon />,
+              color: '#64748b',
+              bg: 'rgba(100,116,139,0.12)',
+              show: true
+            },
+          ].filter(kpi => kpi.show).map((kpi) => (
           <Paper
             key={kpi.label}
             elevation={0}
@@ -2406,6 +2455,37 @@ export const RelatorioRecebimentos = ({
             );
           })}
         </Box>
+
+        {/* Filtro: Tipo de Data (Vencimento vs Pagamento) */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, ml: 0.5 }}>
+          <Divider orientation="vertical" flexItem sx={{ height: 22, mx: 0.5 }} />
+          {(['Vencimento', 'Pagamento'] as const).map((tipo) => {
+            const isAtivo = filtroDataRef === tipo;
+            const cor = tipo === 'Vencimento' ? '#f59e0b' : '#10b981';
+            return (
+              <Chip
+                key={tipo}
+                label={`Data: ${tipo}`}
+                size="small"
+                onClick={() => setFiltroDataRef(tipo)}
+                variant={isAtivo ? 'filled' : 'outlined'}
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '0.72rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  bgcolor: isAtivo ? cor : 'transparent',
+                  color: isAtivo ? '#fff' : 'text.secondary',
+                  borderColor: isAtivo ? cor : (isDark ? '#374151' : '#d1d5db'),
+                  '&:hover': {
+                    bgcolor: isAtivo ? cor : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                    borderColor: cor,
+                  },
+                }}
+              />
+            );
+          })}
+        </Box>
       </Box>
 
 
@@ -2437,6 +2517,7 @@ export const RelatorioRecebimentos = ({
               onDesfazerCancelar={handleDesfazerCancelar}
               permissoes={permissoes}
               isMaster={isMaster}
+              podeVerFinanceiro={podeVerFinanceiro}
             />
           ))}
         </Box>
@@ -2811,6 +2892,20 @@ export const RelatorioRecebimentos = ({
               <Typography variant="body2" color="text.secondary">
                 Parcelas já <strong>Pagas</strong> não serão afetadas. O cancelamento pode ser desfeito individualmente por usuários Master.
               </Typography>
+              <TextField
+                label="Data do Cancelamento"
+                type="date"
+                fullWidth
+                size="small"
+                InputLabelProps={{ shrink: true }}
+                value={modalCancelar.dataCancelamento}
+                onChange={(e) => setModalCancelar((prev) => ({ ...prev, dataCancelamento: e.target.value }))}
+                sx={{
+                  mt: 2,
+                  '& .MuiInputBase-root': { borderRadius: 2 },
+                  '& .MuiInputLabel-root': { fontWeight: 600, fontFamily: 'Outfit, sans-serif' }
+                }}
+              />
             </Stack>
           )}
         </DialogContent>
