@@ -1607,7 +1607,8 @@ export const RelatorioRecebimentos = ({
   const [filtroStatus, setFiltroStatus] = useState<string[]>([]); 
   // Filtro: 'Todos' | 'Vendas' | 'Recorrência'
   const [filtroTipo, setFiltroTipo] = useState<'Todos' | 'Vendas' | 'Recorrência'>('Todos');
-  const [filtroDataRef, setFiltroDataRef] = useState<'Vencimento' | 'Pagamento'>('Vencimento');
+  const [filtroDataPagamentoInicio, setFiltroDataPagamentoInicio] = useState('');
+  const [filtroDataPagamentoFim, setFiltroDataPagamentoFim] = useState('');
 
   const [openNovaVenda, setOpenNovaVenda] = useState(false);
   const [openEditDialog, setOpenEditDialog] = useState(false);
@@ -1951,18 +1952,16 @@ export const RelatorioRecebimentos = ({
 
         // 1. Linha Original (Competência)
         let criarOriginal = true;
-        let dataRefFiltro = dtVenc;
 
-        if (filtroDataRef === 'Pagamento') {
-          if (!dtPag) {
-            criarOriginal = false;
-          } else {
-            dataRefFiltro = dtPag;
-          }
+        if (dataInicio && dtVenc < dataInicio) criarOriginal = false;
+        if (dataFim && dtVenc > dataFim) criarOriginal = false;
+
+        if (filtroDataPagamentoInicio) {
+          if (!dtPag || dtPag < filtroDataPagamentoInicio) criarOriginal = false;
         }
-
-        if (criarOriginal && dataInicio && dataRefFiltro < dataInicio) criarOriginal = false;
-        if (criarOriginal && dataFim && dataRefFiltro > dataFim) criarOriginal = false;
+        if (filtroDataPagamentoFim) {
+          if (!dtPag || dtPag > filtroDataPagamentoFim) criarOriginal = false;
+        }
 
         // Filtro de tipo: Vendas (1ª parcela) vs Recorrência (2ª em diante)
         if (filtroTipo === 'Vendas' && parcelaIndex !== 1) criarOriginal = false;
@@ -2002,7 +2001,7 @@ export const RelatorioRecebimentos = ({
     });
 
     return lista;
-  }, [vendas, dataInicio, dataFim, ciclos, busca, buscaRelatorio, filtroStatus, filtroTipo, filtroDataRef]);
+  }, [vendas, dataInicio, dataFim, ciclos, busca, buscaRelatorio, filtroStatus, filtroTipo, filtroDataPagamentoInicio, filtroDataPagamentoFim]);
 
 
   // 2. Agrupa por grupoVisual (que é o Mês/Ano onde a linha deve aparecer)
@@ -2457,35 +2456,33 @@ export const RelatorioRecebimentos = ({
           })}
         </Box>
 
-        {/* Filtro: Tipo de Data (Vencimento vs Pagamento) */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, ml: 0.5 }}>
+        {/* Filtro: Data de Pagamento */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 0.5 }}>
           <Divider orientation="vertical" flexItem sx={{ height: 22, mx: 0.5 }} />
-          {(['Vencimento', 'Pagamento'] as const).map((tipo) => {
-            const isAtivo = filtroDataRef === tipo;
-            const cor = tipo === 'Vencimento' ? '#f59e0b' : '#10b981';
-            return (
-              <Chip
-                key={tipo}
-                label={`Data: ${tipo}`}
-                size="small"
-                onClick={() => setFiltroDataRef(tipo)}
-                variant={isAtivo ? 'filled' : 'outlined'}
-                sx={{
-                  fontWeight: 700,
-                  fontSize: '0.72rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  bgcolor: isAtivo ? cor : 'transparent',
-                  color: isAtivo ? '#fff' : 'text.secondary',
-                  borderColor: isAtivo ? cor : (isDark ? '#374151' : '#d1d5db'),
-                  '&:hover': {
-                    bgcolor: isAtivo ? cor : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
-                    borderColor: cor,
-                  },
-                }}
-              />
-            );
-          })}
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+            Pagamento:
+          </Typography>
+          <TextField
+            type="date"
+            size="small"
+            value={filtroDataPagamentoInicio}
+            onChange={(e) => setFiltroDataPagamentoInicio(e.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }}
+            sx={{
+              '& .MuiInputBase-input': { py: 0.5, px: 1, fontSize: '0.75rem' }
+            }}
+          />
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>até</Typography>
+          <TextField
+            type="date"
+            size="small"
+            value={filtroDataPagamentoFim}
+            onChange={(e) => setFiltroDataPagamentoFim(e.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }}
+            sx={{
+              '& .MuiInputBase-input': { py: 0.5, px: 1, fontSize: '0.75rem' }
+            }}
+          />
         </Box>
       </Box>
 
