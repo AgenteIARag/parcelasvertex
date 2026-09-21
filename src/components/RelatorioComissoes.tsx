@@ -750,12 +750,14 @@ const GrupoPagamentoComissao = ({
   isPast,
   onAlterarStatusComissao,
   podeEditarComissao,
+  podeVerFinanceiro,
 }: {
   grupo: GrupoPeriodoComissao;
   isAtual: boolean;
   isPast: boolean;
   onAlterarStatusComissao: (vendaId: string, mesChave: string, novoStatus: StatusComissao) => void;
   podeEditarComissao: boolean;
+  podeVerFinanceiro?: boolean;
 }) => {
   const theme = useTheme();
   const [open, setOpen] = useState(false);

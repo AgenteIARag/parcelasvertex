@@ -1197,6 +1197,7 @@ const GrupoRecebimento = ({
   onDesfazerCancelar?: (item: ParcelaLinha) => void;
   permissoes?: UserPermissions;
   isMaster?: boolean;
+  podeVerFinanceiro?: boolean;
 }) => {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
@@ -2870,7 +2871,7 @@ export const RelatorioRecebimentos = ({
       {/* ── Dialog: Confirmar Cancelamento ── */}
       <Dialog
         open={modalCancelar.open}
-        onClose={() => setModalCancelar({ open: false, item: null })}
+        onClose={() => setModalCancelar({ open: false, item: null, dataCancelamento: '' })}
         maxWidth="xs"
         fullWidth
       >
@@ -2897,7 +2898,7 @@ export const RelatorioRecebimentos = ({
                 type="date"
                 fullWidth
                 size="small"
-                InputLabelProps={{ shrink: true }}
+                slotProps={{ inputLabel: { shrink: true } }}
                 value={modalCancelar.dataCancelamento}
                 onChange={(e) => setModalCancelar((prev) => ({ ...prev, dataCancelamento: e.target.value }))}
                 sx={{
@@ -2911,7 +2912,7 @@ export const RelatorioRecebimentos = ({
         </DialogContent>
         <DialogActions sx={{ px: 2.5, py: 1.5, borderTop: `1px solid ${isDark ? '#1f2937' : '#e5e7eb'}`, gap: 1 }}>
           <Button
-            onClick={() => setModalCancelar({ open: false, item: null })}
+            onClick={() => setModalCancelar({ open: false, item: null, dataCancelamento: '' })}
             variant="outlined"
             size="small"
             sx={{ textTransform: 'none', borderRadius: 2, fontWeight: 600 }}
