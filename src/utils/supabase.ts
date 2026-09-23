@@ -755,23 +755,38 @@ export const migrarTabelasHierarquia = async (): Promise<void> => {
 };
 
 export const migrarTabelaClientes = async (): Promise<void> => {
-  const sql = `
-    CREATE TABLE IF NOT EXISTS clientes (
-      id TEXT PRIMARY KEY,
-      nome TEXT NOT NULL,
-      cpf_cnpj TEXT,
-      telefone TEXT,
-      email TEXT,
-      observacoes TEXT,
-      empresa_id TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
+  // Verifica se a tabela clientes existe tentando um SELECT limite 0
+  const { error } = await supabase.from('clientes').select('id').limit(0);
+
+  if (!error) {
+    // Tabela existe — garante coluna cliente_id em vendas via RPC (silencioso se falhar)
+    try {
+      await supabase.rpc('exec_sql', {
+        sql: `ALTER TABLE vendas ADD COLUMN IF NOT EXISTS cliente_id TEXT;`
+      });
+    } catch { /* silencioso — coluna pode já existir */ }
+    return;
+  }
+
+  // Tabela não existe — tenta criar via exec_sql
+  if (error.code === 'PGRST205' || error.message?.includes('clientes')) {
+    console.warn(
+      '[SETUP] Tabela "clientes" nao encontrada no Supabase.\n' +
+      'Execute o SQL abaixo no Supabase Dashboard > SQL Editor:\n\n' +
+      'CREATE TABLE IF NOT EXISTS clientes (\n' +
+      '  id TEXT PRIMARY KEY,\n' +
+      '  nome TEXT NOT NULL,\n' +
+      '  cpf_cnpj TEXT,\n' +
+      '  telefone TEXT,\n' +
+      '  email TEXT,\n' +
+      '  observacoes TEXT,\n' +
+      '  empresa_id TEXT,\n' +
+      '  created_at TIMESTAMPTZ DEFAULT NOW()\n' +
+      ');\n' +
+      'ALTER TABLE vendas ADD COLUMN IF NOT EXISTS cliente_id TEXT;\n'
     );
-    ALTER TABLE vendas ADD COLUMN IF NOT EXISTS cliente_id TEXT;
-  `;
-  try {
-    await supabase.rpc('exec_sql', { sql });
-  } catch (err) {
-    console.error('Erro ao migrar tabela de clientes:', err);
+  } else {
+    console.error('Erro ao verificar tabela de clientes:', error);
   }
 };
 

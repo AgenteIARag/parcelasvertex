@@ -515,6 +515,9 @@ function App() {
         const emps = await inicializarEmpresasPadrao();
         setEmpresas(emps);
 
+        // Invalida cache local de clientes para sempre buscar dados frescos do Supabase
+        localStorage.removeItem('apex_clientes');
+
         // Migração da tabela clientes
         await migrarTabelaClientes();
 
