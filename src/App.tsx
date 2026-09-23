@@ -1605,33 +1605,64 @@ function App() {
               )}
 
               {/* Filtro de Empresa — visível para super_master e financeiro_master */}
-              {canFilterCompany && empresas.length > 0 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 1 }}>
-                  <BusinessIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-                  <select
-                    value={empresaFiltroMaster}
-                    onChange={(e) => setEmpresaFiltroMaster(e.target.value)}
-                    style={{
-                      background: theme.palette.mode === 'dark' ? '#1f2937' : '#f8fafc',
-                      color: theme.palette.mode === 'dark' ? '#f9fafb' : '#0f172a',
-                      border: `1px solid ${theme.palette.mode === 'dark' ? '#374151' : '#d1d5db'}`,
-                      borderRadius: 8,
-                      padding: '7px 12px',
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
-                      fontFamily: 'Inter, sans-serif',
-                      outline: 'none',
-                      cursor: 'pointer',
-                      minWidth: 130
-                    }}
-                  >
-                    <option value="">Todas as empresas</option>
-                    {empresas.map(emp => (
-                      <option key={emp.id} value={emp.id}>{emp.nome}</option>
-                    ))}
-                  </select>
-                </Box>
-              )}
+              {canFilterCompany && empresas.length > 0 && (() => {
+                // Ordenação: empresas mãe primeiro, depois suas filhas logo abaixo
+                const empresasMae = empresas.filter(e => !e.empresaMaeId);
+                const empresasFilha = empresas.filter(e => !!e.empresaMaeId);
+
+                // Monta lista ordenada: para cada mãe, injeta as filhas logo abaixo
+                const listaOrdenada: Array<{ emp: typeof empresas[0]; isFilha: boolean }> = [];
+                empresasMae.forEach(mae => {
+                  listaOrdenada.push({ emp: mae, isFilha: false });
+                  empresasFilha
+                    .filter(f => f.empresaMaeId === mae.id)
+                    .forEach(filha => listaOrdenada.push({ emp: filha, isFilha: true }));
+                });
+                // Empresas filhas cujas mães não existem na lista (edge case)
+                empresasFilha
+                  .filter(f => !empresasMae.some(m => m.id === f.empresaMaeId))
+                  .forEach(filha => listaOrdenada.push({ emp: filha, isFilha: true }));
+
+                return (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 1 }}>
+                    <BusinessIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                    <select
+                      value={empresaFiltroMaster}
+                      onChange={(e) => setEmpresaFiltroMaster(e.target.value)}
+                      style={{
+                        background: theme.palette.mode === 'dark' ? '#1f2937' : '#f8fafc',
+                        color: theme.palette.mode === 'dark' ? '#f9fafb' : '#0f172a',
+                        border: `1px solid ${theme.palette.mode === 'dark' ? '#374151' : '#d1d5db'}`,
+                        borderRadius: 8,
+                        padding: '7px 12px',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        fontFamily: 'Inter, sans-serif',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        minWidth: 160
+                      }}
+                    >
+                      <option value="">Todas as empresas</option>
+                      {listaOrdenada.map(({ emp, isFilha }) => (
+                        <option
+                          key={emp.id}
+                          value={emp.id}
+                          style={{
+                            paddingLeft: isFilha ? 20 : 0,
+                            fontWeight: isFilha ? 400 : 700,
+                            color: isFilha
+                              ? (theme.palette.mode === 'dark' ? '#9ca3af' : '#6b7280')
+                              : (theme.palette.mode === 'dark' ? '#f9fafb' : '#0f172a'),
+                          }}
+                        >
+                          {isFilha ? `  ↳ ${emp.nome}` : emp.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </Box>
+                );
+              })()}
 
               {/* Indicador de Sincronização Supabase — visível exclusivamente para Super Master */}
               {isSuperMaster && (
