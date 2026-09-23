@@ -107,6 +107,7 @@ interface ParcelaLinha {
   vendaId: string;
   cliente: string;
   pac: string;
+  empresaId?: string;
   vendedorNome: string;
   segmento: string;
   tabela: string;
@@ -384,6 +385,7 @@ const exportarRecebimentosParaPDF = (mesAnoFormatado: string, itens: ParcelaLinh
   // Tabela
   const headers = [
     'Cliente / PAC',
+    'Empresa',
     'Vendedor',
     'Data Venda',
     'Vencimento',
@@ -400,6 +402,7 @@ const exportarRecebimentosParaPDF = (mesAnoFormatado: string, itens: ParcelaLinh
 
   const rows = itens.map(item => [
     item.cliente + (item.pac ? `\nPAC: ${item.pac}` : ''),
+    item.empresaId === 'emp_shazam' ? 'Shazam' : item.empresaId === 'emp_winvest' ? 'Winvest' : 'Vertex',
     item.vendedorNome || '—',
     item.dataVenda ? formatarData(item.dataVenda) : '—',
     formatarData(item.dataVencimento),
@@ -433,19 +436,20 @@ const exportarRecebimentosParaPDF = (mesAnoFormatado: string, itens: ParcelaLinh
       valign: 'top'
     },
     columnStyles: {
-      0: { cellWidth: 32 }, // Cliente / PAC
-      1: { cellWidth: 18 }, // Vendedor
-      2: { cellWidth: 15 }, // Data Venda
-      3: { cellWidth: 15 }, // Vencimento
-      4: { cellWidth: 16 }, // Nº Rel ADM
-      5: { cellWidth: 15 }, // Data Rel
-      6: { cellWidth: 18, halign: 'right' }, // Valor da Cota
-      7: { cellWidth: 18, halign: 'right' }, // Parcela
-      8: { cellWidth: 25 }, // Tabela
-      9: { cellWidth: 18, halign: 'center' }, // Status Parcela
-      10: { cellWidth: 18, halign: 'center' }, // Recebimento
-      11: { cellWidth: 12, halign: 'center' }, // Parcela Nº
-      12: { cellWidth: 18, halign: 'right' } // Comissão
+      0: { cellWidth: 26 }, // Cliente / PAC
+      1: { cellWidth: 14 }, // Empresa
+      2: { cellWidth: 16 }, // Vendedor
+      3: { cellWidth: 15 }, // Data Venda
+      4: { cellWidth: 15 }, // Vencimento
+      5: { cellWidth: 16 }, // Nº Rel ADM
+      6: { cellWidth: 15 }, // Data Rel
+      7: { cellWidth: 16, halign: 'right' }, // Valor da Cota
+      8: { cellWidth: 16, halign: 'right' }, // Parcela
+      9: { cellWidth: 25 }, // Tabela
+      10: { cellWidth: 18, halign: 'center' }, // Status Parcela
+      11: { cellWidth: 18, halign: 'center' }, // Recebimento
+      12: { cellWidth: 12, halign: 'center' }, // Parcela Nº
+      13: { cellWidth: 16, halign: 'right' } // Comissão
     },
     margin: { left: 14, right: 14 }
   });
@@ -595,6 +599,7 @@ const SubGrupoData = ({
 
   const colunas = [
     { label: 'Cliente / PAC', field: 'cliente' },
+    { label: 'Empresa', field: 'empresaId' },
     { label: 'Vendedor', field: 'vendedorNome' },
     { label: 'Data Venda', field: 'dataVenda' },
     { label: 'Vencimento', field: 'dataVencimento' },
@@ -752,19 +757,28 @@ const SubGrupoData = ({
                       minWidth: 210,
                       bgcolor: stickyBgHeader,
                     };
-                  } else if (index === 1) {
+                  } else if (index === 1) { // Empresa
                     stickySx = {
                       position: 'sticky',
                       left: 246,
+                      zIndex: 11,
+                      width: 90,
+                      minWidth: 90,
+                      bgcolor: stickyBgHeader,
+                    };
+                  } else if (index === 2) { // Vendedor
+                    stickySx = {
+                      position: 'sticky',
+                      left: 336, // 246 + 90
                       zIndex: 11,
                       width: 120,
                       minWidth: 120,
                       bgcolor: stickyBgHeader,
                     };
-                  } else if (index === 2) {
+                  } else if (index === 3) { // Data Venda
                     stickySx = {
                       position: 'sticky',
-                      left: 366,
+                      left: 456, // 336 + 120
                       zIndex: 11,
                       width: 95,
                       minWidth: 95,
@@ -894,11 +908,34 @@ const SubGrupoData = ({
                            </Box>
                         )}
                       </TableCell>
+                      {/* Célula Empresa com Fundo Sólido Opaco */}
+                      <TableCell sx={{
+                        py: 0.8,
+                        position: 'sticky',
+                        left: 246,
+                        zIndex: 3,
+                        bgcolor: rowBg,
+                        width: 90,
+                        minWidth: 90,
+                      }}>
+                        {(() => {
+                          const empId = item.empresaId || 'emp_vertex';
+                          const config: Record<string, { label: string; bg: string; color: string }> = {
+                            emp_vertex:  { label: 'Vertex',  bg: 'rgba(99,102,241,0.12)',  color: '#818cf8' },
+                            emp_shazam:  { label: 'Shazam',  bg: 'rgba(251,146,60,0.15)',  color: '#f97316' },
+                            emp_winvest: { label: 'Winvest', bg: 'rgba(34,197,94,0.12)',   color: '#22c55e' },
+                          };
+                          const c = config[empId] ?? { label: empId, bg: 'rgba(148,163,184,0.12)', color: '#94a3b8' };
+                          return (
+                            <Chip label={c.label} size="small" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: c.bg, color: c.color, borderRadius: 1.5 }} />
+                          );
+                        })()}
+                      </TableCell>
                       {/* Célula Vendedor com Fundo Sólido Opaco */}
                       <TableCell sx={{
                         py: 0.8, fontSize: '0.75rem', color: 'text.secondary',
                         position: 'sticky',
-                        left: 246,
+                        left: 336,
                         zIndex: 3,
                         bgcolor: rowBg,
                         width: 120,
@@ -910,7 +947,7 @@ const SubGrupoData = ({
                       <TableCell sx={{
                         py: 0.8, fontSize: '0.75rem', whiteSpace: 'nowrap', color: 'text.secondary',
                         position: 'sticky',
-                        left: 366,
+                        left: 456,
                         zIndex: 3,
                         bgcolor: rowBg,
                         width: 95,
@@ -1925,6 +1962,7 @@ export const RelatorioRecebimentos = ({
           vendaId: venda.id,
           cliente: venda.cliente,
           pac: venda.pac || '',
+          empresaId: venda.empresaId,
           vendedorNome: venda.vendedorNome || '',
           segmento: venda.segmento,
           tabela: venda.tabela,
@@ -2145,11 +2183,12 @@ export const RelatorioRecebimentos = ({
 
   // Exportar CSV
   const exportarCSV = () => {
-    const header = ['Data de Corte', 'Cliente', 'PAC', 'Vendedor', 'Mês Ref.', 'Vencimento', 'Valor da Cota', 'Valor Parcela', 'Comissão', 'Status Parcela', 'Recebimento', 'Parcela Nº'];
+    const header = ['Data de Corte', 'Cliente', 'PAC', 'Empresa', 'Vendedor', 'Mês Ref.', 'Vencimento', 'Valor da Cota', 'Valor Parcela', 'Comissão', 'Status Parcela', 'Recebimento', 'Parcela Nº'];
     const rows = parcelas.filter((p) => !p.isEspelho).map((p) => [
       formatarData(p.dataPrevisaoRecebimento),
       p.cliente,
       p.pac,
+      p.empresaId || 'emp_vertex',
       p.vendedorNome,
       formatarMesAno(p.mesReferencia),
       formatarData(p.dataVencimento),
@@ -2940,3 +2979,5 @@ export const RelatorioRecebimentos = ({
     </Box>
   );
 };
+
+
