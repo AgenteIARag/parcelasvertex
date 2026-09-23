@@ -1917,18 +1917,21 @@ export const RelatorioRecebimentos = ({
         const situacaoRecebimento: 'A receber' | 'Recebida' = celula.recebida ? 'Recebida' : 'A receber';
 
         if (filtroStatus.length > 0) {
-          let passa = false;
-          for (const f of filtroStatus) {
-            if (f === 'A receber' || f === 'Recebida') {
-              if (situacaoRecebimento === f) { passa = true; break; }
-            } else {
-              if (statusParcela === f) { passa = true; break; }
-            }
+          const selectedStatus = filtroStatus.filter(s => ['A vencer', 'Vencida', 'Paga', 'Cancelada'].includes(s));
+          const selectedRecebimento = filtroStatus.filter(s => ['A receber', 'Recebida'].includes(s));
+
+          if (selectedStatus.length > 0) {
+            if (!selectedStatus.includes(statusParcela)) return;
+          } else {
+            if (statusParcela === 'Cancelada') return;
           }
-          if (!passa) return;
+
+          if (selectedRecebimento.length > 0) {
+            if (!selectedRecebimento.includes(situacaoRecebimento)) return;
+          }
         } else {
           // Nenhum filtro = Todos (exceto canceladas)
-          if (celula.status === 'Cancelada') return;
+          if (statusParcela === 'Cancelada') return;
         }
 
         const dtVenc = celula.dataVencimento || `${mesChave}-15`;
@@ -2389,238 +2392,160 @@ export const RelatorioRecebimentos = ({
       </Box>
 
       {/* ── Filtros ── */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        
+        {/* Busca Cliente */}
+        <TextField
+          size="small"
+          placeholder="Buscar cliente, PAC ou vendedor..."
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+            },
+          }}
+          sx={{ minWidth: 260 }}
+        />
 
-        {/* Linha 1: Busca */}
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-          <TextField
-            size="small"
-            placeholder="Buscar cliente, PAC ou vendedor..."
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-                  </InputAdornment>
-                ),
-              },
-            }}
-            sx={{ minWidth: 260 }}
-          />
-          <TextField
-            size="small"
-            placeholder="Filtrar por Nº Relatório ADM..."
-            value={buscaRelatorio}
-            onChange={(e) => setBuscaRelatorio(e.target.value)}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ fontSize: 18, color: '#6366f1' }} />
-                  </InputAdornment>
-                ),
-              },
-            }}
-            sx={{ minWidth: 220 }}
-          />
+        {/* Busca Relatório */}
+        <TextField
+          size="small"
+          placeholder="Filtrar por Nº Relatório ADM..."
+          value={buscaRelatorio}
+          onChange={(e) => setBuscaRelatorio(e.target.value)}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 18, color: '#6366f1' }} />
+                </InputAdornment>
+              ),
+            },
+          }}
+          sx={{ minWidth: 220 }}
+        />
 
-          {/* Filtro: Data de Pagamento */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Divider orientation="vertical" flexItem sx={{ height: 22 }} />
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-              Pagamento:
-            </Typography>
-            <TextField
-              type="date"
-              size="small"
-              value={filtroDataPagamentoInicio}
-              onChange={(e) => setFiltroDataPagamentoInicio(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
-              sx={{ '& .MuiInputBase-input': { py: 0.5, px: 1, fontSize: '0.75rem' } }}
-            />
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>até</Typography>
-            <TextField
-              type="date"
-              size="small"
-              value={filtroDataPagamentoFim}
-              onChange={(e) => setFiltroDataPagamentoFim(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
-              sx={{ '& .MuiInputBase-input': { py: 0.5, px: 1, fontSize: '0.75rem' } }}
-            />
+        {/* Data de Pagamento */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+            Pagamento:
+          </Typography>
+          <TextField
+            type="date"
+            size="small"
+            value={filtroDataPagamentoInicio}
+            onChange={(e) => setFiltroDataPagamentoInicio(e.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }}
+            sx={{ '& .MuiInputBase-input': { py: 0.5, px: 1, fontSize: '0.75rem' } }}
+          />
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>até</Typography>
+          <TextField
+            type="date"
+            size="small"
+            value={filtroDataPagamentoFim}
+            onChange={(e) => setFiltroDataPagamentoFim(e.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }}
+            sx={{ '& .MuiInputBase-input': { py: 0.5, px: 1, fontSize: '0.75rem' } }}
+          />
+        </Box>
+
+        {/* Divisor vertical caso haja quebra ou espaço em tela grande */}
+        <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', lg: 'block' }, mx: 0.5, height: 32, alignSelf: 'center' }} />
+
+        {/* Grupo 1 — Status da Parcela */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6, pr: 2, borderRight: `1px solid ${isDark ? '#374151' : '#e5e7eb'}` }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Status da Parcela
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 0.7, flexWrap: 'wrap', alignItems: 'center' }}>
+            {(['Todos', 'A vencer', 'Vencida', 'Paga', 'Cancelada'] as const).map((s) => {
+              const isAtivo = s === 'Todos'
+                ? filtroStatus.filter(x => !['A receber', 'Recebida'].includes(x)).length === 0 && filtroStatus.length === 0
+                : filtroStatus.includes(s);
+              const cor = STATUS_CORES[s];
+              return (
+                <Chip
+                  key={s}
+                  label={s}
+                  size="small"
+                  onClick={() => toggleFiltroStatus(s)}
+                  variant={isAtivo ? 'filled' : 'outlined'}
+                  sx={{
+                    fontWeight: 600, fontSize: '0.72rem', cursor: 'pointer', transition: 'all 0.15s ease',
+                    bgcolor: isAtivo ? cor.active : 'transparent', color: isAtivo ? '#fff' : 'text.secondary',
+                    borderColor: isAtivo ? cor.active : (isDark ? '#374151' : '#d1d5db'),
+                    '&:hover': { bgcolor: isAtivo ? cor.active : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'), borderColor: cor.border },
+                  }}
+                />
+              );
+            })}
           </Box>
         </Box>
 
-        {/* Linha 2: Chips de filtro em grupos separados */}
-        <Box sx={{ display: 'flex', gap: 0, flexWrap: 'wrap', alignItems: 'stretch' }}>
-
-          {/* Grupo 1 — Status da Parcela */}
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 0.6,
-              pr: 2,
-              mr: 2,
-              borderRight: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
-            }}
-          >
-            <Typography
-              variant="caption"
-              sx={{
-                color: 'text.secondary',
-                fontWeight: 700,
-                fontSize: '0.62rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}
-            >
-              Status da Parcela
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 0.7, flexWrap: 'wrap', alignItems: 'center' }}>
-              {(['Todos', 'A vencer', 'Vencida', 'Paga', 'Cancelada'] as const).map((s) => {
-                const isAtivo = s === 'Todos'
-                  ? filtroStatus.filter(x => !['A receber', 'Recebida'].includes(x)).length === 0 && filtroStatus.length === 0
-                  : filtroStatus.includes(s);
-                const cor = STATUS_CORES[s];
-                return (
-                  <Chip
-                    key={s}
-                    label={s}
-                    size="small"
-                    onClick={() => toggleFiltroStatus(s)}
-                    variant={isAtivo ? 'filled' : 'outlined'}
-                    sx={{
-                      fontWeight: 600,
-                      fontSize: '0.72rem',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      bgcolor: isAtivo ? cor.active : 'transparent',
-                      color: isAtivo ? '#fff' : 'text.secondary',
-                      borderColor: isAtivo ? cor.active : (isDark ? '#374151' : '#d1d5db'),
-                      '&:hover': {
-                        bgcolor: isAtivo ? cor.active : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
-                        borderColor: cor.border,
-                      },
-                    }}
-                  />
-                );
-              })}
-            </Box>
+        {/* Grupo 2 — Recebimento */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6, pr: 2, borderRight: `1px solid ${isDark ? '#374151' : '#e5e7eb'}` }}>
+          <Typography variant="caption" sx={{ color: '#f97316', fontWeight: 700, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Recebimento
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 0.7, flexWrap: 'wrap', alignItems: 'center' }}>
+            {(['A receber', 'Recebida'] as const).map((s) => {
+              const isAtivo = filtroStatus.includes(s);
+              const cor = STATUS_CORES[s];
+              return (
+                <Chip
+                  key={s}
+                  label={s}
+                  size="small"
+                  onClick={() => toggleFiltroStatus(s)}
+                  variant={isAtivo ? 'filled' : 'outlined'}
+                  sx={{
+                    fontWeight: 600, fontSize: '0.72rem', cursor: 'pointer', transition: 'all 0.15s ease',
+                    bgcolor: isAtivo ? cor.active : 'transparent', color: isAtivo ? '#fff' : 'text.secondary',
+                    borderColor: isAtivo ? cor.active : (isDark ? '#374151' : '#d1d5db'),
+                    '&:hover': { bgcolor: isAtivo ? cor.active : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'), borderColor: cor.border },
+                  }}
+                />
+              );
+            })}
           </Box>
-
-          {/* Grupo 2 — Recebimento */}
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 0.6,
-              pr: 2,
-              mr: 2,
-              borderRight: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
-            }}
-          >
-            <Typography
-              variant="caption"
-              sx={{
-                color: '#f97316',
-                fontWeight: 700,
-                fontSize: '0.62rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}
-            >
-              Recebimento
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 0.7, flexWrap: 'wrap', alignItems: 'center' }}>
-              {(['A receber', 'Recebida'] as const).map((s) => {
-                const isAtivo = filtroStatus.includes(s);
-                const cor = STATUS_CORES[s];
-                return (
-                  <Chip
-                    key={s}
-                    label={s}
-                    size="small"
-                    onClick={() => toggleFiltroStatus(s)}
-                    variant={isAtivo ? 'filled' : 'outlined'}
-                    sx={{
-                      fontWeight: 600,
-                      fontSize: '0.72rem',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      bgcolor: isAtivo ? cor.active : 'transparent',
-                      color: isAtivo ? '#fff' : 'text.secondary',
-                      borderColor: isAtivo ? cor.active : (isDark ? '#374151' : '#d1d5db'),
-                      '&:hover': {
-                        bgcolor: isAtivo ? cor.active : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
-                        borderColor: cor.border,
-                      },
-                    }}
-                  />
-                );
-              })}
-            </Box>
-          </Box>
-
-          {/* Grupo 3 — Tipo: Vendas vs Recorrência */}
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 0.6,
-            }}
-          >
-            <Typography
-              variant="caption"
-              sx={{
-                color: 'text.secondary',
-                fontWeight: 700,
-                fontSize: '0.62rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}
-            >
-              Tipo
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 0.7, flexWrap: 'wrap', alignItems: 'center' }}>
-              {(['Todos', 'Vendas', 'Recorrência'] as const).map((tipo) => {
-                const isAtivo = filtroTipo === tipo;
-                const cor = tipo === 'Vendas' ? '#0ea5e9' : tipo === 'Recorrência' ? '#a855f7' : theme.palette.primary.main;
-                const icon = tipo === 'Vendas'
-                  ? <FlashOnIcon sx={{ fontSize: 13 }} />
-                  : tipo === 'Recorrência'
-                  ? <AutorenewIcon sx={{ fontSize: 13 }} />
-                  : null;
-                return (
-                  <Chip
-                    key={tipo}
-                    label={tipo}
-                    size="small"
-                    icon={icon ? <Box sx={{ display: 'flex', alignItems: 'center', color: isAtivo ? '#fff' : cor }}>{icon}</Box> : undefined}
-                    onClick={() => setFiltroTipo(tipo)}
-                    variant={isAtivo ? 'filled' : 'outlined'}
-                    sx={{
-                      fontWeight: 700,
-                      fontSize: '0.72rem',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      bgcolor: isAtivo ? cor : 'transparent',
-                      color: isAtivo ? '#fff' : 'text.secondary',
-                      borderColor: isAtivo ? cor : (isDark ? '#374151' : '#d1d5db'),
-                      '&:hover': {
-                        bgcolor: isAtivo ? cor : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
-                        borderColor: cor,
-                      },
-                      '& .MuiChip-icon': { ml: 0.5 },
-                    }}
-                  />
-                );
-              })}
-            </Box>
-          </Box>
-
         </Box>
+
+        {/* Grupo 3 — Tipo: Vendas vs Recorrência */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6 }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Tipo
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 0.7, flexWrap: 'wrap', alignItems: 'center' }}>
+            {(['Todos', 'Vendas', 'Recorrência'] as const).map((tipo) => {
+              const isAtivo = filtroTipo === tipo;
+              const cor = tipo === 'Vendas' ? '#0ea5e9' : tipo === 'Recorrência' ? '#a855f7' : theme.palette.primary.main;
+              const icon = tipo === 'Vendas' ? <FlashOnIcon sx={{ fontSize: 13 }} /> : tipo === 'Recorrência' ? <AutorenewIcon sx={{ fontSize: 13 }} /> : null;
+              return (
+                <Chip
+                  key={tipo}
+                  label={tipo}
+                  size="small"
+                  icon={icon ? <Box sx={{ display: 'flex', alignItems: 'center', color: isAtivo ? '#fff' : cor }}>{icon}</Box> : undefined}
+                  onClick={() => setFiltroTipo(tipo)}
+                  variant={isAtivo ? 'filled' : 'outlined'}
+                  sx={{
+                    fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', transition: 'all 0.15s ease',
+                    bgcolor: isAtivo ? cor : 'transparent', color: isAtivo ? '#fff' : 'text.secondary',
+                    borderColor: isAtivo ? cor : (isDark ? '#374151' : '#d1d5db'),
+                    '&:hover': { bgcolor: isAtivo ? cor : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'), borderColor: cor },
+                    '& .MuiChip-icon': { ml: 0.5 },
+                  }}
+                />
+              );
+            })}
+          </Box>
+        </Box>
+
       </Box>
 
 
