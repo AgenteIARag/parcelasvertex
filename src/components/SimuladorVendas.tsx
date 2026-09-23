@@ -931,6 +931,19 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                   fontWeight: 700,
                   color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
                   borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                  minWidth: 100,
+                  whiteSpace: 'nowrap',
+                  background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
+                }}
+              >
+                Empresa
+              </TableCell>
+              <TableCell
+                rowSpan={2}
+                sx={{
+                  fontWeight: 700,
+                  color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
+                  borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
                   minWidth: 260,
                   position: 'sticky',
                   left: 320,
@@ -1216,6 +1229,33 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                         </Typography>
                       )}
                     </Box>
+                  </TableCell>
+
+                  {/* Empresa dona da venda */}
+                  <TableCell sx={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
+                    {(() => {
+                      const empId = venda.empresaId || 'emp_vertex';
+                      const config: Record<string, { label: string; bg: string; color: string }> = {
+                        emp_vertex:  { label: 'Vertex',  bg: 'rgba(99,102,241,0.12)',  color: '#818cf8' },
+                        emp_shazam:  { label: 'Shazam',  bg: 'rgba(251,146,60,0.15)',  color: '#f97316' },
+                        emp_winvest: { label: 'Winvest', bg: 'rgba(34,197,94,0.12)',   color: '#22c55e' },
+                      };
+                      const c = config[empId] ?? { label: empId, bg: 'rgba(148,163,184,0.12)', color: '#94a3b8' };
+                      return (
+                        <Chip
+                          label={c.label}
+                          size="small"
+                          sx={{
+                            height: 20,
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            bgcolor: c.bg,
+                            color: c.color,
+                            borderRadius: 1.5,
+                          }}
+                        />
+                      );
+                    })()}
                   </TableCell>
 
                   {/* Tabela e Parcelas - Congelada */}
@@ -1952,6 +1992,17 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                   }}>
                     Cliente / Projeto
                   </TableCell>
+                  {/* Empresa */}
+                  <TableCell sx={{
+                    fontWeight: 700, fontSize: '0.75rem',
+                    color: theme.palette.mode === 'dark' ? '#cbd5e1' : '#475569',
+                    borderBottom: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
+                    minWidth: 100,
+                    whiteSpace: 'nowrap',
+                    background: theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc',
+                  }}>
+                    Empresa
+                  </TableCell>
                   {/* Tabela / Parcelas */}
                   <TableCell sx={{
                     fontWeight: 700, fontSize: '0.75rem',
@@ -2103,6 +2154,33 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                             </Typography>
                           )}
                         </Box>
+                      </TableCell>
+
+                      {/* Empresa dona da venda */}
+                      <TableCell sx={{ whiteSpace: 'nowrap', verticalAlign: 'middle', py: 0.8 }}>
+                        {(() => {
+                          const empId = venda.empresaId || 'emp_vertex';
+                          const config: Record<string, { label: string; bg: string; color: string }> = {
+                            emp_vertex:  { label: 'Vertex',  bg: 'rgba(99,102,241,0.12)',  color: '#818cf8' },
+                            emp_shazam:  { label: 'Shazam',  bg: 'rgba(251,146,60,0.15)',  color: '#f97316' },
+                            emp_winvest: { label: 'Winvest', bg: 'rgba(34,197,94,0.12)',   color: '#22c55e' },
+                          };
+                          const c = config[empId] ?? { label: empId, bg: 'rgba(148,163,184,0.12)', color: '#94a3b8' };
+                          return (
+                            <Chip
+                              label={c.label}
+                              size="small"
+                              sx={{
+                                height: 20,
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                bgcolor: c.bg,
+                                color: c.color,
+                                borderRadius: 1.5,
+                              }}
+                            />
+                          );
+                        })()}
                       </TableCell>
 
                       {/* Tabela / Parcelas (Sticky) */}
