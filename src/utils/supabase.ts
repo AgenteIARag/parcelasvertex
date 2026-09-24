@@ -829,6 +829,7 @@ export const excluirClienteLocal = (id: string): import('../types').Cliente[] =>
 };
 
 export const obterClientesSupabase = async (): Promise<import('../types').Cliente[]> => {
+  const locais = obterClientesLocais();
   try {
     const { data, error } = await supabase
       .from('clientes')
@@ -837,10 +838,10 @@ export const obterClientesSupabase = async (): Promise<import('../types').Client
 
     if (error) {
       console.warn('Supabase clientes indisponível, usando localStorage:', error.message);
-      return obterClientesLocais();
+      return locais;
     }
 
-    if (data) {
+    if (data && data.length > 0) {
       const remotas: import('../types').Cliente[] = data.map((c: any) => ({
         id: c.id,
         nome: c.nome,
@@ -854,10 +855,20 @@ export const obterClientesSupabase = async (): Promise<import('../types').Client
       localStorage.setItem('apex_clientes', JSON.stringify(remotas));
       return remotas;
     }
-    return obterClientesLocais();
+
+    // Supabase retornou vazio — se existem clientes locais, sincroniza para o Supabase
+    if (locais.length > 0) {
+      console.warn(`Supabase retornou 0 clientes mas existem ${locais.length} locais. Sincronizando locais para o Supabase...`);
+      for (const cli of locais) {
+        salvarClienteSupabase(cli).catch(() => {});
+      }
+      return locais;
+    }
+
+    return [];
   } catch (err) {
     console.warn('Erro ao conectar Supabase clientes:', err);
-    return obterClientesLocais();
+    return locais;
   }
 };
 

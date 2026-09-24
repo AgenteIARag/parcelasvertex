@@ -515,9 +515,6 @@ function App() {
         const emps = await inicializarEmpresasPadrao();
         setEmpresas(emps);
 
-        // Invalida cache local de clientes para sempre buscar dados frescos do Supabase
-        localStorage.removeItem('apex_clientes');
-
         // Migração da tabela clientes
         await migrarTabelaClientes();
 
@@ -647,6 +644,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('apex_vendedores', JSON.stringify(vendedores));
   }, [vendedores]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_clientes', JSON.stringify(clientes));
+  }, [clientes]);
 
   useEffect(() => {
     localStorage.setItem('apex_dark_mode', String(darkMode));
