@@ -547,11 +547,12 @@ function App() {
         let precisaAtualizarVendas = false;
 
         if (vendasSemClienteId.length > 0) {
-          const mapNomes = new Map<string, Cliente>(); // Chave = nome normalizado (minúsculo, sem acentos base)
+          const mapNomes = new Map<string, Cliente>(); // Chave = nome normalizado + '_' + empresaId
           
           clientesAtualizados.forEach(c => {
             const normalized = c.nome.toLowerCase().trim();
-            mapNomes.set(normalized, c);
+            const empresaKey = c.empresaId || 'emp_vertex';
+            mapNomes.set(`${normalized}_${empresaKey}`, c);
           });
 
           const vendasParaSalvar: LancamentoVenda[] = [];
@@ -559,18 +560,19 @@ function App() {
           for (const venda of vendasSemClienteId) {
             const rawName = venda.cliente || 'Cliente Desconhecido';
             const normalized = rawName.toLowerCase().trim();
+            const empresaKey = venda.empresaId || 'emp_vertex';
             
-            let clienteAlvo = mapNomes.get(normalized);
+            let clienteAlvo = mapNomes.get(`${normalized}_${empresaKey}`);
             
             if (!clienteAlvo) {
               // Cria novo cliente
               clienteAlvo = {
                 id: `cli_mig_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                 nome: rawName,
-                empresaId: venda.empresaId || 'emp_vertex',
+                empresaId: empresaKey,
                 createdAt: new Date().toISOString()
               };
-              mapNomes.set(normalized, clienteAlvo);
+              mapNomes.set(`${normalized}_${empresaKey}`, clienteAlvo);
               clientesAtualizados.push(clienteAlvo);
               
               // Salva no banco (não aguarda cada um pra ser rápido, salva em background)
@@ -1858,6 +1860,7 @@ function App() {
                 onAtualizar={handleAtualizarCliente}
                 onExcluir={handleExcluirCliente}
                 isSuperMaster={usuarioLogado?.role === 'super_master'}
+                empresaAtiva={canFilterCompany && empresaFiltroMaster ? empresaFiltroMaster : (usuarioLogado?.empresaId || 'emp_vertex')}
               />
             )}
 
@@ -1868,7 +1871,7 @@ function App() {
                   vendas={vendasFiltradas}
                   regras={regrasParaExibicao}
                   vendedores={vendedoresFiltrados}
-                  clientes={clientes}
+                  clientes={clientesFiltrados}
                   onAdicionarVenda={handleAdicionarVenda}
                   onAtualizarVenda={handleAtualizarVenda}
                   onExcluirVenda={handleExcluirVenda}
@@ -2211,7 +2214,7 @@ function App() {
         regras={regrasParaExibicao}
         ciclos={ciclos}
         administradoras={administradoras}
-          clientes={clientes}
+          clientes={clientesFiltrados}
         />
     </ThemeProvider>
   );

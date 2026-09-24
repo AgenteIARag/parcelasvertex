@@ -51,6 +51,7 @@ interface ClientesCadastroProps {
   onAtualizar: (cliente: Cliente) => void;
   onExcluir: (id: string) => void;
   isSuperMaster?: boolean;
+  empresaAtiva?: string;
 }
 
 export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
@@ -60,7 +61,8 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
   onAdicionar,
   onAtualizar,
   onExcluir,
-  isSuperMaster
+  isSuperMaster,
+  empresaAtiva
 }) => {
   const theme = useTheme();
   
@@ -130,7 +132,8 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
       cpfCnpj: cpfCnpj.trim() || undefined,
       telefone: telefone.trim() || undefined,
       email: email.trim() || undefined,
-      observacoes: observacoes.trim() || undefined
+      observacoes: observacoes.trim() || undefined,
+      empresaId: empresaAtiva || 'emp_vertex'
     };
 
     if (editingId) {
