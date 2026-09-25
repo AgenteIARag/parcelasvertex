@@ -869,7 +869,6 @@ const SubGrupoData = ({
                   
                   const isLaranja = item.isEspelho;
                   const isAmarelo = !item.isEspelho && item.pagaForaCompetencia && item.statusParcela === 'Paga';
-                  const isPrimeiraParcela = item.parcelaIndex === 1;
                   
                   const baseRowBg = bgCard && bgCard !== 'transparent' ? bgCard : (isDark ? '#111827' : '#ffffff');
                   
