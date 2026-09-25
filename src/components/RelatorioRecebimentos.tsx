@@ -354,7 +354,12 @@ const SituacaoRecebimentoBadge = ({ situacao }: { situacao: 'A receber' | 'Receb
 // PDF Export Helper
 // ──────────────────────────────────────────────────────────
 
-const exportarRecebimentosParaPDF = (mesAnoFormatado: string, itens: ParcelaLinha[], totais: { totalComissoes: number, totalCredito: number }) => {
+const exportarRecebimentosParaPDF = (
+  mesAnoFormatado: string,
+  itens: ParcelaLinha[],
+  totais: { totalComissoes: number, totalCredito: number },
+  filtrosStr: string = 'Nenhum'
+) => {
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
@@ -372,15 +377,22 @@ const exportarRecebimentosParaPDF = (mesAnoFormatado: string, itens: ParcelaLinh
   doc.setTextColor(71, 85, 105);
   doc.text(`Período de Referência: ${mesAnoFormatado}`, 14, 21);
 
+  let offset = 0;
+  if (filtrosStr && filtrosStr !== 'Nenhum') {
+    doc.setFontSize(9);
+    doc.text(`Filtros Aplicados: ${filtrosStr}`, 14, 27);
+    offset = 6;
+  }
+
   // Resumo Financeiro
   doc.setFont('helvetica', 'bold');
   doc.setFillColor(248, 250, 252);
-  doc.rect(14, 25, 269, 15, 'F');
+  doc.rect(14, 25 + offset, 269, 15, 'F');
   doc.setFontSize(10);
   doc.setTextColor(30, 41, 59);
-  doc.text(`Total de Parcelas: ${itens.length}`, 20, 34);
-  doc.text(`Valor Total do Crédito: ${formatarMoeda(totais.totalCredito)}`, 100, 34);
-  doc.text(`Comissões a Receber: ${formatarMoeda(totais.totalComissoes)}`, 190, 34);
+  doc.text(`Total de Parcelas: ${itens.length}`, 20, 34 + offset);
+  doc.text(`Valor Total do Crédito: ${formatarMoeda(totais.totalCredito)}`, 100, 34 + offset);
+  doc.text(`Comissões a Receber: ${formatarMoeda(totais.totalComissoes)}`, 190, 34 + offset);
 
   // Tabela
   const headers = [
@@ -418,7 +430,7 @@ const exportarRecebimentosParaPDF = (mesAnoFormatado: string, itens: ParcelaLinh
   ]);
 
   autoTable(doc, {
-    startY: 45,
+    startY: 45 + offset,
     head: [headers],
     body: rows,
     theme: 'grid',
@@ -436,20 +448,20 @@ const exportarRecebimentosParaPDF = (mesAnoFormatado: string, itens: ParcelaLinh
       valign: 'top'
     },
     columnStyles: {
-      0: { cellWidth: 26 }, // Cliente / PAC
-      1: { cellWidth: 14 }, // Empresa
-      2: { cellWidth: 16 }, // Vendedor
-      3: { cellWidth: 15 }, // Data Venda
-      4: { cellWidth: 15 }, // Vencimento
+      0: { cellWidth: 35 }, // Cliente / PAC
+      1: { cellWidth: 15 }, // Empresa
+      2: { cellWidth: 19 }, // Vendedor
+      3: { cellWidth: 17 }, // Data Venda
+      4: { cellWidth: 17 }, // Vencimento
       5: { cellWidth: 16 }, // Nº Rel ADM
-      6: { cellWidth: 15 }, // Data Rel
-      7: { cellWidth: 16, halign: 'right' }, // Valor da Cota
-      8: { cellWidth: 16, halign: 'right' }, // Parcela
-      9: { cellWidth: 25 }, // Tabela
+      6: { cellWidth: 17 }, // Data Rel
+      7: { cellWidth: 18, halign: 'right' }, // Valor da Cota
+      8: { cellWidth: 18, halign: 'right' }, // Parcela
+      9: { cellWidth: 30 }, // Tabela
       10: { cellWidth: 18, halign: 'center' }, // Status Parcela
-      11: { cellWidth: 18, halign: 'center' }, // Recebimento
-      12: { cellWidth: 12, halign: 'center' }, // Parcela Nº
-      13: { cellWidth: 16, halign: 'right' } // Comissão
+      11: { cellWidth: 19, halign: 'center' }, // Recebimento
+      12: { cellWidth: 13, halign: 'center' }, // Parcela Nº
+      13: { cellWidth: 17, halign: 'right' } // Comissão
     },
     margin: { left: 14, right: 14 }
   });
@@ -470,7 +482,12 @@ const exportarRecebimentosParaPDF = (mesAnoFormatado: string, itens: ParcelaLinh
   }
 
   // Salvar PDF
-  doc.save(`apex_recebimentos_${mesAnoFormatado.replace('/', '_')}.pdf`);
+  let filename = `apex_recebimentos_${mesAnoFormatado.replace('/', '_')}`;
+  if (filtrosStr && filtrosStr !== 'Nenhum') {
+    const filterSlug = filtrosStr.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_').toLowerCase();
+    filename += `_${filterSlug.substring(0, 50)}`;
+  }
+  doc.save(`${filename}.pdf`);
 };
 
 // ──────────────────────────────────────────────────────────
@@ -1221,6 +1238,7 @@ const GrupoRecebimento = ({
   permissoes,
   isMaster,
   podeVerFinanceiro,
+  filtrosAtivos,
 }: {
   grupo: GrupoPeriodo;
   isAtual: boolean;
@@ -1235,6 +1253,7 @@ const GrupoRecebimento = ({
   permissoes?: UserPermissions;
   isMaster?: boolean;
   podeVerFinanceiro?: boolean;
+  filtrosAtivos?: string;
 }) => {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
@@ -1284,7 +1303,8 @@ const GrupoRecebimento = ({
     exportarRecebimentosParaPDF(
       formatarMesAno(grupo.mesPeriodo + '-01'),
       itensParaExportar,
-      { totalComissoes, totalCredito }
+      { totalComissoes, totalCredito },
+      filtrosAtivos || 'Nenhum'
     );
   };
 
@@ -2562,24 +2582,37 @@ export const RelatorioRecebimentos = ({
         </Paper>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-          {grupos.map((grupo) => (
-            <GrupoRecebimento
-              key={grupo.mesPeriodo}
-              grupo={grupo}
-              isAtual={grupo.mesPeriodo === mesAtual}
-              isPast={grupo.mesPeriodo < mesAtual}
-              onEditarVenda={handleEditarVenda}
-              onMarcarPaga={handleAbrirModalPaga}
-              onMarcarRecebida={handleAbrirModalRecebida}
-              onDesfazerPaga={handleDesfazerPaga}
-              onDesfazerRecebida={handleDesfazerRecebida}
-              onCancelarParcela={handleAbrirModalCancelar}
-              onDesfazerCancelar={handleDesfazerCancelar}
-              permissoes={permissoes}
-              isMaster={isMaster}
-              podeVerFinanceiro={podeVerFinanceiro}
-            />
-          ))}
+          {(() => {
+            const filtrosParaExibir = [];
+            if (busca) filtrosParaExibir.push(`Busca: ${busca}`);
+            if (buscaRelatorio) filtrosParaExibir.push(`Nº Rel: ${buscaRelatorio}`);
+            if (filtroStatus.length > 0) filtrosParaExibir.push(`Status: ${filtroStatus.join(', ')}`);
+            if (filtroTipo !== 'Todos') filtrosParaExibir.push(`Tipo: ${filtroTipo}`);
+            if (filtroDataPagamentoInicio || filtroDataPagamentoFim) {
+              filtrosParaExibir.push(`Pgto: ${filtroDataPagamentoInicio ? formatarData(filtroDataPagamentoInicio) : 'início'} até ${filtroDataPagamentoFim ? formatarData(filtroDataPagamentoFim) : 'fim'}`);
+            }
+            const filtrosAplicadosStr = filtrosParaExibir.length > 0 ? filtrosParaExibir.join(' | ') : 'Nenhum';
+
+            return grupos.map((grupo) => (
+              <GrupoRecebimento
+                key={grupo.mesPeriodo}
+                grupo={grupo}
+                isAtual={grupo.mesPeriodo === mesAtual}
+                isPast={grupo.mesPeriodo < mesAtual}
+                onEditarVenda={handleEditarVenda}
+                onMarcarPaga={handleAbrirModalPaga}
+                onMarcarRecebida={handleAbrirModalRecebida}
+                onDesfazerPaga={handleDesfazerPaga}
+                onDesfazerRecebida={handleDesfazerRecebida}
+                onCancelarParcela={handleAbrirModalCancelar}
+                onDesfazerCancelar={handleDesfazerCancelar}
+                permissoes={permissoes}
+                isMaster={isMaster}
+                podeVerFinanceiro={podeVerFinanceiro}
+                filtrosAtivos={filtrosAplicadosStr}
+              />
+            ));
+          })()}
         </Box>
       )}
 
