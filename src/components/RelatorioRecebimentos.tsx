@@ -324,9 +324,12 @@ const StatusParcelaBadge = ({ status, dataCancelamento }: { status: StatusParcel
 
   if (status === 'Cancelada' && dataCancelamento) {
     return (
-      <Tooltip title={`Cancelada em: ${formatarData(dataCancelamento)}`}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.2 }}>
         {badge}
-      </Tooltip>
+        <Typography variant="caption" sx={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 600 }}>
+          em {formatarData(dataCancelamento)}
+        </Typography>
+      </Box>
     );
   }
   return badge;

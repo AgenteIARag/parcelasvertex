@@ -365,11 +365,19 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
   };
 
   const handleCancelarAPartirDoMes = (vendaId: string, mesLimite: string) => {
+    if (!window.confirm('Tem certeza que deseja cancelar esta venda? O cancelamento afetará esta e as próximas parcelas.')) {
+      return;
+    }
+
     const venda = vendas.find((v) => v.id === vendaId);
     if (!venda) return;
 
     const projecaoAtualizada = { ...venda.projecaoMensal };
     let iniciouCancelamento = false;
+    
+    // Formata a data atual para YYYY-MM-DD
+    const hoje = new Date();
+    const dataCancelamentoFormatada = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
 
     // Ordena as chaves cronologicamente para garantir o cancelamento sequencial em múltiplos anos
     const chavesOrdenadas = Object.keys(projecaoAtualizada).sort();
@@ -381,7 +389,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       if (iniciouCancelamento) {
         projecaoAtualizada[mes] = {
           ...projecaoAtualizada[mes],
-          status: 'Cancelada'
+          status: 'Cancelada',
+          dataCancelamento: dataCancelamentoFormatada
         };
       }
     });
@@ -2153,6 +2162,26 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                               Cad.: {new Date(venda.createdAt).toLocaleDateString('pt-BR')}
                             </Typography>
                           )}
+                          {venda.statusCliente === 'Cancelado' && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                fontSize: '0.65rem',
+                                fontWeight: 700,
+                                color: '#ef4444',
+                                display: 'block',
+                                mt: 0.2
+                              }}
+                            >
+                              Cancelado em: {(() => {
+                                const parcelaCancelada = Object.values(venda.projecaoMensal).find(p => p.status === 'Cancelada' && p.dataCancelamento);
+                                if (parcelaCancelada?.dataCancelamento) {
+                                  return parcelaCancelada.dataCancelamento.split('-').reverse().join('/');
+                                }
+                                return 'N/D';
+                              })()}
+                            </Typography>
+                          )}
                         </Box>
                       </TableCell>
 
@@ -2507,16 +2536,39 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                       {formatarChaveMesExibicao(linha.mesChave)}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexWrap: 'wrap' }}>
-                        <span>{linha.cliente}</span>
-                        {linha.pac && (
-                          <Chip
-                            label={linha.pac}
-                            size="small"
-                            color="secondary"
-                            variant="outlined"
-                            sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, borderRadius: 1 }}
-                          />
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexWrap: 'wrap' }}>
+                          <span>{linha.cliente}</span>
+                          {linha.pac && (
+                            <Chip
+                              label={linha.pac}
+                              size="small"
+                              color="secondary"
+                              variant="outlined"
+                              sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, borderRadius: 1 }}
+                            />
+                          )}
+                        </Box>
+                        {linha.status === 'Cancelada' && (
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              fontSize: '0.65rem',
+                              fontWeight: 700,
+                              color: '#ef4444',
+                              display: 'block',
+                              textDecoration: 'none'
+                            }}
+                          >
+                            Cancelado em: {(() => {
+                              const venda = vendas.find(v => v.id === linha.vendaId);
+                              const pCancelada = venda ? Object.values(venda.projecaoMensal).find(p => p.status === 'Cancelada' && p.dataCancelamento) : null;
+                              if (pCancelada?.dataCancelamento) {
+                                return pCancelada.dataCancelamento.split('-').reverse().join('/');
+                              }
+                              return 'N/D';
+                            })()}
+                          </Typography>
                         )}
                       </Box>
                     </TableCell>
@@ -3158,16 +3210,25 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
     const parcelasRestantes = Math.max(1, parcelas - 1);
     const vendedorSelecionado = vendedores.find((v) => v.id === vendedorId);
 
-    // Inicializa com a projeção vazia apenas para meses que não existem na venda original,
-    // mas preserva TODOS os dados originais (recebida, dataRecebimentoComissao, etc.)
+    // Inicializa com a projeção vazia
     const projVaziaBase = gerarProjecaoVazia();
     Object.entries(projVaziaBase).forEach(([mes, celVazia]) => {
-      proj[mes] = venda?.projecaoMensal[mes] ?? celVazia;
+      proj[mes] = { ...celVazia };
     });
-    // Preserva também meses fora de 2026 que já existam na venda original
+    
+    // Traz o histórico da venda antiga (se houver parcelas pagas/recebidas),
+    // mas ZERA os valores financeiros para que os meses antigos não contabilizem 
+    // indevidamente na nova grade de parcelas e datas que será calculada.
     if (venda?.projecaoMensal) {
       Object.entries(venda.projecaoMensal).forEach(([mes, cel]) => {
-        if (!proj[mes]) proj[mes] = cel;
+        proj[mes] = {
+          ...(proj[mes] || projVaziaBase[mes] || {}), // base
+          ...cel, // dados históricos
+          valorVenda: 0, 
+          valorParcela: 0,
+          comissaoGerada: 0,
+          status: (cel.status === 'Paga' || cel.status === 'Cancelada') ? cel.status : getStatusInicial(cel.dataVencimento || `${mes}-15`)
+        };
       });
     }
 
@@ -3178,11 +3239,28 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       if (i === 0) {
         dataVenc = dataVendaInput;
       } else {
+        /* Mecânica Anterior:
         const dateAssembleiaBase = new Date(dataAssembleiaInput + 'T00:00:00');
         const dateVencClienteBase = new Date(dataVencimentoClienteInput + 'T00:00:00');
         const diaVenc = dateVencClienteBase.getDate();
         
         const dtAlvo = new Date(dateAssembleiaBase.getFullYear(), dateAssembleiaBase.getMonth() + (i - 1), 1);
+        const ultimoDiaMes = new Date(dtAlvo.getFullYear(), dtAlvo.getMonth() + 1, 0).getDate();
+        const diaFinal = Math.min(diaVenc, ultimoDiaMes);
+        dtAlvo.setDate(diaFinal);
+        
+        const anoCalc = dtAlvo.getFullYear();
+        const mesCalc = String(dtAlvo.getMonth() + 1).padStart(2, '0');
+        const diaCalc = String(dtAlvo.getDate()).padStart(2, '0');
+        dataVenc = `${anoCalc}-${mesCalc}-${diaCalc}`;
+        */
+
+        // Nova Mecânica: Usa a data de Vencimento do Cliente (Data da 2ª parcela) a partir dela gera as demais parcelas
+        const dateVencClienteBase = new Date(dataVencimentoClienteInput + 'T00:00:00');
+        const diaVenc = dateVencClienteBase.getDate();
+        
+        // i começa em 1 para a segunda parcela. i - 1 = 0 (mesmo mês do vencimento do cliente)
+        const dtAlvo = new Date(dateVencClienteBase.getFullYear(), dateVencClienteBase.getMonth() + (i - 1), 1);
         const ultimoDiaMes = new Date(dtAlvo.getFullYear(), dtAlvo.getMonth() + 1, 0).getDate();
         const diaFinal = Math.min(diaVenc, ultimoDiaMes);
         dtAlvo.setDate(diaFinal);
