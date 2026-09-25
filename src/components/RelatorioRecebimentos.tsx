@@ -461,7 +461,23 @@ const exportarRecebimentosParaPDF = (
       10: { cellWidth: 18, halign: 'center' }, // Parcela Nº
       11: { cellWidth: 20, halign: 'right' } // Comissão
     },
-    margin: { left: 14, right: 14 }
+    margin: { left: 14, right: 14 },
+    didParseCell: (data) => {
+      if (data.section === 'body') {
+        const text = data.cell.raw as string;
+        // Coluna Status Parcela
+        if (data.column.index === 8) {
+          if (text === 'Paga') { data.cell.styles.fillColor = [209, 250, 229]; data.cell.styles.textColor = [5, 150, 105]; } // verde
+          else if (text === 'A vencer') { data.cell.styles.fillColor = [219, 234, 254]; data.cell.styles.textColor = [37, 99, 235]; } // azul
+          else if (text === 'Vencida' || text === 'Cancelada') { data.cell.styles.fillColor = [254, 226, 226]; data.cell.styles.textColor = [220, 38, 38]; } // vermelho
+        }
+        // Coluna Recebimento
+        if (data.column.index === 9) {
+          if (text === 'A receber') { data.cell.styles.fillColor = [255, 237, 213]; data.cell.styles.textColor = [234, 88, 12]; } // laranja
+          else if (text === 'Recebida') { data.cell.styles.fillColor = [224, 242, 254]; data.cell.styles.textColor = [2, 132, 199]; } // cyan
+        }
+      }
+    }
   });
 
   // Adicionar numeração de página no final
@@ -603,7 +619,7 @@ const SubGrupoData = ({
   const isPast = dataRecebimento < hoje;
 
   // Estados de Ordenação
-  const [orderBy, setOrderBy] = useState<string>('cliente');
+  const [orderBy, setOrderBy] = useState<string>('dataVenda');
   const [order, setOrder] = useState<Order>('asc');
 
   const handleRequestSort = (property: string) => {
@@ -1267,6 +1283,16 @@ const GrupoRecebimento = ({
       alert('Selecione pelo menos um registro para exportar.');
       return;
     }
+
+    // Ordenar itensParaExportar por Data da Venda (mais antiga no topo)
+    itensParaExportar.sort((a, b) => {
+      const da = a.dataVenda || '';
+      const db = b.dataVenda || '';
+      if (da < db) return -1;
+      if (da > db) return 1;
+      return 0;
+    });
+
     const totalComissoes = itensParaExportar.reduce((acc, i) => acc + i.comissao, 0);
     const pacsUnicos = new Set<string>();
     let totalCredito = 0;
