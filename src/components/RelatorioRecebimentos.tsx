@@ -465,6 +465,13 @@ const exportarRecebimentosParaPDF = (
     didParseCell: (data) => {
       if (data.section === 'body') {
         const text = data.cell.raw as string;
+        const parcelaNum = data.row.raw[10] as string; // Coluna Parcela Nº
+        
+        // Destacar registros que são 1ª Parcela (linha toda recebe um fundo super claro)
+        if (parcelaNum.startsWith('1/')) {
+          data.cell.styles.fillColor = [240, 249, 255]; // sky-50 (azul bem claro)
+        }
+
         // Coluna Status Parcela
         if (data.column.index === 8) {
           if (text === 'Paga') { data.cell.styles.fillColor = [209, 250, 229]; data.cell.styles.textColor = [5, 150, 105]; } // verde
@@ -472,9 +479,15 @@ const exportarRecebimentosParaPDF = (
           else if (text === 'Vencida' || text === 'Cancelada') { data.cell.styles.fillColor = [254, 226, 226]; data.cell.styles.textColor = [220, 38, 38]; } // vermelho
         }
         // Coluna Recebimento
-        if (data.column.index === 9) {
+        else if (data.column.index === 9) {
           if (text === 'A receber') { data.cell.styles.fillColor = [255, 237, 213]; data.cell.styles.textColor = [234, 88, 12]; } // laranja
           else if (text === 'Recebida') { data.cell.styles.fillColor = [224, 242, 254]; data.cell.styles.textColor = [2, 132, 199]; } // cyan
+        }
+        // Destaque extra apenas para a célula 'Parcela Nº' se for 1ª parcela
+        else if (data.column.index === 10 && parcelaNum.startsWith('1/')) {
+          data.cell.styles.fillColor = [224, 242, 254]; // cyan-100 mais forte
+          data.cell.styles.textColor = [2, 132, 199]; // cyan-600
+          data.cell.styles.fontStyle = 'bold';
         }
       }
     }
