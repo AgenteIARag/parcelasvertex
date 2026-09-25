@@ -415,7 +415,7 @@ const exportarRecebimentosParaPDF = (
   ];
 
   const rows = itens.map(item => [
-    item.cliente + (item.pac ? `\nPAC: ${item.pac}` : ''),
+    `${item.cliente}${item.pac ? `\nPAC: ${item.pac}` : ''}\n(${item.parcelaIndex === 1 ? 'Venda' : 'Recorrência'})`,
     item.administradoraNome || '—',
     item.vendedorNome || '—',
     item.dataVenda ? formatarData(item.dataVenda) : '—',
@@ -878,17 +878,13 @@ const SubGrupoData = ({
                     ? (isDark ? '#563020' : '#FCE1CB') 
                     : isAmarelo 
                       ? (isDark ? '#4D4519' : '#FDF1C2') 
-                      : isPrimeiraParcela
-                        ? (isDark ? '#082f49' : '#f0f9ff')
-                        : baseRowBg;
+                      : baseRowBg;
 
                   const rowHoverBg = isLaranja 
                     ? (isDark ? '#6B3C28' : '#FBD1AE') 
                     : isAmarelo 
                       ? (isDark ? '#61561E' : '#FCEB9C') 
-                      : isPrimeiraParcela
-                        ? (isDark ? '#0c4a6e' : '#e0f2fe')
-                        : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)');
+                      : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)');
 
                   return (
                     <TableRow
@@ -946,10 +942,13 @@ const SubGrupoData = ({
                       >
                         <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.78rem' }}>{item.cliente}</Typography>
                         {item.pac && (
-                          <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem' }}>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', display: 'block' }}>
                             PAC: {item.pac}
                           </Typography>
                         )}
+                        <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', fontWeight: 600, display: 'block' }}>
+                          {item.parcelaIndex === 1 ? 'Venda' : 'Recorrência'}
+                        </Typography>
                         {item.isEspelho && (
                            <Box sx={{ display: 'block', mt: 0.5 }}>
                              <Chip size="small" label={`Ref: ${item.dataVencimento.substring(5, 7)}/${item.dataVencimento.substring(0, 4)}`} sx={{ height: 16, fontSize: '0.55rem', bgcolor: 'rgba(139,92,246,0.12)', color: '#8b5cf6', fontWeight: 700 }} />
