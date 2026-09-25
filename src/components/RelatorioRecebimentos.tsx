@@ -108,6 +108,7 @@ interface ParcelaLinha {
   cliente: string;
   pac: string;
   empresaId?: string;
+  administradoraNome?: string;
   vendedorNome: string;
   segmento: string;
   tabela: string;
@@ -366,11 +367,14 @@ const exportarRecebimentosParaPDF = (
     format: 'a4',
   });
 
+  const empresas = [...new Set(itens.map(item => item.empresaId === 'emp_shazam' ? 'Shazam' : item.empresaId === 'emp_winvest' ? 'Winvest' : 'Vertex'))];
+  const empresaCabecalho = empresas.length > 0 ? empresas.join(' / ') : 'Vertex';
+
   // Título e Header
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(99, 102, 241); // Indigo
-  doc.text('APEX - Relatório de Previsão de Recebimentos', 14, 15);
+  doc.text(`APEX - ${empresaCabecalho} - Relatório de Previsão de Recebimentos`, 14, 15);
 
   doc.setFontSize(12);
   doc.setFont('helvetica', 'normal');
@@ -397,12 +401,10 @@ const exportarRecebimentosParaPDF = (
   // Tabela
   const headers = [
     'Cliente / PAC',
-    'Empresa',
+    'Administradora',
     'Vendedor',
     'Data\nVenda',
     'Vencimento',
-    'Nº Rel\nADM',
-    'Data\nRel',
     'Valor da\nCota',
     'Parcela',
     'Tabela',
@@ -414,12 +416,10 @@ const exportarRecebimentosParaPDF = (
 
   const rows = itens.map(item => [
     item.cliente + (item.pac ? `\nPAC: ${item.pac}` : ''),
-    item.empresaId === 'emp_shazam' ? 'Shazam' : item.empresaId === 'emp_winvest' ? 'Winvest' : 'Vertex',
+    item.administradoraNome || '—',
     item.vendedorNome || '—',
     item.dataVenda ? formatarData(item.dataVenda) : '—',
     formatarData(item.dataVencimento),
-    item.numeroRelatorio || '—',
-    item.dataRelatorio ? formatarData(item.dataRelatorio) : '—',
     formatarMoeda(item.valorVenda),
     formatarMoeda(item.valorParcela),
     item.tabela,
@@ -448,20 +448,18 @@ const exportarRecebimentosParaPDF = (
       valign: 'middle'
     },
     columnStyles: {
-      0: { cellWidth: 31, halign: 'left' }, // Cliente / PAC
-      1: { cellWidth: 17, halign: 'center' }, // Empresa
-      2: { cellWidth: 19, halign: 'left' }, // Vendedor
+      0: { cellWidth: 35, halign: 'left' }, // Cliente / PAC
+      1: { cellWidth: 25, halign: 'center' }, // Administradora
+      2: { cellWidth: 20, halign: 'left' }, // Vendedor
       3: { cellWidth: 17, halign: 'center' }, // Data Venda
       4: { cellWidth: 20, halign: 'center' }, // Vencimento
-      5: { cellWidth: 16, halign: 'center' }, // Nº Rel ADM
-      6: { cellWidth: 16, halign: 'center' }, // Data Rel
-      7: { cellWidth: 18, halign: 'right' }, // Valor da Cota
-      8: { cellWidth: 17, halign: 'right' }, // Parcela
-      9: { cellWidth: 26, halign: 'left' }, // Tabela
-      10: { cellWidth: 16, halign: 'center' }, // Status Parcela
-      11: { cellWidth: 22, halign: 'center' }, // Recebimento
-      12: { cellWidth: 16, halign: 'center' }, // Parcela Nº
-      13: { cellWidth: 18, halign: 'right' } // Comissão
+      5: { cellWidth: 25, halign: 'right' }, // Valor da Cota
+      6: { cellWidth: 25, halign: 'right' }, // Parcela
+      7: { cellWidth: 26, halign: 'left' }, // Tabela
+      8: { cellWidth: 16, halign: 'center' }, // Status Parcela
+      9: { cellWidth: 22, halign: 'center' }, // Recebimento
+      10: { cellWidth: 18, halign: 'center' }, // Parcela Nº
+      11: { cellWidth: 20, halign: 'right' } // Comissão
     },
     margin: { left: 14, right: 14 }
   });
@@ -616,13 +614,11 @@ const SubGrupoData = ({
 
   const colunas = [
     { label: 'Cliente / PAC', field: 'cliente' },
-    { label: 'Empresa', field: 'empresaId' },
+    { label: 'Administradora', field: 'administradoraNome' },
     { label: 'Vendedor', field: 'vendedorNome' },
     { label: 'Data Venda', field: 'dataVenda' },
     { label: 'Vencimento', field: 'dataVencimento' },
     { label: 'DT. PAG', field: 'dataPagamentoCliente' },
-    { label: 'Nº Rel', field: 'numeroRelatorio' },
-    { label: 'Data Rel', field: 'dataRelatorio' },
     { label: 'Valor da Cota', field: 'valorVenda' },
     { label: 'Parcela', field: 'valorParcela' },
     { label: 'Tabela', field: 'tabela' },
@@ -925,7 +921,7 @@ const SubGrupoData = ({
                            </Box>
                         )}
                       </TableCell>
-                      {/* Célula Empresa com Fundo Sólido Opaco */}
+                      {/* Célula Administradora com Fundo Sólido Opaco */}
                       <TableCell sx={{
                         py: 0.8,
                         position: 'sticky',
@@ -934,19 +930,10 @@ const SubGrupoData = ({
                         bgcolor: rowBg,
                         width: 90,
                         minWidth: 90,
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
                       }}>
-                        {(() => {
-                          const empId = item.empresaId || 'emp_vertex';
-                          const config: Record<string, { label: string; bg: string; color: string }> = {
-                            emp_vertex:  { label: 'Vertex',  bg: 'rgba(99,102,241,0.12)',  color: '#818cf8' },
-                            emp_shazam:  { label: 'Shazam',  bg: 'rgba(251,146,60,0.15)',  color: '#f97316' },
-                            emp_winvest: { label: 'Winvest', bg: 'rgba(34,197,94,0.12)',   color: '#22c55e' },
-                          };
-                          const c = config[empId] ?? { label: empId, bg: 'rgba(148,163,184,0.12)', color: '#94a3b8' };
-                          return (
-                            <Chip label={c.label} size="small" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: c.bg, color: c.color, borderRadius: 1.5 }} />
-                          );
-                        })()}
+                        {item.administradoraNome || '—'}
                       </TableCell>
                       {/* Célula Vendedor com Fundo Sólido Opaco */}
                       <TableCell sx={{
@@ -990,16 +977,6 @@ const SubGrupoData = ({
                         ) : (
                           <Typography sx={{ color: 'text.disabled', fontSize: '0.72rem' }}>—</Typography>
                         )}
-                      </TableCell>
-                      <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
-                        {item.numeroRelatorio ? (
-                          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, px: 0.8, py: 0.2, borderRadius: 1, bgcolor: 'rgba(99,102,241,0.1)', color: '#6366f1', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.7rem' }}>
-                            {item.numeroRelatorio}
-                          </Box>
-                        ) : '—'}
-                      </TableCell>
-                      <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.72rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
-                        {item.dataRelatorio ? formatarData(item.dataRelatorio) : '—'}
                       </TableCell>
                       <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap', color: 'text.primary' }}>
                         {formatarMoeda(item.valorVenda)}
@@ -1986,6 +1963,7 @@ export const RelatorioRecebimentos = ({
           cliente: venda.cliente,
           pac: venda.pac || '',
           empresaId: venda.empresaId,
+          administradoraNome: venda.administradoraNome || '',
           vendedorNome: venda.vendedorNome || '',
           segmento: venda.segmento,
           tabela: venda.tabela,
