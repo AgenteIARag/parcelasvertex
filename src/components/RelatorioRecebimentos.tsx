@@ -465,7 +465,8 @@ const exportarRecebimentosParaPDF = (
     didParseCell: (data) => {
       if (data.section === 'body') {
         const text = data.cell.raw as string;
-        const parcelaNum = data.row.raw[10] as string; // Coluna Parcela Nº
+        const rawRow = data.row.raw as any[];
+        const parcelaNum = rawRow[10] as string; // Coluna Parcela Nº
         
         // Destacar registros que são 1ª Parcela (linha toda recebe um fundo super claro)
         if (parcelaNum.startsWith('1/')) {
