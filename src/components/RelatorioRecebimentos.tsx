@@ -399,16 +399,16 @@ const exportarRecebimentosParaPDF = (
     'Cliente / PAC',
     'Empresa',
     'Vendedor',
-    'Data Venda',
+    'Data\nVenda',
     'Vencimento',
-    'Nº Rel ADM',
-    'Data Rel',
-    'Valor da Cota',
+    'Nº Rel\nADM',
+    'Data\nRel',
+    'Valor da\nCota',
     'Parcela',
     'Tabela',
-    'Status Parcela',
+    'Status\nParcela',
     'Recebimento',
-    'Parcela Nº',
+    'Parcela\nNº',
     'Comissão'
   ];
 
@@ -445,23 +445,23 @@ const exportarRecebimentosParaPDF = (
     bodyStyles: {
       fontSize: 7.5,
       textColor: [51, 65, 85],
-      valign: 'top'
+      valign: 'middle'
     },
     columnStyles: {
-      0: { cellWidth: 35 }, // Cliente / PAC
-      1: { cellWidth: 15 }, // Empresa
-      2: { cellWidth: 19 }, // Vendedor
-      3: { cellWidth: 17 }, // Data Venda
-      4: { cellWidth: 17 }, // Vencimento
-      5: { cellWidth: 16 }, // Nº Rel ADM
-      6: { cellWidth: 17 }, // Data Rel
+      0: { cellWidth: 31, halign: 'left' }, // Cliente / PAC
+      1: { cellWidth: 17, halign: 'center' }, // Empresa
+      2: { cellWidth: 19, halign: 'left' }, // Vendedor
+      3: { cellWidth: 17, halign: 'center' }, // Data Venda
+      4: { cellWidth: 20, halign: 'center' }, // Vencimento
+      5: { cellWidth: 16, halign: 'center' }, // Nº Rel ADM
+      6: { cellWidth: 16, halign: 'center' }, // Data Rel
       7: { cellWidth: 18, halign: 'right' }, // Valor da Cota
-      8: { cellWidth: 18, halign: 'right' }, // Parcela
-      9: { cellWidth: 30 }, // Tabela
-      10: { cellWidth: 18, halign: 'center' }, // Status Parcela
-      11: { cellWidth: 19, halign: 'center' }, // Recebimento
-      12: { cellWidth: 13, halign: 'center' }, // Parcela Nº
-      13: { cellWidth: 17, halign: 'right' } // Comissão
+      8: { cellWidth: 17, halign: 'right' }, // Parcela
+      9: { cellWidth: 26, halign: 'left' }, // Tabela
+      10: { cellWidth: 16, halign: 'center' }, // Status Parcela
+      11: { cellWidth: 22, halign: 'center' }, // Recebimento
+      12: { cellWidth: 16, halign: 'center' }, // Parcela Nº
+      13: { cellWidth: 18, halign: 'right' } // Comissão
     },
     margin: { left: 14, right: 14 }
   });
