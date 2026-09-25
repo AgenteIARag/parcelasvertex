@@ -868,6 +868,7 @@ const SubGrupoData = ({
                   
                   const isLaranja = item.isEspelho;
                   const isAmarelo = !item.isEspelho && item.pagaForaCompetencia && item.statusParcela === 'Paga';
+                  const isPrimeiraParcela = item.parcelaIndex === 1;
                   
                   const baseRowBg = bgCard && bgCard !== 'transparent' ? bgCard : (isDark ? '#111827' : '#ffffff');
                   
@@ -876,13 +877,17 @@ const SubGrupoData = ({
                     ? (isDark ? '#563020' : '#FCE1CB') 
                     : isAmarelo 
                       ? (isDark ? '#4D4519' : '#FDF1C2') 
-                      : baseRowBg;
+                      : isPrimeiraParcela
+                        ? (isDark ? '#082f49' : '#f0f9ff')
+                        : baseRowBg;
 
                   const rowHoverBg = isLaranja 
                     ? (isDark ? '#6B3C28' : '#FBD1AE') 
                     : isAmarelo 
                       ? (isDark ? '#61561E' : '#FCEB9C') 
-                      : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)');
+                      : isPrimeiraParcela
+                        ? (isDark ? '#0c4a6e' : '#e0f2fe')
+                        : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)');
 
                   return (
                     <TableRow
