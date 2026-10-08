@@ -15,7 +15,7 @@ import {
   Cell
 } from 'recharts';
 import { type LancamentoVenda } from '../types';
-import { formatarMoeda, formatarMoedaEixo, formatarChaveMesExibicao } from '../utils/formatters';
+import { formatarMoeda, formatarMoedaEixo, formatarChaveMesExibicao, obterStatusEfetivo } from '../utils/formatters';
 
 interface AnalyticsChartsProps {
   vendas: LancamentoVenda[];
@@ -79,14 +79,18 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
       // Receita de comissão da parcela correspondente a mesChave (ignora parcelas canceladas)
       if (v.projecaoMensal) {
         const celula = v.projecaoMensal[mesChave];
-        if (celula && celula.status?.toLowerCase() !== 'cancelada' && celula.status?.toLowerCase() !== 'estornada') {
-          const comissao = Number(celula.comissaoGerada || 0);
-          totalComissaoMes += comissao;
+        if (celula) {
+          const statusEfetivo = obterStatusEfetivo(celula.status, celula.dataVencimento || `${mesChave}-15`);
           
-          if (celula.status?.toLowerCase() === 'paga') {
-            comissaoPagaMes += comissao;
-          } else if (celula.status?.toLowerCase() === 'vencida') {
-            comissaoVencidaMes += comissao;
+          if (statusEfetivo?.toLowerCase() !== 'cancelada' && statusEfetivo?.toLowerCase() !== 'estornada') {
+            const comissao = Number(celula.comissaoGerada || 0);
+            totalComissaoMes += comissao;
+            
+            if (statusEfetivo?.toLowerCase() === 'paga') {
+              comissaoPagaMes += comissao;
+            } else if (statusEfetivo?.toLowerCase() === 'vencida') {
+              comissaoVencidaMes += comissao;
+            }
           }
         }
       }
