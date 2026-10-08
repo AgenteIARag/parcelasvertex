@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import {
   Box,
   Typography,
@@ -56,12 +56,12 @@ import { obterStatusEfetivo } from '../utils/formatters';
 import { salvarVendaSupabase } from '../utils/supabase';
 
 
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Helpers
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const NOMES_MESES: Record<string, string> = {
-  '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril',
+  '01': 'Janeiro', '02': 'Fevereiro', '03': 'MarÃ§o', '04': 'Abril',
   '05': 'Maio', '06': 'Junho', '07': 'Julho', '08': 'Agosto',
   '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro',
 };
@@ -70,13 +70,13 @@ const formatarMoeda = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
 const formatarData = (iso: string): string => {
-  if (!iso || iso.includes('undefined')) return '—';
+  if (!iso || iso.includes('undefined')) return 'â€”';
   const [ano, mes, dia] = iso.split('-');
   return `${dia}/${mes}/${ano}`;
 };
 
 const formatarMesAno = (iso: string): string => {
-  if (!iso || iso.includes('undefined')) return '—';
+  if (!iso || iso.includes('undefined')) return 'â€”';
   const [ano, mes] = iso.split('-');
   return `${NOMES_MESES[mes] || mes}/${ano}`;
 };
@@ -88,7 +88,7 @@ const calcularDataPrevisaoRecebimento = (
   if (!dataVenc || dataVenc.includes('undefined')) return '';
   const dt = new Date(`${dataVenc}T00:00:00`);
   if (isNaN(dt.getTime())) return '';
-  // Previsão = último dia do mês de vencimento da parcela
+  // PrevisÃ£o = Ãºltimo dia do mÃªs de vencimento da parcela
   const ultimoDia = new Date(dt.getFullYear(), dt.getMonth() + 1, 0);
   const ano = ultimoDia.getFullYear();
   const mes = String(ultimoDia.getMonth() + 1).padStart(2, '0');
@@ -98,9 +98,9 @@ const calcularDataPrevisaoRecebimento = (
 
 
 
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Tipos internos
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface ParcelaLinha {
   id: string;
@@ -115,7 +115,7 @@ interface ParcelaLinha {
   dataVenda: string;          // YYYY-MM-DD (data da venda)
   mesReferencia: string;      // YYYY-MM
   dataVencimento: string;     // YYYY-MM-DD
-  dataPrevisaoRecebimento: string; // YYYY-MM-DD (último dia do mês de vencimento)
+  dataPrevisaoRecebimento: string; // YYYY-MM-DD (Ãºltimo dia do mÃªs de vencimento)
   comissao: number;
   valorParcela: number;
   valorVenda: number;
@@ -123,18 +123,18 @@ interface ParcelaLinha {
   situacaoRecebimento: 'A receber' | 'Recebida' | 'Estornada';
   parcelaIndex: number;
   qtdParcelas: number;
-  numeroRelatorio?: string;   // Nº do relatório ADM da venda
-  dataRelatorio?: string;     // Data do relatório ADM (YYYY-MM-DD)
+  numeroRelatorio?: string;   // NÂº do relatÃ³rio ADM da venda
+  dataRelatorio?: string;     // Data do relatÃ³rio ADM (YYYY-MM-DD)
   // Campos de controle de pagamento e recebimento
   dataPagamentoCliente?: string;       // Data em que o cliente pagou (YYYY-MM-DD)
-  numeroRelatorioRecebimento?: string; // Nº do relatório do recebimento da comissão
-  notaFiscalRecebimento?: string;      // NF relativa ao recebimento da comissão
-  dataRelatorioRecebimento?: string;    // Data de recebimento da comissão (YYYY-MM-DD)
+  numeroRelatorioRecebimento?: string; // NÂº do relatÃ³rio do recebimento da comissÃ£o
+  notaFiscalRecebimento?: string;      // NF relativa ao recebimento da comissÃ£o
+  dataRelatorioRecebimento?: string;    // Data de recebimento da comissÃ£o (YYYY-MM-DD)
   dataCancelamento?: string;            // Data em que a parcela foi cancelada (YYYY-MM-DD)
   // Espelhamento
-  grupoVisual: string;                 // Mês em que a linha será renderizada (YYYY-MM)
-  isEspelho: boolean;                  // True se for a linha de caixa (gerada no mês do pagamento)
-  pagaForaCompetencia: boolean;        // True se a parcela foi paga num mês diferente do vencimento
+  grupoVisual: string;                 // MÃªs em que a linha serÃ¡ renderizada (YYYY-MM)
+  isEspelho: boolean;                  // True se for a linha de caixa (gerada no mÃªs do pagamento)
+  pagaForaCompetencia: boolean;        // True se a parcela foi paga num mÃªs diferente do vencimento
 }
 
 interface TotaisStatus {
@@ -143,28 +143,28 @@ interface TotaisStatus {
   paga: number;
   recebida: number;
   cancelada: number;
-  aReceber: number;        // Somente Pagas que NÃO foram recebidas ainda
+  aReceber: number;        // Somente Pagas que NÃƒO foram recebidas ainda
   espelhoRecebido: number; // Total espelho (meses anteriores) - mantido por compatibilidade
   espelhoAReceber: number; // Espelhos (Parcelas de Meses Anteriores) ainda A Receber
-  espelhoRecebidaReal: number; // Espelhos (Parcelas de Meses Anteriores) já Recebidas
-  pagaForaMes: number;     // Valor (comissão) da competência original que foi paga apenas em meses futuros
+  espelhoRecebidaReal: number; // Espelhos (Parcelas de Meses Anteriores) jÃ¡ Recebidas
+  pagaForaMes: number;     // Valor (comissÃ£o) da competÃªncia original que foi paga apenas em meses futuros
   estornada: number;
 }
 
 interface GrupoPeriodo {
-  mesPeriodo: string;         // YYYY-MM (chave de agrupamento por mês)
+  mesPeriodo: string;         // YYYY-MM (chave de agrupamento por mÃªs)
   totalComissoes: number;
-  totalParcelas: number;          // Soma do crédito correto (valorVenda p/ vendas, valorParcela p/ recorrência)
-  totalCreditoVendas: number;     // Valor da cota das 1ªs parcelas (vendas novas)
-  totalCreditoRecorrencia: number; // Valor da mensalidade das parcelas 2ª em diante
+  totalParcelas: number;          // Soma do crÃ©dito correto (valorVenda p/ vendas, valorParcela p/ recorrÃªncia)
+  totalCreditoVendas: number;     // Valor da cota das 1Âªs parcelas (vendas novas)
+  totalCreditoRecorrencia: number; // Valor da mensalidade das parcelas 2Âª em diante
   qtdParcelas: number;
   itens: ParcelaLinha[];
   totaisStatus: TotaisStatus;
 }
 
-// ──────────────────────────────────────────────────────────
-// Helper: calcula totais de comissão por status
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Helper: calcula totais de comissÃ£o por status
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const calcularTotaisStatus = (itens: ParcelaLinha[]): TotaisStatus => {
   const t: TotaisStatus = { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, estornada: 0, aReceber: 0, espelhoRecebido: 0, espelhoAReceber: 0, espelhoRecebidaReal: 0, pagaForaMes: 0 };
@@ -184,7 +184,7 @@ const calcularTotaisStatus = (itens: ParcelaLinha[]): TotaisStatus => {
       return;
     }
 
-    // Se for original e foi paga fora do mês, soma no KPI de atraso/desvio
+    // Se for original e foi paga fora do mÃªs, soma no KPI de atraso/desvio
     if (i.pagaForaCompetencia && i.statusParcela === 'Paga') {
       t.pagaForaMes += v;
     }
@@ -197,7 +197,7 @@ const calcularTotaisStatus = (itens: ParcelaLinha[]): TotaisStatus => {
 
     if (i.statusParcela !== 'Estornada') {
       if (i.situacaoRecebimento === 'Recebida') t.recebida += v;
-      // A Receber = somente Pagas que ainda NÃO foram recebidas
+      // A Receber = somente Pagas que ainda NÃƒO foram recebidas
       else if (i.statusParcela === 'Paga') t.aReceber += v;
     }
   });
@@ -205,9 +205,9 @@ const calcularTotaisStatus = (itens: ParcelaLinha[]): TotaisStatus => {
 };
 
 
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Sub-componente: Mini badges de status com valor
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const StatusValorRow = ({ totais }: { totais: TotaisStatus }) => {
   const items = [
@@ -221,10 +221,10 @@ const StatusValorRow = ({ totais }: { totais: TotaisStatus }) => {
   ];
 
   if (totais.pagaForaMes > 0) {
-    items.push({ label: 'Paga em Atraso (Outro Mês)', value: totais.pagaForaMes, color: '#eab308', bg: 'rgba(234,179,8,0.12)' });
+    items.push({ label: 'Paga em Atraso (Outro MÃªs)', value: totais.pagaForaMes, color: '#eab308', bg: 'rgba(234,179,8,0.12)' });
   }
 
-  // Total a Receber = A Receber (Pagas não recebidas) + Parcelas de Meses Anteriores A Receber
+  // Total a Receber = A Receber (Pagas nÃ£o recebidas) + Parcelas de Meses Anteriores A Receber
   const totalAReceber = totais.aReceber + totais.espelhoAReceber;
 
   const validItems = items.filter((item) => item.value > 0);
@@ -264,7 +264,7 @@ const StatusValorRow = ({ totais }: { totais: TotaisStatus }) => {
           </Typography>
           <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
             {totais.espelhoAReceber > 0 && (
-              <Tooltip title="Parcelas de Meses Anteriores – A Receber">
+              <Tooltip title="Parcelas de Meses Anteriores â€“ A Receber">
                 <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3, px: 0.5, py: 0.1, borderRadius: 1, bgcolor: 'rgba(249,115,22,0.18)', color: '#f97316' }}>
                   <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}>
                     {formatarMoeda(totais.espelhoAReceber)}
@@ -273,7 +273,7 @@ const StatusValorRow = ({ totais }: { totais: TotaisStatus }) => {
               </Tooltip>
             )}
             {totais.espelhoRecebidaReal > 0 && (
-              <Tooltip title="Parcelas de Meses Anteriores – Recebida">
+              <Tooltip title="Parcelas de Meses Anteriores â€“ Recebida">
                 <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3, px: 0.5, py: 0.1, borderRadius: 1, bgcolor: 'rgba(14,165,233,0.18)', color: '#0ea5e9' }}>
                   <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}>
                     {formatarMoeda(totais.espelhoRecebidaReal)}
@@ -308,9 +308,9 @@ const StatusValorRow = ({ totais }: { totais: TotaisStatus }) => {
 };
 
 
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Sub-componente: Badging de Status e Recebimento
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const StatusParcelaBadge = ({ status, dataCancelamento }: { status: StatusParcela, dataCancelamento?: string }) => {
   const map: Record<StatusParcela, { color: string; bg: string; icon: React.ReactNode }> = {
@@ -351,7 +351,7 @@ const SituacaoRecebimentoBadge = ({ situacao }: { situacao: 'A receber' | 'Receb
   const icon = isRecebida ? <CheckCircleIcon sx={{ fontSize: 12 }} /> : isEstornada ? <AutorenewIcon sx={{ fontSize: 12 }} /> : <HourglassEmptyIcon sx={{ fontSize: 12 }} />;
 
   return (
-    <Tooltip title="Situação do recebimento (Informação não editável)">
+    <Tooltip title="SituaÃ§Ã£o do recebimento (InformaÃ§Ã£o nÃ£o editÃ¡vel)">
       <Box sx={{
         display: 'inline-flex', alignItems: 'center', gap: 0.4, px: 1, py: 0.25,
         borderRadius: 99, bgcolor: bg, color: color, fontWeight: 700, fontSize: '0.7rem',
@@ -363,9 +363,9 @@ const SituacaoRecebimentoBadge = ({ situacao }: { situacao: 'A receber' | 'Receb
   );
 };
 
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // PDF Export Helper
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const exportarRecebimentosParaPDF = (
   mesAnoFormatado: string,
@@ -382,16 +382,16 @@ const exportarRecebimentosParaPDF = (
   const empresas = [...new Set(itens.map(item => item.empresaId === 'emp_shazam' ? 'Shazam' : item.empresaId === 'emp_winvest' ? 'Winvest' : 'Vertex'))];
   const empresaCabecalho = empresas.length > 0 ? empresas.join(' / ') : 'Vertex';
 
-  // Título e Header
+  // TÃ­tulo e Header
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(99, 102, 241); // Indigo
-  doc.text(`APEX - ${empresaCabecalho} - Relatório de Previsão de Recebimentos`, 14, 15);
+  doc.text(`APEX - ${empresaCabecalho} - RelatÃ³rio de PrevisÃ£o de Recebimentos`, 14, 15);
 
   doc.setFontSize(12);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  doc.text(`Período de Referência: ${mesAnoFormatado}`, 14, 21);
+  doc.text(`PerÃ­odo de ReferÃªncia: ${mesAnoFormatado}`, 14, 21);
 
   let offset = 0;
   if (filtrosStr && filtrosStr !== 'Nenhum') {
@@ -407,8 +407,8 @@ const exportarRecebimentosParaPDF = (
   doc.setFontSize(10);
   doc.setTextColor(30, 41, 59);
   doc.text(`Total de Parcelas: ${itens.length}`, 20, 34 + offset);
-  doc.text(`Valor Total do Crédito: ${formatarMoeda(totais.totalCredito)}`, 100, 34 + offset);
-  doc.text(`Comissões a Receber: ${formatarMoeda(totais.totalComissoes)}`, 190, 34 + offset);
+  doc.text(`Valor Total do CrÃ©dito: ${formatarMoeda(totais.totalCredito)}`, 100, 34 + offset);
+  doc.text(`ComissÃµes a Receber: ${formatarMoeda(totais.totalComissoes)}`, 190, 34 + offset);
 
   // Tabela
   const headers = [
@@ -422,15 +422,15 @@ const exportarRecebimentosParaPDF = (
     'Tabela',
     'Status\nParcela',
     'Recebimento',
-    'Parcela\nNº',
-    'Comissão'
+    'Parcela\nNÂº',
+    'ComissÃ£o'
   ];
 
   const rows = itens.map(item => [
-    `${item.cliente}${item.pac ? `\nPAC: ${item.pac}` : ''}\n(${item.parcelaIndex === 1 ? 'Venda' : 'Recorrência'})`,
-    item.administradoraNome || '—',
-    item.vendedorNome || '—',
-    item.dataVenda ? formatarData(item.dataVenda) : '—',
+    `${item.cliente}${item.pac ? `\nPAC: ${item.pac}` : ''}\n(${item.parcelaIndex === 1 ? 'Venda' : 'RecorrÃªncia'})`,
+    item.administradoraNome || 'â€”',
+    item.vendedorNome || 'â€”',
+    item.dataVenda ? formatarData(item.dataVenda) : 'â€”',
     formatarData(item.dataVencimento),
     formatarMoeda(item.valorVenda),
     formatarMoeda(item.valorParcela),
@@ -470,17 +470,17 @@ const exportarRecebimentosParaPDF = (
       7: { cellWidth: 26, halign: 'left' }, // Tabela
       8: { cellWidth: 16, halign: 'center' }, // Status Parcela
       9: { cellWidth: 22, halign: 'center' }, // Recebimento
-      10: { cellWidth: 18, halign: 'center' }, // Parcela Nº
-      11: { cellWidth: 20, halign: 'right' } // Comissão
+      10: { cellWidth: 18, halign: 'center' }, // Parcela NÂº
+      11: { cellWidth: 20, halign: 'right' } // ComissÃ£o
     },
     margin: { left: 14, right: 14 },
     didParseCell: (data) => {
       if (data.section === 'body') {
         const text = data.cell.raw as string;
         const rawRow = data.row.raw as any[];
-        const parcelaNum = rawRow[10] as string; // Coluna Parcela Nº
+        const parcelaNum = rawRow[10] as string; // Coluna Parcela NÂº
         
-        // Destacar registros que são 1ª Parcela (linha toda recebe um fundo super claro)
+        // Destacar registros que sÃ£o 1Âª Parcela (linha toda recebe um fundo super claro)
         if (parcelaNum.startsWith('1/')) {
           data.cell.styles.fillColor = [240, 249, 255]; // sky-50 (azul bem claro)
         }
@@ -496,7 +496,7 @@ const exportarRecebimentosParaPDF = (
           if (text === 'A receber') { data.cell.styles.fillColor = [255, 237, 213]; data.cell.styles.textColor = [234, 88, 12]; } // laranja
           else if (text === 'Recebida') { data.cell.styles.fillColor = [224, 242, 254]; data.cell.styles.textColor = [2, 132, 199]; } // cyan
         }
-        // Destaque extra apenas para a célula 'Parcela Nº' se for 1ª parcela
+        // Destaque extra apenas para a cÃ©lula 'Parcela NÂº' se for 1Âª parcela
         else if (data.column.index === 10 && parcelaNum.startsWith('1/')) {
           data.cell.styles.fillColor = [224, 242, 254]; // cyan-100 mais forte
           data.cell.styles.textColor = [2, 132, 199]; // cyan-600
@@ -506,7 +506,7 @@ const exportarRecebimentosParaPDF = (
     }
   });
 
-  // Adicionar numeração de página no final
+  // Adicionar numeraÃ§Ã£o de pÃ¡gina no final
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
@@ -516,9 +516,9 @@ const exportarRecebimentosParaPDF = (
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);
-    const numPaginaStr = `Página ${i} de ${totalPages}`;
+    const numPaginaStr = `PÃ¡gina ${i} de ${totalPages}`;
     doc.text(numPaginaStr, pageWidth - 14 - doc.getTextWidth(numPaginaStr), rodapeY);
-    doc.text('Gerado por APEX - Previsão de Recebimentos', 14, rodapeY);
+    doc.text('Gerado por APEX - PrevisÃ£o de Recebimentos', 14, rodapeY);
   }
 
   // Salvar PDF
@@ -530,9 +530,9 @@ const exportarRecebimentosParaPDF = (
   doc.save(`${filename}.pdf`);
 };
 
-// ──────────────────────────────────────────────────────────
-// Helper de Ordenação Genérica
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Helper de OrdenaÃ§Ã£o GenÃ©rica
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type Order = 'asc' | 'desc';
 
@@ -591,9 +591,9 @@ function ordenarItens(itens: ParcelaLinha[], orderBy: string, order: Order): Par
   });
 }
 
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Sub-componente: Sub-grupo por data de corte
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const SubGrupoData = ({
   dataRecebimento,
@@ -610,6 +610,7 @@ const SubGrupoData = ({
   onDesfazerPaga,
   onDesfazerRecebida,
   onCancelarParcela,
+    onEstornarParcela,
   onDesfazerCancelar,
   permissoes,
   isMaster,
@@ -629,6 +630,7 @@ const SubGrupoData = ({
   onDesfazerPaga?: (item: ParcelaLinha) => void;
   onDesfazerRecebida?: (item: ParcelaLinha) => void;
   onCancelarParcela?: (item: ParcelaLinha) => void;
+    onEstornarParcela?: (item: ParcelaLinha) => void;
   onDesfazerCancelar?: (item: ParcelaLinha) => void;
   permissoes?: UserPermissions;
   isMaster?: boolean;
@@ -644,7 +646,7 @@ const SubGrupoData = ({
   const isHoje = dataRecebimento === hoje;
   const isPast = dataRecebimento < hoje;
 
-  // Estados de Ordenação
+  // Estados de OrdenaÃ§Ã£o
   const [orderBy, setOrderBy] = useState<string>('dataVenda');
   const [order, setOrder] = useState<Order>('asc');
 
@@ -667,16 +669,16 @@ const SubGrupoData = ({
     { label: 'Status', field: 'statusParcela' },
     { label: 'Recebimento', field: 'situacaoRecebimento' },
     { label: 'DT. RECEB.', field: 'dataRelatorioRecebimento' },
-    { label: 'Parcela Nº', field: 'parcelaIndex' },
-    ...(podeVerFinanceiro ? [{ label: 'Comissão', field: 'comissao' }] : []),
-    { label: 'Ações', field: 'acoes' },
+    { label: 'Parcela NÂº', field: 'parcelaIndex' },
+    ...(podeVerFinanceiro ? [{ label: 'ComissÃ£o', field: 'comissao' }] : []),
+    { label: 'AÃ§Ãµes', field: 'acoes' },
   ];
 
   const itensOrdenados = useMemo(() => {
     return ordenarItens(itens, orderBy, order);
   }, [itens, orderBy, order]);
 
-  // Cores de fundo sólidas e 100% opacas para colunas congeladas
+  // Cores de fundo sÃ³lidas e 100% opacas para colunas congeladas
   const stickyBgHeader = isDark ? '#0f172a' : '#f8fafc';
 
   return (
@@ -737,12 +739,12 @@ const SubGrupoData = ({
 
         <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 28 }} />
 
-        {/* Métricas do sub-grupo */}
+        {/* MÃ©tricas do sub-grupo */}
         <Box sx={{ display: 'flex', gap: 3, flexGrow: 1, flexWrap: 'wrap', alignItems: 'center' }}>
           {podeVerFinanceiro && (
             <Box>
               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block' }}>
-                Comissões
+                ComissÃµes
               </Typography>
               <Typography variant="body2" sx={{ fontWeight: 800, color: '#10b981', fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem' }}>
                 {formatarMoeda(totalComissoes)}
@@ -751,7 +753,7 @@ const SubGrupoData = ({
           )}
           <Box>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block' }}>
-              Crédito
+              CrÃ©dito
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary', fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem' }}>
               {formatarMoeda(totalCredito)}
@@ -884,7 +886,7 @@ const SubGrupoData = ({
                   
                   const baseRowBg = bgCard && bgCard !== 'transparent' ? bgCard : (isDark ? '#111827' : '#ffffff');
                   
-                  // Cores opacas sólidas para as sticky columns e para todas as células da linha
+                  // Cores opacas sÃ³lidas para as sticky columns e para todas as cÃ©lulas da linha
                   const rowBg = isLaranja 
                     ? (isDark ? '#563020' : '#FCE1CB') 
                     : isAmarelo 
@@ -917,7 +919,7 @@ const SubGrupoData = ({
                         } : {}),
                       }}
                     >
-                      {/* Checkbox de Linha com Fundo Sólido Opaco */}
+                      {/* Checkbox de Linha com Fundo SÃ³lido Opaco */}
                       <TableCell sx={{
                         position: 'sticky',
                         left: 0,
@@ -937,7 +939,7 @@ const SubGrupoData = ({
                           sx={{ p: 0.2 }}
                         />
                       </TableCell>
-                      {/* Célula Cliente/PAC com Fundo Sólido Opaco */}
+                      {/* CÃ©lula Cliente/PAC com Fundo SÃ³lido Opaco */}
                       <TableCell
                         sx={{
                           py: 0.8, pl: 2, pr: 1.5,
@@ -958,7 +960,7 @@ const SubGrupoData = ({
                           </Typography>
                         )}
                         <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', fontWeight: 600, display: 'block' }}>
-                          {item.parcelaIndex === 1 ? 'Venda' : 'Recorrência'}
+                          {item.parcelaIndex === 1 ? 'Venda' : 'RecorrÃªncia'}
                         </Typography>
                         {item.isEspelho && (
                            <Box sx={{ display: 'block', mt: 0.5 }}>
@@ -966,7 +968,7 @@ const SubGrupoData = ({
                            </Box>
                         )}
                       </TableCell>
-                      {/* Célula Administradora com Fundo Sólido Opaco */}
+                      {/* CÃ©lula Administradora com Fundo SÃ³lido Opaco */}
                       <TableCell sx={{
                         py: 0.8,
                         position: 'sticky',
@@ -978,9 +980,9 @@ const SubGrupoData = ({
                         fontSize: '0.72rem',
                         fontWeight: 600,
                       }}>
-                        {item.administradoraNome || '—'}
+                        {item.administradoraNome || 'â€”'}
                       </TableCell>
-                      {/* Célula Vendedor com Fundo Sólido Opaco */}
+                      {/* CÃ©lula Vendedor com Fundo SÃ³lido Opaco */}
                       <TableCell sx={{
                         py: 0.8, fontSize: '0.75rem', color: 'text.secondary',
                         position: 'sticky',
@@ -990,9 +992,9 @@ const SubGrupoData = ({
                         width: 120,
                         minWidth: 120,
                       }}>
-                        {item.vendedorNome || '—'}
+                        {item.vendedorNome || 'â€”'}
                       </TableCell>
-                      {/* Célula Data Venda com Fundo Sólido Opaco */}
+                      {/* CÃ©lula Data Venda com Fundo SÃ³lido Opaco */}
                       <TableCell sx={{
                         py: 0.8, fontSize: '0.75rem', whiteSpace: 'nowrap', color: 'text.secondary',
                         position: 'sticky',
@@ -1003,7 +1005,7 @@ const SubGrupoData = ({
                         minWidth: 95,
                         borderRight: `2px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`,
                       }}>
-                        {item.dataVenda ? formatarData(item.dataVenda) : '—'}
+                        {item.dataVenda ? formatarData(item.dataVenda) : 'â€”'}
                       </TableCell>
                       <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                         {formatarData(item.dataVencimento)}
@@ -1020,7 +1022,7 @@ const SubGrupoData = ({
                             {formatarData(item.dataPagamentoCliente)}
                           </Box>
                         ) : (
-                          <Typography sx={{ color: 'text.disabled', fontSize: '0.72rem' }}>—</Typography>
+                          <Typography sx={{ color: 'text.disabled', fontSize: '0.72rem' }}>â€”</Typography>
                         )}
                       </TableCell>
                       <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap', color: 'text.primary' }}>
@@ -1043,7 +1045,7 @@ const SubGrupoData = ({
                       <TableCell sx={{ bgcolor: rowBg, py: 0.8 }}>
                         <SituacaoRecebimentoBadge situacao={item.situacaoRecebimento} />
                       </TableCell>
-                      {/* Dt. Recebimento da Comissão */}
+                      {/* Dt. Recebimento da ComissÃ£o */}
                       <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
                         {item.dataRelatorioRecebimento ? (
                           <Box sx={{
@@ -1055,7 +1057,7 @@ const SubGrupoData = ({
                             {formatarData(item.dataRelatorioRecebimento)}
                           </Box>
                         ) : (
-                          <Typography sx={{ color: 'text.disabled', fontSize: '0.72rem' }}>—</Typography>
+                          <Typography sx={{ color: 'text.disabled', fontSize: '0.72rem' }}>â€”</Typography>
                         )}
                       </TableCell>
                       <TableCell sx={{ bgcolor: rowBg, py: 0.8, fontSize: '0.75rem', textAlign: 'center', color: 'text.secondary' }}>
@@ -1065,7 +1067,7 @@ const SubGrupoData = ({
                           </Typography>
                           {item.parcelaIndex === 1 ? (
                             <Chip
-                              label="1ª Parcela"
+                              label="1Âª Parcela"
                               size="small"
                               sx={{
                                 height: 17,
@@ -1079,7 +1081,7 @@ const SubGrupoData = ({
                             />
                           ) : (
                             <Chip
-                              label="Recorrência"
+                              label="RecorrÃªncia"
                               size="small"
                               sx={{
                                 height: 17,
@@ -1101,7 +1103,7 @@ const SubGrupoData = ({
                       )}
                       <TableCell sx={{ py: 0.8, textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.3 }}>
-                          {/* Botão: Registrar Pagamento do Cliente (→ Paga) */}
+                          {/* BotÃ£o: Registrar Pagamento do Cliente (â†’ Paga) */}
                           {item.statusParcela !== 'Paga' && item.statusParcela !== 'Cancelada' && !item.isEspelho && (
                             <Tooltip title={`Registrar pagamento do cliente`}>
                               <IconButton
@@ -1133,9 +1135,9 @@ const SubGrupoData = ({
                               </IconButton>
                             </Tooltip>
                           )}
-                          {/* Indicador visual quando já está Paga mas não Recebida */}
+                          {/* Indicador visual quando jÃ¡ estÃ¡ Paga mas nÃ£o Recebida */}
                           {item.statusParcela === 'Paga' && item.situacaoRecebimento !== 'Recebida' && !item.isEspelho && (
-                            <Tooltip title={`Registrar recebimento da comissão`}>
+                            <Tooltip title={`Registrar recebimento da comissÃ£o`}>
                               <IconButton
                                 size="small"
                                 onClick={() => onMarcarRecebida?.(item)}
@@ -1151,7 +1153,7 @@ const SubGrupoData = ({
                           )}
                           {/* Indicador visual quando Recebida */}
                           {item.situacaoRecebimento === 'Recebida' && (
-                            <Tooltip title={`Comissão recebida${item.dataRelatorioRecebimento ? ` em ${formatarData(item.dataRelatorioRecebimento)}` : ''}${item.numeroRelatorioRecebimento ? ` · Rel: ${item.numeroRelatorioRecebimento}` : ''}${item.notaFiscalRecebimento ? ` · NF: ${item.notaFiscalRecebimento}` : ''}`}>
+                            <Tooltip title={`ComissÃ£o recebida${item.dataRelatorioRecebimento ? ` em ${formatarData(item.dataRelatorioRecebimento)}` : ''}${item.numeroRelatorioRecebimento ? ` Â· Rel: ${item.numeroRelatorioRecebimento}` : ''}${item.notaFiscalRecebimento ? ` Â· NF: ${item.notaFiscalRecebimento}` : ''}`}>
                               <Box sx={{
                                 display: 'inline-flex', alignItems: 'center', px: 0.6, py: 0.2,
                                 borderRadius: 1, bgcolor: 'rgba(14,165,233,0.1)', color: '#0ea5e9'
@@ -1176,7 +1178,23 @@ const SubGrupoData = ({
                               </IconButton>
                             </Tooltip>
                           )}
-                          {/* Botão Cancelar Parcela (A vencer / Vencida) */}
+                          {/* BotÃ£o Estornar Parcela */}
+                          {['A vencer', 'Vencida', 'Paga', 'Recebida'].includes(item.statusParcela) && !item.isEspelho && permissoes?.editarVendas && (
+                            <Tooltip title="Estornar esta parcela e cancelar as futuras">
+                              <IconButton
+                                size="small"
+                                onClick={() => onEstornarParcela?.(item)}
+                                sx={{
+                                  p: 0.4,
+                                  color: '#f59e0b',
+                                  '&:hover': { bgcolor: 'rgba(245,158,11,0.12)' }
+                                }}
+                              >
+                                <AutorenewIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          {/* BotÃ£o Cancelar Parcela (A vencer / Vencida) */}
                           {(item.statusParcela === 'A vencer' || item.statusParcela === 'Vencida') && !item.isEspelho && permissoes?.editarVendas && (
                             <Tooltip title="Cancelar esta parcela e as futuras">
                               <IconButton
@@ -1208,7 +1226,7 @@ const SubGrupoData = ({
                               </IconButton>
                             </Tooltip>
                           )}
-                          {/* Botão Editar Venda */}
+                          {/* BotÃ£o Editar Venda */}
                           {permissoes?.editarVendas ? (
                             <Tooltip title="Editar venda">
                               <IconButton
@@ -1221,7 +1239,7 @@ const SubGrupoData = ({
                               </IconButton>
                             </Tooltip>
                           ) : (
-                            <Tooltip title="Sem permissão para editar vendas">
+                            <Tooltip title="Sem permissÃ£o para editar vendas">
                               <span>
                                 <IconButton size="small" disabled sx={{ p: 0.4 }}>
                                   <EditIcon sx={{ fontSize: 16 }} />
@@ -1242,9 +1260,9 @@ const SubGrupoData = ({
   );
 };
 
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Sub-componente: Linha do grupo (accordion)
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const GrupoRecebimento = ({
   grupo,
@@ -1256,6 +1274,7 @@ const GrupoRecebimento = ({
   onDesfazerPaga,
   onDesfazerRecebida,
   onCancelarParcela,
+    onEstornarParcela,
   onDesfazerCancelar,
   permissoes,
   isMaster,
@@ -1271,6 +1290,7 @@ const GrupoRecebimento = ({
   onDesfazerPaga?: (item: ParcelaLinha) => void;
   onDesfazerRecebida?: (item: ParcelaLinha) => void;
   onCancelarParcela?: (item: ParcelaLinha) => void;
+    onEstornarParcela?: (item: ParcelaLinha) => void;
   onDesfazerCancelar?: (item: ParcelaLinha) => void;
   permissoes?: UserPermissions;
   isMaster?: boolean;
@@ -1352,7 +1372,7 @@ const GrupoRecebimento = ({
 
   const datasUnicas = [...new Set(grupo.itens.map((i) => i.dataPrevisaoRecebimento))].sort();
 
-  // Indicadores de Vendas Novas vs Recorrência do Mês
+  // Indicadores de Vendas Novas vs RecorrÃªncia do MÃªs
   const itensNovasVendas = useMemo(() => grupo.itens.filter(i => i.parcelaIndex === 1), [grupo.itens]);
   const totalNovasVendasComissao = useMemo(() => itensNovasVendas.reduce((acc, i) => acc + i.comissao, 0), [itensNovasVendas]);
   const totalNovasVendasCredito = useMemo(() => itensNovasVendas.reduce((acc, i) => acc + i.valorVenda, 0), [itensNovasVendas]);
@@ -1403,7 +1423,7 @@ const GrupoRecebimento = ({
           sx={{ mr: 0.5, p: 0.25, flexShrink: 0 }}
         />
 
-        {/* Mês de recebimento */}
+        {/* MÃªs de recebimento */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 'auto', flexShrink: 0 }}>
           <Box sx={{
             p: 0.6, borderRadius: 1.5,
@@ -1415,14 +1435,14 @@ const GrupoRecebimento = ({
           </Box>
           <Box>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block', lineHeight: 1, whiteSpace: 'nowrap' }}>
-              Mês de Vencimento
+              MÃªs de Vencimento
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 800, color: isAtual ? theme.palette.primary.main : 'text.primary', fontFamily: 'Outfit, sans-serif', fontSize: '0.92rem', whiteSpace: 'nowrap' }}>
               {formatarMesAno(grupo.mesPeriodo + '-01')}
             </Typography>
           </Box>
           {isAtual && (
-            <Chip label="MÊS ATUAL" size="small" sx={{
+            <Chip label="MÃŠS ATUAL" size="small" sx={{
               ml: 0.5, height: 18, fontSize: '0.58rem', fontWeight: 800,
               background: 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff',
               letterSpacing: '0.4px', flexShrink: 0
@@ -1436,24 +1456,24 @@ const GrupoRecebimento = ({
           )}
         </Box>
 
-        {/* Datas de recebimento do mês */}
+        {/* Datas de recebimento do mÃªs */}
         <Box sx={{ display: { xs: 'none', lg: 'flex' }, flexDirection: 'column', minWidth: 'auto', flexShrink: 0 }}>
           <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
             Datas de Corte
           </Typography>
           <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
-            {datasUnicas.map(formatarData).join(' · ')}
+            {datasUnicas.map(formatarData).join(' Â· ')}
           </Typography>
         </Box>
 
         <Divider orientation="vertical" flexItem sx={{ mx: 0.2, flexShrink: 0 }} />
 
-        {/* Métricas resumidas com Vendas do Mês e Recorrência em 1 única linha */}
+        {/* MÃ©tricas resumidas com Vendas do MÃªs e RecorrÃªncia em 1 Ãºnica linha */}
         <Box sx={{ display: 'flex', gap: 1.8, flexGrow: 1, flexWrap: 'nowrap', alignItems: 'center' }}>
           {podeVerFinanceiro && (
             <Box sx={{ flexShrink: 0 }}>
               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', display: 'block', whiteSpace: 'nowrap' }}>
-                Comissões a Receber
+                ComissÃµes a Receber
               </Typography>
               <Typography variant="body2" sx={{ fontWeight: 800, color: '#10b981', fontFamily: 'Outfit, sans-serif', fontSize: '0.92rem', whiteSpace: 'nowrap' }}>
                 {formatarMoeda(grupo.totalComissoes)}
@@ -1471,9 +1491,9 @@ const GrupoRecebimento = ({
             </Typography>
           </Box>
 
-          {/* Crédito: Vendas Novas */}
+          {/* CrÃ©dito: Vendas Novas */}
           {grupo.totalCreditoVendas > 0 && (
-            <Tooltip title={`Crédito das vendas novas (1ª parcela) do mês`}>
+            <Tooltip title={`CrÃ©dito das vendas novas (1Âª parcela) do mÃªs`}>
               <Box sx={{
                 display: 'flex', flexDirection: 'column',
                 p: '3px 8px', borderRadius: 1.5, flexShrink: 0,
@@ -1483,7 +1503,7 @@ const GrupoRecebimento = ({
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
                   <FlashOnIcon sx={{ fontSize: 11, color: '#0ea5e9' }} />
                   <Typography variant="caption" sx={{ color: '#0ea5e9', fontWeight: 800, fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>
-                    Crédito Vendas
+                    CrÃ©dito Vendas
                   </Typography>
                 </Box>
                 <Typography variant="body2" sx={{ fontWeight: 800, color: '#0ea5e9', fontFamily: 'Outfit, sans-serif', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
@@ -1493,9 +1513,9 @@ const GrupoRecebimento = ({
             </Tooltip>
           )}
 
-          {/* Crédito: Recorrência */}
+          {/* CrÃ©dito: RecorrÃªncia */}
           {grupo.totalCreditoRecorrencia > 0 && (
-            <Tooltip title={`Crédito da recorrência (2ª parcela em diante) do mês`}>
+            <Tooltip title={`CrÃ©dito da recorrÃªncia (2Âª parcela em diante) do mÃªs`}>
               <Box sx={{
                 display: 'flex', flexDirection: 'column',
                 p: '3px 8px', borderRadius: 1.5, flexShrink: 0,
@@ -1505,7 +1525,7 @@ const GrupoRecebimento = ({
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
                   <AutorenewIcon sx={{ fontSize: 11, color: '#a855f7' }} />
                   <Typography variant="caption" sx={{ color: '#a855f7', fontWeight: 800, fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>
-                    Crédito Recorr.
+                    CrÃ©dito Recorr.
                   </Typography>
                 </Box>
                 <Typography variant="body2" sx={{ fontWeight: 800, color: '#a855f7', fontFamily: 'Outfit, sans-serif', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
@@ -1515,8 +1535,8 @@ const GrupoRecebimento = ({
             </Tooltip>
           )}
 
-          {/* Indicador: Vendas do Mês (1ª Parcela) */}
-          <Tooltip title={`Vendas do Mês: ${qtdNovasVendas} contrato(s) com crédito total de ${formatarMoeda(totalNovasVendasCredito)}`}>
+          {/* Indicador: Vendas do MÃªs (1Âª Parcela) */}
+          <Tooltip title={`Vendas do MÃªs: ${qtdNovasVendas} contrato(s) com crÃ©dito total de ${formatarMoeda(totalNovasVendasCredito)}`}>
             <Box sx={{
               display: 'flex',
               flexDirection: 'column',
@@ -1529,7 +1549,7 @@ const GrupoRecebimento = ({
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
                 <FlashOnIcon sx={{ fontSize: 12, color: '#0ea5e9' }} />
                 <Typography variant="caption" sx={{ color: '#0ea5e9', fontWeight: 800, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>
-                  Vendas do Mês ({qtdNovasVendas})
+                  Vendas do MÃªs ({qtdNovasVendas})
                 </Typography>
               </Box>
               {podeVerFinanceiro && (
@@ -1540,8 +1560,8 @@ const GrupoRecebimento = ({
             </Box>
           </Tooltip>
 
-          {/* Indicador: Recorrência da Carteira (2ª Parcela em diante) */}
-          <Tooltip title={`Recorrência da Carteira: ${qtdRecorrencia} parcela(s) com crédito de ${formatarMoeda(totalRecorrenciaCredito)}`}>
+          {/* Indicador: RecorrÃªncia da Carteira (2Âª Parcela em diante) */}
+          <Tooltip title={`RecorrÃªncia da Carteira: ${qtdRecorrencia} parcela(s) com crÃ©dito de ${formatarMoeda(totalRecorrenciaCredito)}`}>
             <Box sx={{
               display: 'flex',
               flexDirection: 'column',
@@ -1554,7 +1574,7 @@ const GrupoRecebimento = ({
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
                 <AutorenewIcon sx={{ fontSize: 12, color: '#a855f7' }} />
                 <Typography variant="caption" sx={{ color: '#a855f7', fontWeight: 800, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>
-                  Recorrência ({qtdRecorrencia})
+                  RecorrÃªncia ({qtdRecorrencia})
                 </Typography>
               </Box>
               {podeVerFinanceiro && (
@@ -1574,7 +1594,7 @@ const GrupoRecebimento = ({
           </Box>
         </Box>
 
-        {/* Barra visual de composição */}
+        {/* Barra visual de composiÃ§Ã£o */}
         <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', gap: 0.5 }}>
           {(['A receber', 'Recebida', 'Cancelada', 'Estornada'] as string[]).map((s) => {
             const count = grupo.itens.filter((i) => i.situacaoRecebimento === s || i.statusParcela === s).length;
@@ -1585,14 +1605,14 @@ const GrupoRecebimento = ({
             return (
               <Tooltip key={s} title={`${s}: ${count}`}>
                 <Box sx={{ px: 0.8, py: 0.3, borderRadius: 1, bgcolor: `${colors[s]}22`, color: colors[s], fontSize: '0.68rem', fontWeight: 700 }}>
-                  {count}×{s.charAt(0)}
+                  {count}Ã—{s.charAt(0)}
                 </Box>
               </Tooltip>
             );
           })}
         </Box>
 
-        {/* Ações do Grupo (Exportar PDF) */}
+        {/* AÃ§Ãµes do Grupo (Exportar PDF) */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1 }}>
           <Button
             variant="contained"
@@ -1641,6 +1661,7 @@ const GrupoRecebimento = ({
                 onDesfazerPaga={onDesfazerPaga}
                 onDesfazerRecebida={onDesfazerRecebida}
                 onCancelarParcela={onCancelarParcela}
+                  onEstornarParcela={onEstornarParcela}
                 onDesfazerCancelar={onDesfazerCancelar}
                 permissoes={permissoes}
                 isMaster={isMaster}
@@ -1654,9 +1675,9 @@ const GrupoRecebimento = ({
   );
 };
 
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Componente principal
-// ──────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface RelatorioRecebimentosProps {
   vendas: LancamentoVenda[];
@@ -1694,8 +1715,8 @@ export const RelatorioRecebimentos = ({
   const [busca, setBusca] = useState('');
   const [buscaRelatorio, setBuscaRelatorio] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<string[]>([]); 
-  // Filtro: 'Todos' | 'Vendas' | 'Recorrência'
-  const [filtroTipo, setFiltroTipo] = useState<'Todos' | 'Vendas' | 'Recorrência'>('Todos');
+  // Filtro: 'Todos' | 'Vendas' | 'RecorrÃªncia'
+  const [filtroTipo, setFiltroTipo] = useState<'Todos' | 'Vendas' | 'RecorrÃªncia'>('Todos');
   const [filtroDataPagamentoInicio, setFiltroDataPagamentoInicio] = useState('');
   const [filtroDataPagamentoFim, setFiltroDataPagamentoFim] = useState('');
 
@@ -1704,14 +1725,14 @@ export const RelatorioRecebimentos = ({
   const [vendaEmEdicao, setVendaEmEdicao] = useState<LancamentoVenda | null>(null);
   const [snackbarMsg, setSnackbarMsg] = useState('');
 
-  // ── Modal: Registrar Pagamento do Cliente ──
+  // â”€â”€ Modal: Registrar Pagamento do Cliente â”€â”€
   const [modalPaga, setModalPaga] = useState<{
     open: boolean;
     item: ParcelaLinha | null;
     dataPagamento: string;
   }>({ open: false, item: null, dataPagamento: new Date().toISOString().split('T')[0] });
 
-  // ── Modal: Registrar Recebimento da Comissão ──
+  // â”€â”€ Modal: Registrar Recebimento da ComissÃ£o â”€â”€
   const [modalRecebida, setModalRecebida] = useState<{
     open: boolean;
     item: ParcelaLinha | null;
@@ -1720,7 +1741,13 @@ export const RelatorioRecebimentos = ({
     notaFiscal: string;
   }>({ open: false, item: null, numeroRelatorio: '', dataRelatorio: new Date().toISOString().split('T')[0], notaFiscal: '' });
 
-  // ── Modal: Cancelar Parcela ──
+  // â”€â”€ Modal: Cancelar Parcela â”€â”€
+  const [modalEstornar, setModalEstornar] = useState<{
+    open: boolean;
+    item: ParcelaLinha | null;
+    dataCancelamento: string;
+  }>({ open: false, item: null, dataCancelamento: new Date().toISOString().split('T')[0] });
+
   const [modalCancelar, setModalCancelar] = useState<{
     open: boolean;
     item: ParcelaLinha | null;
@@ -1739,6 +1766,42 @@ export const RelatorioRecebimentos = ({
       dataRelatorio: new Date().toISOString().split('T')[0],
       notaFiscal: '',
     });
+  };
+
+  const handleAbrirModalEstornar = (item: ParcelaLinha) => {
+    setModalEstornar({ open: true, item, dataCancelamento: new Date().toISOString().split('T')[0] });
+  };
+
+  const handleConfirmarEstornar = async () => {
+    const { item, dataCancelamento } = modalEstornar;
+    if (!item || !onAtualizarVenda) return;
+    const venda = vendas.find((v) => v.id === item.vendaId);
+    if (!venda) return;
+
+    // Estorna a parcela clicada e cancela todas as futuras nÃ£o-pagas da mesma venda
+    const todasChaves = Object.keys(venda.projecaoMensal).sort();
+    const chavesCancelar = todasChaves.filter((m) => m >= item.mesReferencia);
+
+    const novaProjecao = { ...venda.projecaoMensal };
+    chavesCancelar.forEach((m) => {
+      const cel = novaProjecao[m];
+      if (cel && cel.status !== 'Paga' && cel.status !== 'Estornada') {
+        const isCurrent = m === item.mesReferencia;
+        novaProjecao[m] = { ...cel, status: (isCurrent ? 'Estornada' : 'Cancelada') as StatusParcela, dataCancelamento };
+      }
+    });
+
+    const vendaAtualizada: LancamentoVenda = { ...venda, projecaoMensal: novaProjecao };
+    try {
+      await salvarVendaSupabase(vendaAtualizada);
+      onAtualizarVenda(vendaAtualizada);
+      setModalEstornar({ open: false, item: null, dataCancelamento: new Date().toISOString().split('T')[0] });
+      setSnackbarMsg(`Parcela de ${item.cliente} estornada (e futuras canceladas).`);
+    } catch (err: any) {
+      console.error('Erro ao estornar parcela no Supabase:', err);
+      const msg = err?.message || err?.details || JSON.stringify(err);
+      setSnackbarMsg(`Erro no banco: ${msg.substring(0, 100)}`);
+    }
   };
 
   const handleAbrirModalCancelar = (item: ParcelaLinha) => {
@@ -1766,11 +1829,11 @@ export const RelatorioRecebimentos = ({
       await salvarVendaSupabase(vendaAtualizada);
       onAtualizarVenda(vendaAtualizada);
       setModalPaga({ open: false, item: null, dataPagamento: '' });
-      setSnackbarMsg(`✅ Pagamento registrado para ${item.cliente}`);
+      setSnackbarMsg(`âœ… Pagamento registrado para ${item.cliente}`);
     } catch (err: any) {
       console.error('Erro ao salvar no Supabase:', err);
       const msg = err?.message || err?.details || JSON.stringify(err);
-      setSnackbarMsg(`❌ Erro no banco: ${msg.substring(0, 100)}`);
+      setSnackbarMsg(`âŒ Erro no banco: ${msg.substring(0, 100)}`);
     }
   };
 
@@ -1802,11 +1865,11 @@ export const RelatorioRecebimentos = ({
       await salvarVendaSupabase(vendaAtualizada);
       onAtualizarVenda(vendaAtualizada);
       setModalRecebida({ open: false, item: null, numeroRelatorio: '', dataRelatorio: '', notaFiscal: '' });
-      setSnackbarMsg(`💰 Recebimento da comissão de ${item.cliente} registrado com sucesso!`);
+      setSnackbarMsg(`ðŸ’° Recebimento da comissÃ£o de ${item.cliente} registrado com sucesso!`);
     } catch (err: any) {
       console.error('Erro ao salvar no Supabase:', err);
       const msg = err?.message || err?.details || JSON.stringify(err);
-      setSnackbarMsg(`❌ Erro no banco: ${msg.substring(0, 100)}`);
+      setSnackbarMsg(`âŒ Erro no banco: ${msg.substring(0, 100)}`);
     }
   };
 
@@ -1837,16 +1900,16 @@ export const RelatorioRecebimentos = ({
     try {
       await salvarVendaSupabase(vendaAtualizada);
       onAtualizarVenda(vendaAtualizada);
-      setSnackbarMsg(`✅ Pagamento desfeito para ${item.cliente}`);
+      setSnackbarMsg(`âœ… Pagamento desfeito para ${item.cliente}`);
     } catch (err: any) {
       console.error('Erro ao desfazer pagamento no Supabase:', err);
       const msg = err?.message || err?.details || JSON.stringify(err);
-      setSnackbarMsg(`❌ Erro no banco: ${msg.substring(0, 100)}`);
+      setSnackbarMsg(`âŒ Erro no banco: ${msg.substring(0, 100)}`);
     }
   };
 
   const handleDesfazerRecebida = async (item: ParcelaLinha) => {
-    if (!window.confirm(`Deseja desfazer o recebimento da comissão da parcela ${item.parcelaIndex}/${item.qtdParcelas} de ${item.cliente}?`)) return;
+    if (!window.confirm(`Deseja desfazer o recebimento da comissÃ£o da parcela ${item.parcelaIndex}/${item.qtdParcelas} de ${item.cliente}?`)) return;
     if (!onAtualizarVenda) return;
     const venda = vendas.find((v) => v.id === item.vendaId);
     if (!venda) return;
@@ -1870,11 +1933,11 @@ export const RelatorioRecebimentos = ({
     try {
       await salvarVendaSupabase(vendaAtualizada);
       onAtualizarVenda(vendaAtualizada);
-      setSnackbarMsg(`✅ Recebimento desfeito para ${item.cliente}`);
+      setSnackbarMsg(`âœ… Recebimento desfeito para ${item.cliente}`);
     } catch (err: any) {
       console.error('Erro ao desfazer recebimento no Supabase:', err);
       const msg = err?.message || err?.details || JSON.stringify(err);
-      setSnackbarMsg(`❌ Erro no banco: ${msg.substring(0, 100)}`);
+      setSnackbarMsg(`âŒ Erro no banco: ${msg.substring(0, 100)}`);
     }
   };
 
@@ -1884,7 +1947,7 @@ export const RelatorioRecebimentos = ({
     const venda = vendas.find((v) => v.id === item.vendaId);
     if (!venda) return;
 
-    // Cancela a parcela clicada e todas as futuras não-pagas da mesma venda
+    // Cancela a parcela clicada e todas as futuras nÃ£o-pagas da mesma venda
     const todasChaves = Object.keys(venda.projecaoMensal).sort();
     const chavesCancelar = todasChaves.filter((m) => m >= item.mesReferencia);
 
@@ -1901,11 +1964,11 @@ export const RelatorioRecebimentos = ({
       await salvarVendaSupabase(vendaAtualizada);
       onAtualizarVenda(vendaAtualizada);
       setModalCancelar({ open: false, item: null, dataCancelamento: new Date().toISOString().split('T')[0] });
-      setSnackbarMsg(`🚫 Parcela(s) de ${item.cliente} cancelada(s) a partir de ${formatarMesAno(item.mesReferencia + '-01')}`);
+      setSnackbarMsg(`ðŸš« Parcela(s) de ${item.cliente} cancelada(s) a partir de ${formatarMesAno(item.mesReferencia + '-01')}`);
     } catch (err: any) {
       console.error('Erro ao cancelar parcela no Supabase:', err);
       const msg = err?.message || err?.details || JSON.stringify(err);
-      setSnackbarMsg(`❌ Erro no banco: ${msg.substring(0, 100)}`);
+      setSnackbarMsg(`âŒ Erro no banco: ${msg.substring(0, 100)}`);
     }
   };
 
@@ -1926,11 +1989,11 @@ export const RelatorioRecebimentos = ({
     try {
       await salvarVendaSupabase(vendaAtualizada);
       onAtualizarVenda(vendaAtualizada);
-      setSnackbarMsg(`✅ Cancelamento desfeito para ${item.cliente}`);
+      setSnackbarMsg(`âœ… Cancelamento desfeito para ${item.cliente}`);
     } catch (err: any) {
       console.error('Erro ao desfazer cancelamento no Supabase:', err);
       const msg = err?.message || err?.details || JSON.stringify(err);
-      setSnackbarMsg(`❌ Erro no banco: ${msg.substring(0, 100)}`);
+      setSnackbarMsg(`âŒ Erro no banco: ${msg.substring(0, 100)}`);
     }
   };
 
@@ -1951,7 +2014,7 @@ export const RelatorioRecebimentos = ({
     );
   };
 
-  // 1. Monta lista de parcelas com datas de previsão
+  // 1. Monta lista de parcelas com datas de previsÃ£o
   const parcelas = useMemo<ParcelaLinha[]>(() => {
     const lista: ParcelaLinha[] = [];
 
@@ -2001,7 +2064,7 @@ export const RelatorioRecebimentos = ({
           (venda.vendedorNome || '').toLowerCase().includes(termoBusca)
         )) return;
 
-        // Filtro por número de relatório ADM
+        // Filtro por nÃºmero de relatÃ³rio ADM
         const termoRel = buscaRelatorio.trim().toLowerCase();
         if (termoRel && !(venda.numeroRelatorio || '').toLowerCase().includes(termoRel)) return;
 
@@ -2044,7 +2107,7 @@ export const RelatorioRecebimentos = ({
           dataCancelamento: celula.dataCancelamento,
         };
 
-        // 1. Linha Original (Competência)
+        // 1. Linha Original (CompetÃªncia)
         let criarOriginal = true;
 
         if (dataInicio && dtVenc < dataInicio) criarOriginal = false;
@@ -2057,9 +2120,9 @@ export const RelatorioRecebimentos = ({
           if (!dtPag || dtPag > filtroDataPagamentoFim) criarOriginal = false;
         }
 
-        // Filtro de tipo: Vendas (1ª parcela) vs Recorrência (2ª em diante)
+        // Filtro de tipo: Vendas (1Âª parcela) vs RecorrÃªncia (2Âª em diante)
         if (filtroTipo === 'Vendas' && parcelaIndex !== 1) criarOriginal = false;
-        if (filtroTipo === 'Recorrência' && parcelaIndex === 1) criarOriginal = false;
+        if (filtroTipo === 'RecorrÃªncia' && parcelaIndex === 1) criarOriginal = false;
 
         if (criarOriginal) {
           lista.push({
@@ -2077,9 +2140,9 @@ export const RelatorioRecebimentos = ({
           if (dataInicio && dtPag < dataInicio) criarEspelho = false;
           if (dataFim && dtPag > dataFim) criarEspelho = false;
 
-          // Filtro de tipo também se aplica aos espelhos
+          // Filtro de tipo tambÃ©m se aplica aos espelhos
           if (filtroTipo === 'Vendas' && parcelaIndex !== 1) criarEspelho = false;
-          if (filtroTipo === 'Recorrência' && parcelaIndex === 1) criarEspelho = false;
+          if (filtroTipo === 'RecorrÃªncia' && parcelaIndex === 1) criarEspelho = false;
 
           if (criarEspelho) {
             lista.push({
@@ -2098,13 +2161,13 @@ export const RelatorioRecebimentos = ({
   }, [vendas, dataInicio, dataFim, ciclos, busca, buscaRelatorio, filtroStatus, filtroTipo, filtroDataPagamentoInicio, filtroDataPagamentoFim]);
 
 
-  // 2. Agrupa por grupoVisual (que é o Mês/Ano onde a linha deve aparecer)
+  // 2. Agrupa por grupoVisual (que Ã© o MÃªs/Ano onde a linha deve aparecer)
   const grupos = useMemo<GrupoPeriodo[]>(() => {
     const mapa = new Map<string, GrupoPeriodo>();
-    const pacsPorMes = new Map<string, Set<string>>(); // Controla PACs únicos por mês para o crédito
+    const pacsPorMes = new Map<string, Set<string>>(); // Controla PACs Ãºnicos por mÃªs para o crÃ©dito
 
     parcelas.forEach((p) => {
-      const key = p.grupoVisual; // Agrupamento por mês de visualização
+      const key = p.grupoVisual; // Agrupamento por mÃªs de visualizaÃ§Ã£o
       if (!mapa.has(key)) {
         mapa.set(key, {
           mesPeriodo: key,
@@ -2121,16 +2184,16 @@ export const RelatorioRecebimentos = ({
       const g = mapa.get(key)!;
       const pacsDoMes = pacsPorMes.get(key)!;
       
-      // Espelhos não somam no total base do mês para evitar duplicação.
+      // Espelhos nÃ£o somam no total base do mÃªs para evitar duplicaÃ§Ã£o.
       if (!p.isEspelho) {
         g.totalComissoes += p.comissao;
         g.qtdParcelas += 1;
         
-        // Garante que o crédito da cota (valorVenda) seja somado apenas 1x por PAC no mês
+        // Garante que o crÃ©dito da cota (valorVenda) seja somado apenas 1x por PAC no mÃªs
         if (!pacsDoMes.has(p.vendaId)) {
           pacsDoMes.add(p.vendaId);
-          // 1ª parcela = Venda nova → soma valorVenda (valor da cota)
-          // 2ª+ parcela = Recorrência → soma valorVenda (valor da cota)
+          // 1Âª parcela = Venda nova â†’ soma valorVenda (valor da cota)
+          // 2Âª+ parcela = RecorrÃªncia â†’ soma valorVenda (valor da cota)
           if (p.parcelaIndex === 1) {
             g.totalCreditoVendas += p.valorVenda;
           } else {
@@ -2143,7 +2206,7 @@ export const RelatorioRecebimentos = ({
       g.itens.push(p);
     });
 
-    // Recalcula totais por status após montar os grupos
+    // Recalcula totais por status apÃ³s montar os grupos
     const resultado = Array.from(mapa.values());
     resultado.forEach((g) => {
       g.totaisStatus = calcularTotaisStatus(g.itens);
@@ -2157,7 +2220,7 @@ export const RelatorioRecebimentos = ({
   const totalComissoes = grupos.reduce((acc, g) => acc + g.totalComissoes, 0);
   const totalQtd = grupos.reduce((acc, g) => acc + g.qtdParcelas, 0);
 
-  // Calcula o crédito total considerando PACs únicos (em vez de somar todos os grupos e duplicar se o mesmo PAC aparecer em meses diferentes)
+  // Calcula o crÃ©dito total considerando PACs Ãºnicos (em vez de somar todos os grupos e duplicar se o mesmo PAC aparecer em meses diferentes)
   const totalCredito = useMemo(() => {
     const pacsUnicos = new Set<string>();
     let creditoUnico = 0;
@@ -2170,7 +2233,7 @@ export const RelatorioRecebimentos = ({
     return creditoUnico;
   }, [parcelas]);
 
-  // Totais consolidados de Vendas do Mês vs Recorrência no período filtrado
+  // Totais consolidados de Vendas do MÃªs vs RecorrÃªncia no perÃ­odo filtrado
   const totalNovasVendasGeral = useMemo(() => {
     const itensNovos = parcelas.filter(p => !p.isEspelho && p.parcelaIndex === 1);
     const pacsUnicos = new Set<string>();
@@ -2231,15 +2294,15 @@ export const RelatorioRecebimentos = ({
     return { credito: creditoUnico, qtd: pacsUnicos.size };
   }, [parcelas]);
 
-  // 4. Próximo período com valor a receber
+  // 4. PrÃ³ximo perÃ­odo com valor a receber
   const mesAtual = new Date().toISOString().substring(0, 7); // YYYY-MM
   const proximoPeriodo = grupos.find((g) => g.mesPeriodo >= mesAtual);
   const proximoValor = proximoPeriodo ? formatarMoeda(proximoPeriodo.totalComissoes) : '';
-  const proximoLabel = proximoPeriodo ? formatarMesAno(proximoPeriodo.mesPeriodo + '-01') : '—';
+  const proximoLabel = proximoPeriodo ? formatarMesAno(proximoPeriodo.mesPeriodo + '-01') : 'â€”';
 
   // Exportar CSV
   const exportarCSV = () => {
-    const header = ['Data de Corte', 'Cliente', 'PAC', 'Empresa', 'Vendedor', 'Mês Ref.', 'Vencimento', 'Valor da Cota', 'Valor Parcela', 'Comissão', 'Status Parcela', 'Recebimento', 'Parcela Nº'];
+    const header = ['Data de Corte', 'Cliente', 'PAC', 'Empresa', 'Vendedor', 'MÃªs Ref.', 'Vencimento', 'Valor da Cota', 'Valor Parcela', 'ComissÃ£o', 'Status Parcela', 'Recebimento', 'Parcela NÂº'];
     const rows = parcelas.filter((p) => !p.isEspelho).map((p) => [
       formatarData(p.dataPrevisaoRecebimento),
       p.cliente,
@@ -2280,14 +2343,14 @@ export const RelatorioRecebimentos = ({
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
 
-      {/* ── Header ── */}
+      {/* â”€â”€ Header â”€â”€ */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: 'Outfit, sans-serif', color: isDark ? '#f8fafc' : '#0f172a' }}>
-            Relatório de Previsão de Recebimentos
+            RelatÃ³rio de PrevisÃ£o de Recebimentos
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-            Parcelas agrupadas por mês de vencimento · Período: {formatarData(dataInicio)} até {formatarData(dataFim)}
+            Parcelas agrupadas por mÃªs de vencimento Â· PerÃ­odo: {formatarData(dataInicio)} atÃ© {formatarData(dataFim)}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -2328,8 +2391,8 @@ export const RelatorioRecebimentos = ({
         </Box>
       </Box>
 
-      {/* ── KPIs ── */}
-        {/* 📊 KPIs 📊 */}
+      {/* â”€â”€ KPIs â”€â”€ */}
+        {/* ðŸ“Š KPIs ðŸ“Š */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
           {[
             {
@@ -2342,7 +2405,7 @@ export const RelatorioRecebimentos = ({
               show: podeVerFinanceiro
             },
             {
-              label: 'Vendas do Mês',
+              label: 'Vendas do MÃªs',
               value: formatarMoeda(totalNovasVendasGeral.comissao),
               sub: `${totalNovasVendasGeral.qtd} venda(s) novas`,
               icon: <FlashOnIcon />,
@@ -2351,7 +2414,7 @@ export const RelatorioRecebimentos = ({
               show: podeVerFinanceiro
             },
             {
-              label: 'Crédito de Vendas',
+              label: 'CrÃ©dito de Vendas',
               value: formatarMoeda(totalNovasVendasGeral.credito),
               sub: `${totalNovasVendasGeral.qtd} contrato(s)`,
               icon: <FlashOnIcon />,
@@ -2360,7 +2423,7 @@ export const RelatorioRecebimentos = ({
               show: true
             },
             {
-              label: 'Recorrência Carteira',
+              label: 'RecorrÃªncia Carteira',
               value: formatarMoeda(totalRecorrenciaGeral.credito),
               sub: `${totalRecorrenciaGeral.qtd} parcela(s) recorrentes`,
               icon: <AutorenewIcon />,
@@ -2369,7 +2432,7 @@ export const RelatorioRecebimentos = ({
               show: true
             },
             {
-              label: 'Valor do Crédito',
+              label: 'Valor do CrÃ©dito',
               value: formatarMoeda(totalCredito),
               sub: 'Volume total',
               icon: <TrendingUpIcon />,
@@ -2378,7 +2441,7 @@ export const RelatorioRecebimentos = ({
               show: true
             },
             {
-              label: 'Próximo Corte',
+              label: 'PrÃ³ximo Corte',
               value: proximoLabel,
               sub: proximoValor,
               icon: <CalendarMonthIcon />,
@@ -2387,7 +2450,7 @@ export const RelatorioRecebimentos = ({
               show: true
             },
             {
-              label: 'Créditos Vencidos',
+              label: 'CrÃ©ditos Vencidos',
               value: formatarMoeda(totalCreditosVencidos.credito),
               sub: `${totalCreditosVencidos.qtd} PAC(s) com parcelas vencidas`,
               icon: <HourglassEmptyIcon />,
@@ -2445,7 +2508,7 @@ export const RelatorioRecebimentos = ({
         </Typography>
       </Box>
 
-      {/* ── Filtros ── */}
+      {/* â”€â”€ Filtros â”€â”€ */}
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         
         {/* Busca Cliente */}
@@ -2466,10 +2529,10 @@ export const RelatorioRecebimentos = ({
           sx={{ minWidth: 260 }}
         />
 
-        {/* Busca Relatório */}
+        {/* Busca RelatÃ³rio */}
         <TextField
           size="small"
-          placeholder="Filtrar por Nº Relatório ADM..."
+          placeholder="Filtrar por NÂº RelatÃ³rio ADM..."
           value={buscaRelatorio}
           onChange={(e) => setBuscaRelatorio(e.target.value)}
           slotProps={{
@@ -2497,7 +2560,7 @@ export const RelatorioRecebimentos = ({
             slotProps={{ inputLabel: { shrink: true } }}
             sx={{ '& .MuiInputBase-input': { py: 0.5, px: 1, fontSize: '0.75rem' } }}
           />
-          <Typography variant="caption" sx={{ color: 'text.secondary' }}>até</Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>atÃ©</Typography>
           <TextField
             type="date"
             size="small"
@@ -2508,10 +2571,10 @@ export const RelatorioRecebimentos = ({
           />
         </Box>
 
-        {/* Divisor vertical caso haja quebra ou espaço em tela grande */}
+        {/* Divisor vertical caso haja quebra ou espaÃ§o em tela grande */}
         <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', lg: 'block' }, mx: 0.5, height: 32, alignSelf: 'center' }} />
 
-        {/* Grupo 1 — Status da Parcela */}
+        {/* Grupo 1 â€” Status da Parcela */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6, pr: 2, borderRight: `1px solid ${isDark ? '#374151' : '#e5e7eb'}` }}>
           <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Status da Parcela
@@ -2541,7 +2604,7 @@ export const RelatorioRecebimentos = ({
           </Box>
         </Box>
 
-        {/* Grupo 2 — Recebimento */}
+        {/* Grupo 2 â€” Recebimento */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6, pr: 2, borderRight: `1px solid ${isDark ? '#374151' : '#e5e7eb'}` }}>
           <Typography variant="caption" sx={{ color: '#f97316', fontWeight: 700, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Recebimento
@@ -2569,16 +2632,16 @@ export const RelatorioRecebimentos = ({
           </Box>
         </Box>
 
-        {/* Grupo 3 — Tipo: Vendas vs Recorrência */}
+        {/* Grupo 3 â€” Tipo: Vendas vs RecorrÃªncia */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6 }}>
           <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Tipo
           </Typography>
           <Box sx={{ display: 'flex', gap: 0.7, flexWrap: 'wrap', alignItems: 'center' }}>
-            {(['Todos', 'Vendas', 'Recorrência'] as const).map((tipo) => {
+            {(['Todos', 'Vendas', 'RecorrÃªncia'] as const).map((tipo) => {
               const isAtivo = filtroTipo === tipo;
-              const cor = tipo === 'Vendas' ? '#0ea5e9' : tipo === 'Recorrência' ? '#a855f7' : theme.palette.primary.main;
-              const icon = tipo === 'Vendas' ? <FlashOnIcon sx={{ fontSize: 13 }} /> : tipo === 'Recorrência' ? <AutorenewIcon sx={{ fontSize: 13 }} /> : null;
+              const cor = tipo === 'Vendas' ? '#0ea5e9' : tipo === 'RecorrÃªncia' ? '#a855f7' : theme.palette.primary.main;
+              const icon = tipo === 'Vendas' ? <FlashOnIcon sx={{ fontSize: 13 }} /> : tipo === 'RecorrÃªncia' ? <AutorenewIcon sx={{ fontSize: 13 }} /> : null;
               return (
                 <Chip
                   key={tipo}
@@ -2603,15 +2666,15 @@ export const RelatorioRecebimentos = ({
       </Box>
 
 
-      {/* ── Lista de grupos ── */}
+      {/* â”€â”€ Lista de grupos â”€â”€ */}
       {grupos.length === 0 ? (
         <Paper elevation={0} sx={{ p: 6, textAlign: 'center', border: `1px dashed ${isDark ? '#374151' : '#d1d5db'}`, borderRadius: 3, bgcolor: 'transparent' }}>
           <CalendarMonthIcon sx={{ fontSize: 48, color: 'text.secondary', opacity: 0.4, mb: 1 }} />
           <Typography variant="body1" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-            Nenhum recebimento encontrado para o período selecionado.
+            Nenhum recebimento encontrado para o perÃ­odo selecionado.
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-            Ajuste o filtro de data ou os critérios de busca.
+            Ajuste o filtro de data ou os critÃ©rios de busca.
           </Typography>
         </Paper>
       ) : (
@@ -2619,11 +2682,11 @@ export const RelatorioRecebimentos = ({
           {(() => {
             const filtrosParaExibir = [];
             if (busca) filtrosParaExibir.push(`Busca: ${busca}`);
-            if (buscaRelatorio) filtrosParaExibir.push(`Nº Rel: ${buscaRelatorio}`);
+            if (buscaRelatorio) filtrosParaExibir.push(`NÂº Rel: ${buscaRelatorio}`);
             if (filtroStatus.length > 0) filtrosParaExibir.push(`Status: ${filtroStatus.join(', ')}`);
             if (filtroTipo !== 'Todos') filtrosParaExibir.push(`Tipo: ${filtroTipo}`);
             if (filtroDataPagamentoInicio || filtroDataPagamentoFim) {
-              filtrosParaExibir.push(`Pgto: ${filtroDataPagamentoInicio ? formatarData(filtroDataPagamentoInicio) : 'início'} até ${filtroDataPagamentoFim ? formatarData(filtroDataPagamentoFim) : 'fim'}`);
+              filtrosParaExibir.push(`Pgto: ${filtroDataPagamentoInicio ? formatarData(filtroDataPagamentoInicio) : 'inÃ­cio'} atÃ© ${filtroDataPagamentoFim ? formatarData(filtroDataPagamentoFim) : 'fim'}`);
             }
             const filtrosAplicadosStr = filtrosParaExibir.length > 0 ? filtrosParaExibir.join(' | ') : 'Nenhum';
 
@@ -2639,6 +2702,7 @@ export const RelatorioRecebimentos = ({
                 onDesfazerPaga={handleDesfazerPaga}
                 onDesfazerRecebida={handleDesfazerRecebida}
                 onCancelarParcela={handleAbrirModalCancelar}
+                  onEstornarParcela={handleAbrirModalEstornar}
                 onDesfazerCancelar={handleDesfazerCancelar}
                 permissoes={permissoes}
                 isMaster={isMaster}
@@ -2650,19 +2714,19 @@ export const RelatorioRecebimentos = ({
         </Box>
       )}
 
-      {/* ── Resumo por mês ── */}
+      {/* â”€â”€ Resumo por mÃªs â”€â”€ */}
       {grupos.length > 0 && (
         <Paper elevation={0} sx={{ p: 3, borderRadius: 2.5, border: `1px solid ${isDark ? '#1f2937' : '#e5e7eb'}`, bgcolor: isDark ? '#111827' : '#ffffff', mt: 1 }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 700, fontFamily: 'Outfit, sans-serif', mb: 2 }}>
-            Resumo por Mês de Recebimento
+            Resumo por MÃªs de Recebimento
           </Typography>
           <Box sx={{ overflowX: 'auto' }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
                   {[
-                    'Mês/Ano', 'Parcelas', 'Datas de Recebimento', 'Valor do Crédito',
-                    'Total Comissões', 'Cancelada', 'A Vencer', 'Vencida', 'Paga', 'Recebida',
+                    'MÃªs/Ano', 'Parcelas', 'Datas de Recebimento', 'Valor do CrÃ©dito',
+                    'Total ComissÃµes', 'Cancelada', 'A Vencer', 'Vencida', 'Paga', 'Recebida',
                     'A Receber', 'Parc. Meses Ant. (A Receber)', 'Parc. Meses Ant. (Recebida)', 'Total a Receber'
                   ].map((h) => (
                     <TableCell key={h} sx={{
@@ -2697,30 +2761,30 @@ export const RelatorioRecebimentos = ({
                         {formatarMesAno(g.mesPeriodo + '-01')}
                       </TableCell>
                       <TableCell sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{g.qtdParcelas}</TableCell>
-                      <TableCell sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>{datasUnicas.map(formatarData).join(' · ')}</TableCell>
+                      <TableCell sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>{datasUnicas.map(formatarData).join(' Â· ')}</TableCell>
                       <TableCell sx={{ fontSize: '0.82rem', fontWeight: 600 }}>{formatarMoeda(g.totalParcelas)}</TableCell>
                       <TableCell sx={{ fontSize: '0.85rem', fontWeight: 800, color: '#10b981' }}>{formatarMoeda(g.totalComissoes)}</TableCell>
                       <TableCell sx={{ fontSize: '0.78rem', fontWeight: 600, color: ts.cancelada > 0 ? '#ef4444' : 'text.disabled' }}>
-                        {ts.cancelada > 0 ? formatarMoeda(ts.cancelada) : '—'}
+                        {ts.cancelada > 0 ? formatarMoeda(ts.cancelada) : 'â€”'}
                       </TableCell>
                       <TableCell sx={{ fontSize: '0.78rem', fontWeight: 600, color: ts.aVencer > 0 ? '#6366f1' : 'text.disabled' }}>
-                        {ts.aVencer > 0 ? formatarMoeda(ts.aVencer) : '—'}
+                        {ts.aVencer > 0 ? formatarMoeda(ts.aVencer) : 'â€”'}
                       </TableCell>
                       <TableCell sx={{ fontSize: '0.78rem', fontWeight: 600, color: ts.vencida > 0 ? '#f59e0b' : 'text.disabled' }}>
-                        {ts.vencida > 0 ? formatarMoeda(ts.vencida) : '—'}
+                        {ts.vencida > 0 ? formatarMoeda(ts.vencida) : 'â€”'}
                       </TableCell>
                       <TableCell sx={{ fontSize: '0.78rem', fontWeight: 600, color: ts.paga > 0 ? '#10b981' : 'text.disabled' }}>
-                        {ts.paga > 0 ? formatarMoeda(ts.paga) : '—'}
+                        {ts.paga > 0 ? formatarMoeda(ts.paga) : 'â€”'}
                       </TableCell>
                       <TableCell sx={{ fontSize: '0.78rem', fontWeight: 600, color: ts.recebida > 0 ? '#0ea5e9' : 'text.disabled' }}>
-                        {ts.recebida > 0 ? formatarMoeda(ts.recebida) : '—'}
+                        {ts.recebida > 0 ? formatarMoeda(ts.recebida) : 'â€”'}
                       </TableCell>
-                      {/* A Receber = Pagas não recebidas */}
+                      {/* A Receber = Pagas nÃ£o recebidas */}
                       <TableCell sx={{
                         fontSize: '0.78rem', fontWeight: 700,
                         color: ts.aReceber > 0 ? '#f97316' : 'text.disabled',
                       }}>
-                        {ts.aReceber > 0 ? formatarMoeda(ts.aReceber) : '—'}
+                        {ts.aReceber > 0 ? formatarMoeda(ts.aReceber) : 'â€”'}
                       </TableCell>
                       {/* Parcelas de Meses Anteriores - A Receber */}
                       <TableCell sx={{
@@ -2728,7 +2792,7 @@ export const RelatorioRecebimentos = ({
                         color: ts.espelhoAReceber > 0 ? '#8b5cf6' : 'text.disabled',
                         bgcolor: ts.espelhoAReceber > 0 ? 'rgba(139,92,246,0.06)' : 'transparent',
                       }}>
-                        {ts.espelhoAReceber > 0 ? formatarMoeda(ts.espelhoAReceber) : '—'}
+                        {ts.espelhoAReceber > 0 ? formatarMoeda(ts.espelhoAReceber) : 'â€”'}
                       </TableCell>
                       {/* Parcelas de Meses Anteriores - Recebida */}
                       <TableCell sx={{
@@ -2736,7 +2800,7 @@ export const RelatorioRecebimentos = ({
                         color: ts.espelhoRecebidaReal > 0 ? '#8b5cf6' : 'text.disabled',
                         bgcolor: ts.espelhoRecebidaReal > 0 ? 'rgba(139,92,246,0.06)' : 'transparent',
                       }}>
-                        {ts.espelhoRecebidaReal > 0 ? formatarMoeda(ts.espelhoRecebidaReal) : '—'}
+                        {ts.espelhoRecebidaReal > 0 ? formatarMoeda(ts.espelhoRecebidaReal) : 'â€”'}
                       </TableCell>
                       {/* Total a Receber */}
                       <TableCell sx={{
@@ -2744,7 +2808,7 @@ export const RelatorioRecebimentos = ({
                         color: totalAReceberRow > 0 ? '#f59e0b' : 'text.disabled',
                         bgcolor: totalAReceberRow > 0 ? 'rgba(245,158,11,0.06)' : 'transparent',
                       }}>
-                        {totalAReceberRow > 0 ? formatarMoeda(totalAReceberRow) : '—'}
+                        {totalAReceberRow > 0 ? formatarMoeda(totalAReceberRow) : 'â€”'}
                       </TableCell>
                     </TableRow>
                   );
@@ -2772,35 +2836,35 @@ export const RelatorioRecebimentos = ({
                       <TableCell sx={{ fontWeight: 800, fontSize: '0.85rem' }}>{formatarMoeda(totalCredito)}</TableCell>
                       <TableCell sx={{ fontWeight: 900, fontSize: '0.9rem', color: '#10b981' }}>{formatarMoeda(totalComissoes)}</TableCell>
                       <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.cancelada > 0 ? '#ef4444' : 'text.disabled' }}>
-                        {totGeral.cancelada > 0 ? formatarMoeda(totGeral.cancelada) : '—'}
+                        {totGeral.cancelada > 0 ? formatarMoeda(totGeral.cancelada) : 'â€”'}
                       </TableCell>
                       <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.aVencer > 0 ? '#6366f1' : 'text.disabled' }}>
-                        {totGeral.aVencer > 0 ? formatarMoeda(totGeral.aVencer) : '—'}
+                        {totGeral.aVencer > 0 ? formatarMoeda(totGeral.aVencer) : 'â€”'}
                       </TableCell>
                       <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.vencida > 0 ? '#f59e0b' : 'text.disabled' }}>
-                        {totGeral.vencida > 0 ? formatarMoeda(totGeral.vencida) : '—'}
+                        {totGeral.vencida > 0 ? formatarMoeda(totGeral.vencida) : 'â€”'}
                       </TableCell>
                       <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.paga > 0 ? '#10b981' : 'text.disabled' }}>
-                        {totGeral.paga > 0 ? formatarMoeda(totGeral.paga) : '—'}
+                        {totGeral.paga > 0 ? formatarMoeda(totGeral.paga) : 'â€”'}
                       </TableCell>
                       <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.recebida > 0 ? '#0ea5e9' : 'text.disabled' }}>
-                        {totGeral.recebida > 0 ? formatarMoeda(totGeral.recebida) : '—'}
+                        {totGeral.recebida > 0 ? formatarMoeda(totGeral.recebida) : 'â€”'}
                       </TableCell>
                       <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.aReceber > 0 ? '#f97316' : 'text.disabled' }}>
-                        {totGeral.aReceber > 0 ? formatarMoeda(totGeral.aReceber) : '—'}
+                        {totGeral.aReceber > 0 ? formatarMoeda(totGeral.aReceber) : 'â€”'}
                       </TableCell>
                       <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.espelhoAReceber > 0 ? '#8b5cf6' : 'text.disabled', bgcolor: totGeral.espelhoAReceber > 0 ? 'rgba(139,92,246,0.06)' : 'transparent' }}>
-                        {totGeral.espelhoAReceber > 0 ? formatarMoeda(totGeral.espelhoAReceber) : '—'}
+                        {totGeral.espelhoAReceber > 0 ? formatarMoeda(totGeral.espelhoAReceber) : 'â€”'}
                       </TableCell>
                       <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem', color: totGeral.espelhoRecebidaReal > 0 ? '#8b5cf6' : 'text.disabled', bgcolor: totGeral.espelhoRecebidaReal > 0 ? 'rgba(139,92,246,0.06)' : 'transparent' }}>
-                        {totGeral.espelhoRecebidaReal > 0 ? formatarMoeda(totGeral.espelhoRecebidaReal) : '—'}
+                        {totGeral.espelhoRecebidaReal > 0 ? formatarMoeda(totGeral.espelhoRecebidaReal) : 'â€”'}
                       </TableCell>
                       <TableCell sx={{
                         fontWeight: 900, fontSize: '0.9rem',
                         color: totalGeralAReceber > 0 ? '#f59e0b' : 'text.disabled',
                         bgcolor: totalGeralAReceber > 0 ? 'rgba(245,158,11,0.08)' : 'transparent',
                       }}>
-                        {totalGeralAReceber > 0 ? formatarMoeda(totalGeralAReceber) : '—'}
+                        {totalGeralAReceber > 0 ? formatarMoeda(totalGeralAReceber) : 'â€”'}
                       </TableCell>
                     </TableRow>
                   );
@@ -2824,7 +2888,7 @@ export const RelatorioRecebimentos = ({
           }
           setOpenEditDialog(false);
           setVendaEmEdicao(null);
-          setSnackbarMsg('✅ Venda atualizada com sucesso!');
+          setSnackbarMsg('âœ… Venda atualizada com sucesso!');
         }}
         venda={vendaEmEdicao}
         vendedores={vendedores}
@@ -2832,7 +2896,7 @@ export const RelatorioRecebimentos = ({
         ciclos={ciclos}
       />
 
-      {/* ── Modal: Registrar Pagamento do Cliente ── */}
+      {/* â”€â”€ Modal: Registrar Pagamento do Cliente â”€â”€ */}
       <Dialog
         open={modalPaga.open}
         onClose={() => setModalPaga((p) => ({ ...p, open: false }))}
@@ -2855,7 +2919,7 @@ export const RelatorioRecebimentos = ({
           {modalPaga.item && (
             <Stack spacing={2}>
               <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5, borderRadius: 2 }}>
-                <strong>{modalPaga.item.cliente}</strong> · Parcela {modalPaga.item.parcelaIndex}/{modalPaga.item.qtdParcelas} · Venc: {formatarData(modalPaga.item.dataVencimento)}
+                <strong>{modalPaga.item.cliente}</strong> Â· Parcela {modalPaga.item.parcelaIndex}/{modalPaga.item.qtdParcelas} Â· Venc: {formatarData(modalPaga.item.dataVencimento)}
               </Alert>
               <TextField
                 label="Data do Pagamento pelo Cliente"
@@ -2896,7 +2960,7 @@ export const RelatorioRecebimentos = ({
         </DialogActions>
       </Dialog>
 
-      {/* ── Modal: Registrar Recebimento da Comissão ── */}
+      {/* â”€â”€ Modal: Registrar Recebimento da ComissÃ£o â”€â”€ */}
       <Dialog
         open={modalRecebida.open}
         onClose={() => setModalRecebida((p) => ({ ...p, open: false }))}
@@ -2913,26 +2977,26 @@ export const RelatorioRecebimentos = ({
           <Box sx={{ p: 0.7, borderRadius: 1.5, bgcolor: 'rgba(14,165,233,0.12)', color: '#0ea5e9', display: 'flex' }}>
             <ReceiptIcon sx={{ fontSize: 18 }} />
           </Box>
-          Registrar Recebimento da Comissão
+          Registrar Recebimento da ComissÃ£o
         </DialogTitle>
         <DialogContent sx={{ pt: 2.5, pb: 1.5 }}>
           {modalRecebida.item && (
             <Stack spacing={2.5}>
               <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5, borderRadius: 2 }}>
-                <strong>{modalRecebida.item.cliente}</strong> · Parcela {modalRecebida.item.parcelaIndex}/{modalRecebida.item.qtdParcelas} · Comissão: <strong>{formatarMoeda(modalRecebida.item.comissao)}</strong>
+                <strong>{modalRecebida.item.cliente}</strong> Â· Parcela {modalRecebida.item.parcelaIndex}/{modalRecebida.item.qtdParcelas} Â· ComissÃ£o: <strong>{formatarMoeda(modalRecebida.item.comissao)}</strong>
               </Alert>
               <TextField
-                label="Nº do Relatório"
+                label="NÂº do RelatÃ³rio"
                 fullWidth
                 size="small"
                 required
                 placeholder="Ex: REL-2026-08-001"
                 value={modalRecebida.numeroRelatorio}
                 onChange={(e) => setModalRecebida((p) => ({ ...p, numeroRelatorio: e.target.value }))}
-                helperText="Número do relatório da administradora referente ao recebimento (obrigatório)"
+                helperText="NÃºmero do relatÃ³rio da administradora referente ao recebimento (obrigatÃ³rio)"
               />
               <TextField
-                label="Data do Relatório"
+                label="Data do RelatÃ³rio"
                 type="date"
                 fullWidth
                 size="small"
@@ -2940,7 +3004,7 @@ export const RelatorioRecebimentos = ({
                 value={modalRecebida.dataRelatorio}
                 onChange={(e) => setModalRecebida((p) => ({ ...p, dataRelatorio: e.target.value }))}
                 slotProps={{ inputLabel: { shrink: true } }}
-                helperText="Data do relatório da administradora (obrigatório)"
+                helperText="Data do relatÃ³rio da administradora (obrigatÃ³rio)"
               />
               <TextField
                 label="Nota Fiscal (opcional)"
@@ -2949,7 +3013,7 @@ export const RelatorioRecebimentos = ({
                 placeholder="Ex: NF 000123"
                 value={modalRecebida.notaFiscal}
                 onChange={(e) => setModalRecebida((p) => ({ ...p, notaFiscal: e.target.value }))}
-                helperText="Número ou código da Nota Fiscal relacionada ao recebimento (opcional)"
+                helperText="NÃºmero ou cÃ³digo da Nota Fiscal relacionada ao recebimento (opcional)"
               />
             </Stack>
           )}
@@ -2986,7 +3050,7 @@ export const RelatorioRecebimentos = ({
           onSave={(novaVenda) => {
             onAdicionarVenda(novaVenda);
             setOpenNovaVenda(false);
-            setSnackbarMsg('✅ Venda lançada com sucesso!');
+            setSnackbarMsg('âœ… Venda lanÃ§ada com sucesso!');
           }}
           vendedores={vendedores}
           regras={regras}
@@ -2996,7 +3060,54 @@ export const RelatorioRecebimentos = ({
         />
       )}
 
-      {/* ── Dialog: Confirmar Cancelamento ── */}
+      {/* â”€â”€ Dialog: Confirmar Cancelamento â”€â”€ */}
+      {/* Dialog: Confirmar Estorno */}
+      <Dialog
+        open={modalEstornar.open}
+        onClose={() => setModalEstornar({ open: false, item: null, dataCancelamento: '' })}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.2, py: 1.8 }}>
+          <Box sx={{ p: 0.7, borderRadius: 1.5, bgcolor: 'rgba(245,158,11,0.12)', color: '#f59e0b', display: 'flex' }}>
+            <AutorenewIcon sx={{ fontSize: 18 }} />
+          </Box>
+          Estornar Parcela
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2.5, pb: 1.5 }}>
+          {modalEstornar.item && (
+            <Stack spacing={2}>
+              <Alert severity="warning" sx={{ fontSize: '0.8rem', py: 0.5, borderRadius: 2 }}>
+                <strong>{modalEstornar.item.cliente}</strong> — Parcela {modalEstornar.item.parcelaIndex}/{modalEstornar.item.qtdParcelas}
+              </Alert>
+              <Typography variant="body2" color="text.secondary">
+                Esta ação irá <strong>estornar</strong> a parcela selecionada e <strong>cancelar todas as parcelas futuras</strong> desta venda que ainda não estejam pagas.
+              </Typography>
+              <TextField
+                label="Data do Estorno"
+                type="date"
+                fullWidth
+                size="small"
+                slotProps={{ inputLabel: { shrink: true } }}
+                value={modalEstornar.dataCancelamento}
+                onChange={(e) => setModalEstornar({ ...modalEstornar, dataCancelamento: e.target.value })}
+              />
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setModalEstornar({ open: false, item: null, dataCancelamento: '' })} sx={{ color: 'text.secondary', fontWeight: 600 }}>
+            Voltar
+          </Button>
+          <Button
+            onClick={handleConfirmarEstornar}
+            variant="contained"
+            sx={{ bgcolor: '#f59e0b', '&:hover': { bgcolor: '#d97706' }, borderRadius: 2, px: 3, fontWeight: 700 }}
+          >
+            Confirmar Estorno
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Dialog
         open={modalCancelar.open}
         onClose={() => setModalCancelar({ open: false, item: null, dataCancelamento: '' })}
@@ -3013,13 +3124,13 @@ export const RelatorioRecebimentos = ({
           {modalCancelar.item && (
             <Stack spacing={2}>
               <Alert severity="warning" sx={{ fontSize: '0.8rem', py: 0.5, borderRadius: 2 }}>
-                <strong>{modalCancelar.item.cliente}</strong> · Parcela {modalCancelar.item.parcelaIndex}/{modalCancelar.item.qtdParcelas}
+                <strong>{modalCancelar.item.cliente}</strong> Â· Parcela {modalCancelar.item.parcelaIndex}/{modalCancelar.item.qtdParcelas}
               </Alert>
               <Typography variant="body2" color="text.secondary">
-                Esta ação irá cancelar <strong>esta parcela e todas as parcelas futuras</strong> desta venda que ainda não estejam pagas.
+                Esta aÃ§Ã£o irÃ¡ cancelar <strong>esta parcela e todas as parcelas futuras</strong> desta venda que ainda nÃ£o estejam pagas.
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Parcelas já <strong>Pagas</strong> não serão afetadas. O cancelamento pode ser desfeito individualmente por usuários Master.
+                Parcelas jÃ¡ <strong>Pagas</strong> nÃ£o serÃ£o afetadas. O cancelamento pode ser desfeito individualmente por usuÃ¡rios Master.
               </Typography>
               <TextField
                 label="Data do Cancelamento"
@@ -3071,6 +3182,7 @@ export const RelatorioRecebimentos = ({
     </Box>
   );
 };
+
 
 
 
