@@ -61,6 +61,8 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
   const dadosMensais = chavesMesesGrafico.map((mesChave) => {
     let totalVendaMes = 0;
     let totalComissaoMes = 0;
+    let comissaoPagaMes = 0;
+    let comissaoVencidaMes = 0;
 
     vendas.forEach((v) => {
       // Ignora cotas canceladas ou que não possuem parcelas ativas
@@ -78,7 +80,14 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
       if (v.projecaoMensal) {
         const celula = v.projecaoMensal[mesChave];
         if (celula && celula.status?.toLowerCase() !== 'cancelada' && celula.status?.toLowerCase() !== 'estornada') {
-          totalComissaoMes += Number(celula.comissaoGerada || 0);
+          const comissao = Number(celula.comissaoGerada || 0);
+          totalComissaoMes += comissao;
+          
+          if (celula.status?.toLowerCase() === 'paga') {
+            comissaoPagaMes += comissao;
+          } else if (celula.status?.toLowerCase() === 'vencida') {
+            comissaoVencidaMes += comissao;
+          }
         }
       }
 
@@ -92,7 +101,9 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
     return {
       name: formatarChaveMesExibicao(mesChave),
       Vendas: totalVendaMes,
-      Comissões: totalComissaoMes
+      'Comissões (Total)': totalComissaoMes,
+      'Comissões (Pagas)': comissaoPagaMes,
+      'Comissões (Vencidas)': comissaoVencidaMes
     };
   });
 
@@ -135,8 +146,8 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
 
   return (
     <Grid container spacing={4}>
-      {/* Gráfico 1: Evolução de Vendas e Comissões */}
-      <Grid size={{ xs: 12, lg: 8 }}>
+      {/* Gráfico 1: Evolução de Vendas */}
+      <Grid size={{ xs: 12, lg: 6 }}>
         <Paper
           elevation={0}
           sx={{
@@ -155,7 +166,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
               color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a'
             }}
           >
-            Evolução Mensal: Vendas vs. Comissões
+            Evolução Mensal: Volume de Vendas
           </Typography>
           <Box sx={{ width: '100%', height: 350 }}>
             {vendas.length === 0 ? (
@@ -179,14 +190,6 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
                     tickFormatter={formatarMoedaEixo}
                     tickLine={false}
                   />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    stroke={theme.palette.success.main}
-                    fontSize={11}
-                    tickFormatter={formatarMoedaEixo}
-                    tickLine={false}
-                  />
                   <ChartTooltip
                     formatter={(value: any, name: any) => [formatarMoeda(value), name]}
                     contentStyle={{
@@ -205,12 +208,93 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
                     radius={[4, 4, 0, 0]}
                     maxBarSize={45}
                   />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
+          </Box>
+        </Paper>
+      </Grid>
+
+      {/* Gráfico 2: Evolução de Comissões */}
+      <Grid size={{ xs: 12, lg: 6 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            p: 3,
+            borderRadius: 4,
+            border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
+            background: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff'
+          }}
+        >
+          <Typography
+            variant="h6"
+            sx={{
+              fontWeight: 700,
+              fontFamily: 'Outfit, sans-serif',
+              mb: 3,
+              color: theme.palette.mode === 'dark' ? '#f8fafc' : '#0f172a'
+            }}
+          >
+            Evolução Mensal: Receita de Comissões
+          </Typography>
+          <Box sx={{ width: '100%', height: 350 }}>
+            {vendas.length === 0 ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                <Typography sx={{ color: '#64748b' }}>Sem dados suficientes para gerar gráficos</Typography>
+              </Box>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={dadosMensais} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'} />
+                  <XAxis
+                    dataKey="name"
+                    stroke={theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'}
+                    fontSize={12}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    yAxisId="left"
+                    stroke={theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b'}
+                    fontSize={11}
+                    tickFormatter={formatarMoedaEixo}
+                    tickLine={false}
+                  />
+                  <ChartTooltip
+                    formatter={(value: any, name: any) => [formatarMoeda(value), name]}
+                    contentStyle={{
+                      backgroundColor: theme.palette.mode === 'dark' ? '#0f172a' : '#ffffff',
+                      borderColor: theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0',
+                      borderRadius: 8,
+                      color: theme.palette.mode === 'dark' ? '#f1f5f9' : '#0f172a'
+                    }}
+                  />
+                  <Legend verticalAlign="top" height={36} iconType="circle" />
                   <Line
-                    yAxisId="right"
+                    yAxisId="left"
                     type="monotone"
-                    dataKey="Comissões"
-                    name="Receita de Comissões"
+                    dataKey="Comissões (Total)"
+                    name="Comissões (Total)"
+                    stroke={theme.palette.info.main}
+                    strokeWidth={3}
+                    dot={{ r: 4, strokeWidth: 1 }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="Comissões (Pagas)"
+                    name="Comissões (Pagas)"
                     stroke={theme.palette.success.main}
+                    strokeWidth={3}
+                    dot={{ r: 4, strokeWidth: 1 }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="Comissões (Vencidas)"
+                    name="Comissões (Vencidas)"
+                    stroke={theme.palette.error.main}
                     strokeWidth={3}
                     dot={{ r: 4, strokeWidth: 1 }}
                     activeDot={{ r: 6 }}
@@ -222,8 +306,8 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
         </Paper>
       </Grid>
 
-      {/* Gráfico 2: Distribuição de Vendas por Segmento */}
-      <Grid size={{ xs: 12, lg: 4 }}>
+      {/* Gráfico 3: Distribuição de Vendas por Segmento */}
+      <Grid size={{ xs: 12, lg: 6 }} offset={{ lg: 3 }}>
         <Paper
           elevation={0}
           sx={{
