@@ -120,7 +120,7 @@ interface ParcelaLinha {
   valorParcela: number;
   valorVenda: number;
   statusParcela: StatusParcela;
-  situacaoRecebimento: 'A receber' | 'Recebida';
+  situacaoRecebimento: 'A receber' | 'Recebida' | 'Estornada';
   parcelaIndex: number;
   qtdParcelas: number;
   numeroRelatorio?: string;   // Nº do relatório ADM da venda
@@ -343,11 +343,12 @@ const StatusParcelaBadge = ({ status, dataCancelamento }: { status: StatusParcel
   return badge;
 };
 
-const SituacaoRecebimentoBadge = ({ situacao }: { situacao: 'A receber' | 'Recebida' }) => {
+const SituacaoRecebimentoBadge = ({ situacao }: { situacao: 'A receber' | 'Recebida' | 'Estornada' }) => {
   const isRecebida = situacao === 'Recebida';
-  const color = isRecebida ? '#0ea5e9' : '#f97316';
-  const bg = isRecebida ? 'rgba(14,165,233,0.12)' : 'rgba(249,115,22,0.12)';
-  const icon = isRecebida ? <CheckCircleIcon sx={{ fontSize: 12 }} /> : <HourglassEmptyIcon sx={{ fontSize: 12 }} />;
+  const isEstornada = situacao === 'Estornada';
+  const color = isRecebida ? '#0ea5e9' : isEstornada ? '#f59e0b' : '#f97316';
+  const bg = isRecebida ? 'rgba(14,165,233,0.12)' : isEstornada ? 'rgba(245,158,11,0.12)' : 'rgba(249,115,22,0.12)';
+  const icon = isRecebida ? <CheckCircleIcon sx={{ fontSize: 12 }} /> : isEstornada ? <AutorenewIcon sx={{ fontSize: 12 }} /> : <HourglassEmptyIcon sx={{ fontSize: 12 }} />;
 
   return (
     <Tooltip title="Situação do recebimento (Informação não editável)">
@@ -1575,11 +1576,11 @@ const GrupoRecebimento = ({
 
         {/* Barra visual de composição */}
         <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', gap: 0.5 }}>
-          {(['A receber', 'Recebida', 'Cancelada'] as string[]).map((s) => {
+          {(['A receber', 'Recebida', 'Cancelada', 'Estornada'] as string[]).map((s) => {
             const count = grupo.itens.filter((i) => i.situacaoRecebimento === s || i.statusParcela === s).length;
             if (!count) return null;
             const colors: Record<string, string> = {
-              'A receber': '#f97316', 'Recebida': '#0ea5e9', 'Cancelada': '#ef4444'
+              'A receber': '#f97316', 'Recebida': '#0ea5e9', 'Cancelada': '#ef4444', 'Estornada': '#f59e0b'
             };
             return (
               <Tooltip key={s} title={`${s}: ${count}`}>
@@ -1965,11 +1966,11 @@ export const RelatorioRecebimentos = ({
         if (!celula || !celula.valorVenda || celula.valorVenda <= 0) return;
 
         const statusParcela = obterStatusEfetivo(celula.status, celula.dataVencimento || `${mesChave}-15`);
-        const situacaoRecebimento: 'A receber' | 'Recebida' = celula.recebida ? 'Recebida' : 'A receber';
+        const situacaoRecebimento: 'A receber' | 'Recebida' | 'Estornada' = statusParcela === 'Estornada' ? 'Estornada' : celula.recebida ? 'Recebida' : 'A receber';
 
         if (filtroStatus.length > 0) {
           const selectedStatus = filtroStatus.filter(s => ['A vencer', 'Vencida', 'Paga', 'Cancelada', 'Estornada'].includes(s));
-          const selectedRecebimento = filtroStatus.filter(s => ['A receber', 'Recebida'].includes(s));
+          const selectedRecebimento = filtroStatus.filter(s => ['A receber', 'Recebida', 'Estornada'].includes(s));
 
           if (selectedStatus.length > 0) {
             if (!selectedStatus.includes(statusParcela)) return;
@@ -2546,7 +2547,7 @@ export const RelatorioRecebimentos = ({
             Recebimento
           </Typography>
           <Box sx={{ display: 'flex', gap: 0.7, flexWrap: 'wrap', alignItems: 'center' }}>
-            {(['A receber', 'Recebida'] as const).map((s) => {
+            {(['A receber', 'Recebida', 'Estornada'] as const).map((s) => {
               const isAtivo = filtroStatus.includes(s);
               const cor = STATUS_CORES[s];
               return (
@@ -3070,5 +3071,6 @@ export const RelatorioRecebimentos = ({
     </Box>
   );
 };
+
 
 
