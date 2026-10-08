@@ -263,11 +263,28 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
       if (i === 0) {
         dataVenc = dataVendaInput;
       } else {
+        /* Mecânica Anterior:
         const dateAssembleiaBase = new Date(dataAssembleiaInput + 'T00:00:00');
         const dateVencClienteBase = new Date(dataVencimentoClienteInput + 'T00:00:00');
         const diaVenc = dateVencClienteBase.getDate();
         
         const dtAlvo = new Date(dateAssembleiaBase.getFullYear(), dateAssembleiaBase.getMonth() + (i - 1), 1);
+        const ultimoDiaMes = new Date(dtAlvo.getFullYear(), dtAlvo.getMonth() + 1, 0).getDate();
+        const diaFinal = Math.min(diaVenc, ultimoDiaMes);
+        dtAlvo.setDate(diaFinal);
+        
+        const anoCalc = dtAlvo.getFullYear();
+        const mesCalc = String(dtAlvo.getMonth() + 1).padStart(2, '0');
+        const diaCalc = String(dtAlvo.getDate()).padStart(2, '0');
+        dataVenc = `${anoCalc}-${mesCalc}-${diaCalc}`;
+        */
+
+        // Nova Mecânica: Usa a data de Vencimento do Cliente (Data da 2ª parcela) a partir dela gera as demais parcelas
+        const dateVencClienteBase = new Date(dataVencimentoClienteInput + 'T00:00:00');
+        const diaVenc = dateVencClienteBase.getDate();
+        
+        // i começa em 1 para a segunda parcela. i - 1 = 0 (mesmo mês do vencimento do cliente)
+        const dtAlvo = new Date(dateVencClienteBase.getFullYear(), dateVencClienteBase.getMonth() + (i - 1), 1);
         const ultimoDiaMes = new Date(dtAlvo.getFullYear(), dtAlvo.getMonth() + 1, 0).getDate();
         const diaFinal = Math.min(diaVenc, ultimoDiaMes);
         dtAlvo.setDate(diaFinal);

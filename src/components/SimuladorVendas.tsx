@@ -258,7 +258,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       venda.valorParcela
     );
 
-    const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.valorVenda > 0);
+    const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.status !== 'Estornada' && p.valorVenda > 0);
     const novoStatusCliente = temParcelasAtivas ? 'Ativo' : 'Cancelado';
 
     onAtualizarVenda({
@@ -308,7 +308,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       venda.valorParcela
     );
 
-    const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.valorVenda > 0);
+    const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.status !== 'Estornada' && p.valorVenda > 0);
     const novoStatusCliente = temParcelasAtivas ? 'Ativo' : 'Cancelado';
 
     onAtualizarVenda({
@@ -352,7 +352,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       venda.valorParcela
     );
 
-    const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.valorVenda > 0);
+    const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.status !== 'Estornada' && p.valorVenda > 0);
     const novoStatusCliente = temParcelasAtivas ? 'Ativo' : 'Cancelado';
 
     onAtualizarVenda({
@@ -442,7 +442,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       venda.percentuaisParcelas,
       venda.valorParcela
     );
-    const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.valorVenda > 0);
+    const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.status !== 'Estornada' && p.valorVenda > 0);
     onAtualizarVenda({ ...venda, projecaoMensal: projFina, totalVendas, totalComissoes, statusCliente: temParcelasAtivas ? 'Ativo' : 'Cancelado' });
   };
 
@@ -573,7 +573,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
     mesesFiltrados.forEach((mes) => {
       const dadosMes = venda.projecaoMensal[mes];
-      if (dadosMes && dadosMes.status !== 'Cancelada' && dadosMes.valorVenda > 0) {
+      if (dadosMes && dadosMes.status !== 'Cancelada' && dadosMes.status !== 'Estornada' && dadosMes.valorVenda > 0) {
         if (tipoFiltro === 'vendas' && mes !== venda.mesInicio) return;
         if (tipoFiltro === 'recorrencia' && mes === venda.mesInicio) return;
         if (filtroStatus !== 'Todos') {
@@ -616,7 +616,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
       mesesFiltrados.forEach((mes) => {
         const celula = v.projecaoMensal[mes];
-        if (celula && celula.status !== 'Cancelada') {
+        if (celula && celula.status !== 'Cancelada' && celula.status !== 'Estornada') {
           if (tipoFiltro === 'vendas' && mes !== v.mesInicio) return;
           if (tipoFiltro === 'recorrencia' && mes === v.mesInicio) return;
           if (filtroStatus !== 'Todos') {
@@ -842,6 +842,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
               <MenuItem value="Paga">Paga</MenuItem>
               <MenuItem value="Recebida">Recebida</MenuItem>
               <MenuItem value="Cancelada">Cancelada</MenuItem>
+              <MenuItem value="Estornada">Estornada</MenuItem>
             </Select>
           </FormControl>
           {true && (
@@ -1355,7 +1356,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                             borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
                             p: 0.5,
                             position: 'relative',
-                            bgcolor: dadosMes.status === 'Cancelada' 
+                            bgcolor: ['Cancelada', 'Estornada'].includes(dadosMes.status as string) 
                               ? 'rgba(239, 68, 68, 0.02)' 
                               : (dadosMes.valorVenda === 0 
                                 ? (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.015)' : 'rgba(0, 0, 0, 0.01)')
@@ -1428,8 +1429,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                 alignItems: 'flex-end',
                                 justifyContent: 'center',
                                 transition: 'background 0.2s',
-                                textDecoration: dadosMes.status === 'Cancelada' ? 'line-through' : 'none',
-                                color: dadosMes.status === 'Cancelada' ? '#ef4444' : (dadosMes.valorVenda > 0 ? (theme.palette.mode === 'dark' ? '#f1f5f9' : '#1e293b') : '#94a3b8'),
+                                textDecoration: ['Cancelada', 'Estornada'].includes(dadosMes.status as string) ? 'line-through' : 'none',
+                                color: ['Cancelada', 'Estornada'].includes(dadosMes.status as string) ? '#ef4444' : (dadosMes.valorVenda > 0 ? (theme.palette.mode === 'dark' ? '#f1f5f9' : '#1e293b') : '#94a3b8'),
                                 '&:hover': permissoes.editarVendas ? {
                                   background: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'
                                 } : {}
@@ -1469,7 +1470,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                     </Typography>
                                   )}
                                   {/* Data de Recebimento (quando diferente do vencimento) */}
-                                  {dadosMes.dataRecebimento && dadosMes.dataRecebimento !== dadosMes.dataVencimento && dadosMes.status !== 'Cancelada' && (
+                                  {dadosMes.dataRecebimento && dadosMes.dataRecebimento !== dadosMes.dataVencimento && dadosMes.status !== 'Cancelada' && dadosMes.status !== 'Estornada' && (
                                     <Typography
                                       variant="caption"
                                       sx={{
@@ -1483,7 +1484,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                       🗓 Receb: {dadosMes.dataRecebimento.split('-').reverse().join('/')}
                                     </Typography>
                                   )}
-                                  {dadosMes.dataPrevisaoRecebimento && dadosMes.status !== 'Cancelada' && (
+                                  {dadosMes.dataPrevisaoRecebimento && dadosMes.status !== 'Cancelada' && dadosMes.status !== 'Estornada' && (
                                     <Typography
                                       variant="caption"
                                       sx={{
@@ -1593,7 +1594,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                 </Box>
                               ) : ''}
 
-                              {dadosMes.valorVenda > 0 && dadosMes.status !== 'Cancelada' && (
+                              {dadosMes.valorVenda > 0 && dadosMes.status !== 'Cancelada' && dadosMes.status !== 'Estornada' && (
                                 <Box
                                   component="span"
                                   sx={{
@@ -1630,8 +1631,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                               fontSize: '0.8rem',
                               fontWeight: 600,
                               borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
-                              color: dadosMes.status === 'Cancelada' ? '#ef4444' : (dadosMes.comissaoGerada > 0 ? theme.palette.success.main : theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'),
-                              bgcolor: dadosMes.status === 'Cancelada' 
+                              color: ['Cancelada', 'Estornada'].includes(dadosMes.status as string) ? '#ef4444' : (dadosMes.comissaoGerada > 0 ? theme.palette.success.main : theme.palette.mode === 'dark' ? '#475569' : '#cbd5e1'),
+                              bgcolor: ['Cancelada', 'Estornada'].includes(dadosMes.status as string) 
                                 ? 'rgba(239, 68, 68, 0.02)' 
                                 : (dadosMes.valorVenda === 0 
                                   ? (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.015)' : 'rgba(0, 0, 0, 0.01)')
@@ -1643,14 +1644,14 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
                               {dadosMes.comissaoGerada > 0 ? (
                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', whiteSpace: 'nowrap' }}>
-                                  <span style={{ textDecoration: dadosMes.status === 'Cancelada' ? 'line-through' : 'none' }}>
+                                  <span style={{ textDecoration: ['Cancelada', 'Estornada'].includes(dadosMes.status as string) ? 'line-through' : 'none' }}>
                                     {formatarMoeda(dadosMes.comissaoGerada)}
                                   </span>
                                   <Typography
                                     component="span"
                                     sx={{
                                       fontSize: '0.65rem',
-                                      color: dadosMes.status === 'Cancelada' ? '#ef4444' : (theme.palette.mode === 'dark' ? '#64748b' : '#94a3b8'),
+                                      color: ['Cancelada', 'Estornada'].includes(dadosMes.status as string) ? '#ef4444' : (theme.palette.mode === 'dark' ? '#64748b' : '#94a3b8'),
                                       ml: 0.5,
                                       fontWeight: 500
                                     }}
@@ -1661,7 +1662,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                               ) : ''}
                               
                               {/* Controle de Status da Parcela e Ação de Cancelar - Apenas exibidos se houver parcela ativa faturada no mês */}
-                              {(dadosMes.valorVenda > 0 || dadosMes.status !== 'Cancelada') && (
+                              {(dadosMes.valorVenda > 0 || dadosMes.status !== 'Cancelada' && dadosMes.status !== 'Estornada') && (
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                     {/* Select para Comissão Recebida */}
                                     {permissoes.receberParcelas ? (
@@ -1711,7 +1712,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                         sx={{
                                           fontSize: '0.62rem',
                                           fontWeight: 700,
-                                          color: dadosMes.status === 'Cancelada' ? '#ef4444' :
+                                          color: ['Cancelada', 'Estornada'].includes(dadosMes.status as string) ? '#ef4444' :
                                                  dadosMes.recebida ? '#f97316' :
                                                  dadosMes.status === 'Paga' ? '#34d399' :
                                                  dadosMes.status === 'Vencida' ? '#ef4444' : '#3b82f6',
@@ -1726,7 +1727,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                         {(permissoes.editarVendas || dadosMes.status === 'A vencer') && <MenuItem value="A vencer" sx={{ fontSize: '0.7rem' }}>A vencer</MenuItem>}
                                         {(permissoes.editarVendas || dadosMes.status === 'Vencida') && <MenuItem value="Vencida" sx={{ fontSize: '0.7rem' }}>Vencida</MenuItem>}
                                         {(permissoes.editarVendas || dadosMes.status === 'Paga') && <MenuItem value="Paga" sx={{ fontSize: '0.7rem' }}>Paga</MenuItem>}
-                                        {(permissoes.editarVendas || dadosMes.status === 'Cancelada') && <MenuItem value="Cancelada" sx={{ fontSize: '0.7rem' }}>Cancelada</MenuItem>}
+                                        {(permissoes.editarVendas || ['Cancelada', 'Estornada'].includes(dadosMes.status as string)) && <MenuItem value="Cancelada" sx={{ fontSize: '0.7rem' }}>Cancelada</MenuItem>}
+                                        {(permissoes.editarVendas || dadosMes.status === 'Estornada') && <MenuItem value="Estornada" sx={{ fontSize: '0.7rem' }}>Estornada</MenuItem>}
                                       </Select>
                                     ) : (
                                       <Box
@@ -1736,7 +1738,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                           py: 0.1,
                                           px: 0.5,
                                           borderRadius: 0.5,
-                                          color: dadosMes.status === 'Cancelada' ? '#ef4444' :
+                                          color: ['Cancelada', 'Estornada'].includes(dadosMes.status as string) ? '#ef4444' :
                                                  dadosMes.recebida ? '#f97316' :
                                                  dadosMes.status === 'Paga' ? '#34d399' :
                                                  dadosMes.status === 'Vencida' ? '#ef4444' : '#3b82f6',
@@ -1748,7 +1750,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                                       </Box>
                                     )}
 
-                                    {permissoes.editarVendas && dadosMes.status !== 'Cancelada' && (
+                                    {permissoes.editarVendas && dadosMes.status !== 'Cancelada' && dadosMes.status !== 'Estornada' && (
                                       <IconButton
                                         size="small"
                                         onClick={() => handleCancelarAPartirDoMes(venda.id, mesChaveReal)}
@@ -2287,7 +2289,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           >
                             {temFaturamento ? (
                               <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'right', alignItems: 'center', whiteSpace: 'nowrap', fontSize: '0.78rem' }}>
-                                <span style={{ fontWeight: 600, color: dadosMes.status === 'Cancelada' ? '#ef4444' : 'inherit' }}>
+                                <span style={{ fontWeight: 600, color: ['Cancelada', 'Estornada'].includes(dadosMes.status as string) ? '#ef4444' : 'inherit' }}>
                                   {formatarMoeda(dadosMes.valorVenda)}
                                 </span>
                                 {podeVerFinanceiro && (
@@ -2523,8 +2525,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                   <TableRow
                     key={linha.id}
                     sx={{
-                      opacity: linha.status === 'Cancelada' ? 0.5 : 1,
-                      textDecoration: linha.status === 'Cancelada' ? 'line-through' : 'none',
+                      opacity: ['Cancelada', 'Estornada'].includes(linha.status as string) ? 0.5 : 1,
+                      textDecoration: ['Cancelada', 'Estornada'].includes(linha.status as string) ? 'line-through' : 'none',
                       '&:hover': {
                         background: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.01)'
                       },
@@ -2549,7 +2551,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                             />
                           )}
                         </Box>
-                        {linha.status === 'Cancelada' && (
+                        {['Cancelada', 'Estornada'].includes(linha.status as string) && (
                           <Typography
                             variant="caption"
                             sx={{
@@ -2660,7 +2662,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                             sx={{
                               fontSize: '0.62rem',
                               fontWeight: 700,
-                              color: linha.status === 'Cancelada' ? '#ef4444' :
+                              color: ['Cancelada', 'Estornada'].includes(linha.status as string) ? '#ef4444' :
                                      linha.recebida ? '#f97316' :
                                      linha.status === 'Paga' ? '#34d399' :
                                      linha.status === 'Vencida' ? '#ef4444' : '#3b82f6',
@@ -2675,7 +2677,8 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                             {(permissoes.editarVendas || linha.status === 'A vencer') && <MenuItem value="A vencer" sx={{ fontSize: '0.7rem' }}>A vencer</MenuItem>}
                             {(permissoes.editarVendas || linha.status === 'Vencida') && <MenuItem value="Vencida" sx={{ fontSize: '0.7rem' }}>Vencida</MenuItem>}
                             {(permissoes.editarVendas || linha.status === 'Paga') && <MenuItem value="Paga" sx={{ fontSize: '0.7rem' }}>Paga</MenuItem>}
-                            {(permissoes.editarVendas || linha.status === 'Cancelada') && <MenuItem value="Cancelada" sx={{ fontSize: '0.7rem' }}>Cancelada</MenuItem>}
+                            {(permissoes.editarVendas || ['Cancelada', 'Estornada'].includes(linha.status as string)) && <MenuItem value="Cancelada" sx={{ fontSize: '0.7rem' }}>Cancelada</MenuItem>}
+                            {(permissoes.editarVendas || linha.status === 'Estornada') && <MenuItem value="Estornada" sx={{ fontSize: '0.7rem' }}>Estornada</MenuItem>}
                           </Select>
                         ) : (
                           <Box
@@ -2685,7 +2688,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                               py: 0.1,
                               px: 0.5,
                               borderRadius: 0.5,
-                              color: linha.status === 'Cancelada' ? '#ef4444' :
+                              color: ['Cancelada', 'Estornada'].includes(linha.status as string) ? '#ef4444' :
                                      linha.recebida ? '#f97316' :
                                      linha.status === 'Paga' ? '#34d399' :
                                      linha.status === 'Vencida' ? '#ef4444' : '#3b82f6',
@@ -2978,6 +2981,7 @@ const EditarParcelaDialog: React.FC<EditarParcelaDialogProps> = ({ open, onClose
                 <MenuItem value="Vencida">Vencida</MenuItem>
                 <MenuItem value="Paga">Paga</MenuItem>
                 <MenuItem value="Cancelada">Cancelada</MenuItem>
+                <MenuItem value="Estornada">Estornada</MenuItem>
               </Select>
             </FormControl>
           </Grid>

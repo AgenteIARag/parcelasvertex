@@ -51,7 +51,7 @@ export interface RegraFilha {
   percentualComissaoContemplacao?: number; // % contempl. da filha
 }
 
-export type StatusParcela = 'A vencer' | 'Vencida' | 'Paga' | 'Cancelada';
+export type StatusParcela = 'A vencer' | 'Vencida' | 'Paga' | 'Cancelada' | 'Estornada';
 
 /** Status independente do pagamento da comissão ao parceiro/vendedor */
 export type StatusComissao = 'A pagar' | 'Paga' | 'Contestada';

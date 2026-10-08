@@ -68,7 +68,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
         v.statusCliente?.toLowerCase() === 'cancelado' ||
         (v.projecaoMensal &&
           Object.values(v.projecaoMensal).length > 0 &&
-          !Object.values(v.projecaoMensal).some((p) => p.status?.toLowerCase() !== 'cancelada' && (p.valorVenda || 0) > 0));
+          !Object.values(v.projecaoMensal).some((p) => p.status?.toLowerCase() !== 'cancelada' && p.status?.toLowerCase() !== 'estornada' && (p.valorVenda || 0) > 0));
 
       if (cotaCancelada) {
         return;
@@ -77,7 +77,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
       // Receita de comissão da parcela correspondente a mesChave (ignora parcelas canceladas)
       if (v.projecaoMensal) {
         const celula = v.projecaoMensal[mesChave];
-        if (celula && celula.status?.toLowerCase() !== 'cancelada') {
+        if (celula && celula.status?.toLowerCase() !== 'cancelada' && celula.status?.toLowerCase() !== 'estornada') {
           totalComissaoMes += Number(celula.comissaoGerada || 0);
         }
       }
@@ -108,7 +108,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ vendas, dataIn
       v.statusCliente?.toLowerCase() === 'cancelado' ||
       (v.projecaoMensal &&
         Object.values(v.projecaoMensal).length > 0 &&
-        !Object.values(v.projecaoMensal).some((p) => p.status?.toLowerCase() !== 'cancelada' && (p.valorVenda || 0) > 0));
+        !Object.values(v.projecaoMensal).some((p) => p.status?.toLowerCase() !== 'cancelada' && p.status?.toLowerCase() !== 'estornada' && (p.valorVenda || 0) > 0));
 
     if (!cotaCancelada) {
       const mesVenda = v.dataVenda ? v.dataVenda.substring(0, 7) : (v.mesInicio || '');

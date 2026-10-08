@@ -71,7 +71,7 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
           const statusEfetivo = obterStatusEfetivo(celula.status, celula.dataVencimento || `${mes}-15`);
           const isRecebida = celula.recebida || (celula.status as string) === 'Recebida';
 
-          if (statusEfetivo !== 'Cancelada' && celula.valorVenda > 0) {
+          if (statusEfetivo !== 'Cancelada' && statusEfetivo !== 'Estornada' && celula.valorVenda > 0) {
             const comissao = celula.comissaoGerada || 0;
             receitaTotalComissoes += comissao;
             volumeTotalVendas += celula.valorVenda;
@@ -99,7 +99,7 @@ export const KPISection: React.FC<KPISectionProps> = ({ vendas, dataInicio, data
               comissaoVencidas += comissao;
               qtdVencidas += 1;
             }
-          } else if (statusEfetivo === 'Cancelada') {
+          } else if (['Cancelada', 'Estornada'].includes(statusEfetivo)) {
             clientesCanceladosSet.add(v.cliente);
             valorTotalCancelado += celula.valorParcela || v.valorParcela || 0;
             qtdCancelados += 1;

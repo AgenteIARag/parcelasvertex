@@ -203,7 +203,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
     let comissaoTotal = 0;
 
     comissoesDoVendedor.forEach((c) => {
-      if (c.status === 'Cancelada') return;
+      if (['Cancelada', 'Estornada'].includes(c.status as string)) return;
 
       comissaoTotal += c.comissaoVendedor;
       if (c.status === 'Recebida' || c.status === 'Paga') {
@@ -236,7 +236,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
 
       Object.keys(venda.projecaoMensal).forEach((mesChave) => {
         const celula = venda.projecaoMensal[mesChave];
-        if (celula && celula.valorVenda && celula.valorVenda > 0 && celula.status !== 'Cancelada') {
+        if (celula && celula.valorVenda && celula.valorVenda > 0 && celula.status !== 'Cancelada' && celula.status !== 'Estornada') {
           if (tipoFiltro === 'vendas' && mesChave !== venda.mesInicio) return;
           if (tipoFiltro === 'recorrencia' && mesChave === venda.mesInicio) return;
 
@@ -265,6 +265,8 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
       case 'Recebida':
         return <Chip label="Recebida" size="small" color="warning" sx={{ fontWeight: 700, borderRadius: 1.5, fontSize: '0.7rem' }} />;
       case 'Cancelada':
+        return <Chip label="Cancelada" size="small" color="error" sx={{ fontWeight: 700, borderRadius: 1.5, fontSize: '0.7rem' }} />;
+      case 'Estornada':
         return <Chip label="Cancelada" size="small" color="error" sx={{ fontWeight: 700, borderRadius: 1.5, fontSize: '0.7rem' }} />;
       default:
         return <Chip label={status} size="small" sx={{ fontWeight: 700, borderRadius: 1.5, fontSize: '0.7rem' }} />;
@@ -486,8 +488,8 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                       <TableRow
                         key={linha.id}
                         sx={{
-                          opacity: linha.status === 'Cancelada' ? 0.5 : 1,
-                          textDecoration: linha.status === 'Cancelada' ? 'line-through' : 'none',
+                          opacity: ['Cancelada', 'Estornada'].includes(linha.status as string) ? 0.5 : 1,
+                          textDecoration: ['Cancelada', 'Estornada'].includes(linha.status as string) ? 'line-through' : 'none',
                           '&:hover': {
                             background: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.01)'
                           },
@@ -809,7 +811,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                   sx={{
                                     borderLeft: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
                                     p: 0.5,
-                                    bgcolor: celula?.status === 'Cancelada' 
+                                    bgcolor: ['Cancelada', 'Estornada'].includes(celula?.status as string) 
                                       ? 'rgba(239, 68, 68, 0.02)' 
                                       : (!possuiDados 
                                         ? (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.015)' : 'rgba(0, 0, 0, 0.01)')
@@ -832,7 +834,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                         Parc: {formatarMoeda(celula.valorParcela || (venda.valorParcela || 0))}
                                       </Typography>
                                       {/* Tag de Venda / Recorrência */}
-                                      {celula.status !== 'Cancelada' && (
+                                      {celula.status !== 'Cancelada' && celula.status !== 'Estornada' && (
                                         <Box
                                           component="span"
                                           sx={{
@@ -869,7 +871,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                     sx={{
                                       borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0'}`,
                                       p: 0.5,
-                                      bgcolor: celula?.status === 'Cancelada' 
+                                      bgcolor: ['Cancelada', 'Estornada'].includes(celula?.status as string) 
                                         ? 'rgba(239, 68, 68, 0.02)' 
                                         : (!possuiDados 
                                           ? (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.015)' : 'rgba(0, 0, 0, 0.01)')
@@ -880,7 +882,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                     {possuiDados ? (
                                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', whiteSpace: 'nowrap' }}>
-                                          <span style={{ fontWeight: 600, color: celula.status === 'Cancelada' ? '#ef4444' : theme.palette.primary.main }}>
+                                          <span style={{ fontWeight: 600, color: ['Cancelada', 'Estornada'].includes(celula.status as string) ? '#ef4444' : theme.palette.primary.main }}>
                                             {formatarMoeda(comissaoVendedorCalculada)}
                                           </span>
                                         </Box>
@@ -892,7 +894,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                                             py: 0.1,
                                             px: 0.5,
                                             borderRadius: 0.5,
-                                            color: celula.status === 'Cancelada' ? '#ef4444' :
+                                            color: ['Cancelada', 'Estornada'].includes(celula.status as string) ? '#ef4444' :
                                                    (celula.recebida || (celula.status as string) === 'Recebida') ? '#f97316' :
                                                    celula.status === 'Paga' ? '#34d399' :
                                                    celula.status === 'Vencida' ? '#ef4444' : '#3b82f6',
@@ -916,7 +918,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                             const proporcao = venda.percentualComissao > 0 ? pctV / venda.percentualComissao : 0;
                             const totaisVenda = listaMesesTimeline.reduce((acc, mes) => {
                               const cel = venda.projecaoMensal[mes];
-                              if (cel && cel.valorVenda && cel.valorVenda > 0 && cel.status !== 'Cancelada') {
+                              if (cel && cel.valorVenda && cel.valorVenda > 0 && cel.status !== 'Cancelada' && cel.status !== 'Estornada') {
                                 acc.vendas += cel.valorVenda;
                                 acc.comissoes += (cel.comissaoGerada || 0) * proporcao;
                               }
@@ -1022,7 +1024,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                           let totalV = 0;
                           listaMesesTimeline.forEach((mes) => {
                             const cel = v.projecaoMensal[mes];
-                            if (cel && cel.valorVenda && cel.valorVenda > 0 && cel.status !== 'Cancelada') {
+                            if (cel && cel.valorVenda && cel.valorVenda > 0 && cel.status !== 'Cancelada' && cel.status !== 'Estornada') {
                               totalV += cel.valorVenda;
                             }
                           });
@@ -1036,7 +1038,7 @@ export const ComissoesVendedores: React.FC<ComissoesVendedoresProps> = ({
                           const proporcao = v.percentualComissao > 0 ? pctV / v.percentualComissao : 0;
                           listaMesesTimeline.forEach((mes) => {
                             const cel = v.projecaoMensal[mes];
-                            if (cel && cel.valorVenda && cel.valorVenda > 0 && cel.status !== 'Cancelada') {
+                            if (cel && cel.valorVenda && cel.valorVenda > 0 && cel.status !== 'Cancelada' && cel.status !== 'Estornada') {
                               totalC += (cel.comissaoGerada || 0) * proporcao;
                             }
                           });

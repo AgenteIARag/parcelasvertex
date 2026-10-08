@@ -91,7 +91,7 @@ export const RelatorioRetencaoLTV: React.FC<RelatorioRetencaoLTVProps> = ({
           }
           
           // Se identificarmos que o status está cancelado nesta célula (e ainda não tínhamos registrado)
-          if (celula.status === 'Cancelada' && !mesCancelamentoEncontrado) {
+          if (['Cancelada', 'Estornada'].includes(celula.status) && !mesCancelamentoEncontrado) {
             mesCancelamentoEncontrado = mesChave;
           }
         });

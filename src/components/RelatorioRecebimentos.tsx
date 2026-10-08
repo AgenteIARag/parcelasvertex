@@ -148,6 +148,7 @@ interface TotaisStatus {
   espelhoAReceber: number; // Espelhos (Parcelas de Meses Anteriores) ainda A Receber
   espelhoRecebidaReal: number; // Espelhos (Parcelas de Meses Anteriores) já Recebidas
   pagaForaMes: number;     // Valor (comissão) da competência original que foi paga apenas em meses futuros
+  estornada: number;
 }
 
 interface GrupoPeriodo {
@@ -166,17 +167,19 @@ interface GrupoPeriodo {
 // ──────────────────────────────────────────────────────────
 
 const calcularTotaisStatus = (itens: ParcelaLinha[]): TotaisStatus => {
-  const t: TotaisStatus = { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, aReceber: 0, espelhoRecebido: 0, espelhoAReceber: 0, espelhoRecebidaReal: 0, pagaForaMes: 0 };
+  const t: TotaisStatus = { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, estornada: 0, aReceber: 0, espelhoRecebido: 0, espelhoAReceber: 0, espelhoRecebidaReal: 0, pagaForaMes: 0 };
   itens.forEach((i) => {
     const v = i.comissao;
     
     // Se for espelho, separa em A Receber vs Recebida (Parcelas de Meses Anteriores)
     if (i.isEspelho) {
-      t.espelhoRecebido += v;
-      if (i.situacaoRecebimento === 'Recebida') {
-        t.espelhoRecebidaReal += v;
-      } else {
-        t.espelhoAReceber += v;
+      if (i.statusParcela !== 'Estornada') {
+        t.espelhoRecebido += v;
+        if (i.situacaoRecebimento === 'Recebida') {
+          t.espelhoRecebidaReal += v;
+        } else {
+          t.espelhoAReceber += v;
+        }
       }
       return;
     }
@@ -186,14 +189,17 @@ const calcularTotaisStatus = (itens: ParcelaLinha[]): TotaisStatus => {
       t.pagaForaMes += v;
     }
 
-    if (i.statusParcela === 'Cancelada') t.cancelada += v;
+    if (['Cancelada', 'Estornada'].includes(i.statusParcela)) t.cancelada += v;
+    else if (i.statusParcela === 'Estornada') t.estornada += v;
     else if (i.statusParcela === 'Paga') t.paga += v;
     else if (i.statusParcela === 'Vencida') t.vencida += v;
     else if (i.statusParcela === 'A vencer') t.aVencer += v;
 
-    if (i.situacaoRecebimento === 'Recebida') t.recebida += v;
-    // A Receber = somente Pagas que ainda NÃO foram recebidas
-    else if (i.statusParcela === 'Paga') t.aReceber += v;
+    if (i.statusParcela !== 'Estornada') {
+      if (i.situacaoRecebimento === 'Recebida') t.recebida += v;
+      // A Receber = somente Pagas que ainda NÃO foram recebidas
+      else if (i.statusParcela === 'Paga') t.aReceber += v;
+    }
   });
   return t;
 };
@@ -206,6 +212,7 @@ const calcularTotaisStatus = (itens: ParcelaLinha[]): TotaisStatus => {
 const StatusValorRow = ({ totais }: { totais: TotaisStatus }) => {
   const items = [
     { label: 'Cancelada', value: totais.cancelada, color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+    { label: 'Estornada', value: totais.estornada, color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
     { label: 'A vencer',  value: totais.aVencer,   color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
     { label: 'Vencida',   value: totais.vencida,   color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
     { label: 'Paga',      value: totais.paga,      color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
@@ -311,6 +318,7 @@ const StatusParcelaBadge = ({ status, dataCancelamento }: { status: StatusParcel
     'Vencida':   { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',    icon: <CancelIcon sx={{ fontSize: 12 }} /> },
     'Paga':      { color: '#10b981', bg: 'rgba(16,185,129,0.12)',   icon: <CheckCircleIcon sx={{ fontSize: 12 }} /> },
     'Cancelada': { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',    icon: <CancelIcon sx={{ fontSize: 12 }} /> },
+    'Estornada': { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',   icon: <AutorenewIcon sx={{ fontSize: 12 }} /> },
   };
   const s = map[status] || map['A vencer'];
   const badge = (
@@ -480,7 +488,7 @@ const exportarRecebimentosParaPDF = (
         if (data.column.index === 8) {
           if (text === 'Paga') { data.cell.styles.fillColor = [209, 250, 229]; data.cell.styles.textColor = [5, 150, 105]; } // verde
           else if (text === 'A vencer') { data.cell.styles.fillColor = [219, 234, 254]; data.cell.styles.textColor = [37, 99, 235]; } // azul
-          else if (text === 'Vencida' || text === 'Cancelada') { data.cell.styles.fillColor = [254, 226, 226]; data.cell.styles.textColor = [220, 38, 38]; } // vermelho
+          else if (text === 'Vencida' || text === 'Cancelada' || text === 'Estornada') { data.cell.styles.fillColor = [254, 226, 226]; data.cell.styles.textColor = [220, 38, 38]; } // vermelho
         }
         // Coluna Recebimento
         else if (data.column.index === 9) {
@@ -1184,7 +1192,7 @@ const SubGrupoData = ({
                             </Tooltip>
                           )}
                           {/* Desfazer Cancelamento (Master) */}
-                          {item.statusParcela === 'Cancelada' && !item.isEspelho && isMaster && (
+                          {['Cancelada', 'Estornada'].includes(item.statusParcela) && !item.isEspelho && isMaster && (
                             <Tooltip title="Desfazer cancelamento">
                               <IconButton
                                 size="small"
@@ -1960,13 +1968,13 @@ export const RelatorioRecebimentos = ({
         const situacaoRecebimento: 'A receber' | 'Recebida' = celula.recebida ? 'Recebida' : 'A receber';
 
         if (filtroStatus.length > 0) {
-          const selectedStatus = filtroStatus.filter(s => ['A vencer', 'Vencida', 'Paga', 'Cancelada'].includes(s));
+          const selectedStatus = filtroStatus.filter(s => ['A vencer', 'Vencida', 'Paga', 'Cancelada', 'Estornada'].includes(s));
           const selectedRecebimento = filtroStatus.filter(s => ['A receber', 'Recebida'].includes(s));
 
           if (selectedStatus.length > 0) {
             if (!selectedStatus.includes(statusParcela)) return;
           } else {
-            if (statusParcela === 'Cancelada') return;
+            if (['Cancelada', 'Estornada'].includes(statusParcela)) return;
           }
 
           if (selectedRecebimento.length > 0) {
@@ -1974,7 +1982,7 @@ export const RelatorioRecebimentos = ({
           }
         } else {
           // Nenhum filtro = Todos (exceto canceladas)
-          if (statusParcela === 'Cancelada') return;
+          if (['Cancelada', 'Estornada'].includes(statusParcela)) return;
         }
 
         const dtVenc = celula.dataVencimento || `${mesChave}-15`;
@@ -2105,7 +2113,7 @@ export const RelatorioRecebimentos = ({
           totalCreditoRecorrencia: 0,
           qtdParcelas: 0,
           itens: [],
-          totaisStatus: { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, aReceber: 0, espelhoRecebido: 0, espelhoAReceber: 0, espelhoRecebidaReal: 0, pagaForaMes: 0 },
+          totaisStatus: { aVencer: 0, vencida: 0, paga: 0, recebida: 0, cancelada: 0, estornada: 0, aReceber: 0, espelhoRecebido: 0, espelhoAReceber: 0, espelhoRecebidaReal: 0, pagaForaMes: 0 },
         });
         pacsPorMes.set(key, new Set<string>());
       }
@@ -2210,7 +2218,7 @@ export const RelatorioRecebimentos = ({
   }, [parcelas]);
 
   const totalCreditosCancelados = useMemo(() => {
-    const itensCancelados = parcelas.filter(p => !p.isEspelho && p.statusParcela === 'Cancelada');
+    const itensCancelados = parcelas.filter(p => !p.isEspelho && ['Cancelada', 'Estornada'].includes(p.statusParcela));
     const pacsUnicos = new Set<string>();
     let creditoUnico = 0;
     itensCancelados.forEach(p => {
@@ -2263,6 +2271,7 @@ export const RelatorioRecebimentos = ({
     'Vencida':    { active: '#ef4444', border: '#ef4444' },
     'Paga':       { active: '#10b981', border: '#10b981' },
     'Cancelada':  { active: '#ef4444', border: '#ef4444' },
+    'Estornada':  { active: '#f59e0b', border: '#f59e0b' },
     'A receber':  { active: '#f97316', border: '#f97316' },
     'Recebida':   { active: '#0ea5e9', border: '#0ea5e9' },
   };
@@ -2507,7 +2516,7 @@ export const RelatorioRecebimentos = ({
             Status da Parcela
           </Typography>
           <Box sx={{ display: 'flex', gap: 0.7, flexWrap: 'wrap', alignItems: 'center' }}>
-            {(['Todos', 'A vencer', 'Vencida', 'Paga', 'Cancelada'] as const).map((s) => {
+            {(['Todos', 'A vencer', 'Vencida', 'Paga', 'Cancelada', 'Estornada'] as const).map((s) => {
               const isAtivo = s === 'Todos'
                 ? filtroStatus.filter(x => !['A receber', 'Recebida'].includes(x)).length === 0 && filtroStatus.length === 0
                 : filtroStatus.includes(s);
@@ -2660,6 +2669,7 @@ export const RelatorioRecebimentos = ({
                         h === 'A Receber' ? '#f97316' :
                         h === 'Total a Receber' ? '#f59e0b' :
                         h === 'Cancelada' ? '#ef4444' :
+                        h === 'Estornada' ? '#f59e0b' :
                         h === 'A Vencer' ? '#6366f1' :
                         h === 'Vencida' ? '#f59e0b' :
                         h === 'Paga' ? '#10b981' :
@@ -2743,6 +2753,7 @@ export const RelatorioRecebimentos = ({
                   const totGeral = grupos.reduce(
                     (acc, g) => ({
                       cancelada:           acc.cancelada           + g.totaisStatus.cancelada,
+                      estornada:           acc.estornada           + g.totaisStatus.estornada,
                       aVencer:             acc.aVencer             + g.totaisStatus.aVencer,
                       vencida:             acc.vencida             + g.totaisStatus.vencida,
                       paga:                acc.paga                + g.totaisStatus.paga,
@@ -2751,7 +2762,7 @@ export const RelatorioRecebimentos = ({
                       espelhoAReceber:     acc.espelhoAReceber     + g.totaisStatus.espelhoAReceber,
                       espelhoRecebidaReal: acc.espelhoRecebidaReal + g.totaisStatus.espelhoRecebidaReal,
                     }),
-                    { cancelada: 0, aVencer: 0, vencida: 0, paga: 0, recebida: 0, aReceber: 0, espelhoAReceber: 0, espelhoRecebidaReal: 0 }
+                    { cancelada: 0, estornada: 0, aVencer: 0, vencida: 0, paga: 0, recebida: 0, aReceber: 0, espelhoAReceber: 0, espelhoRecebidaReal: 0 }
                   );
                   const totalGeralAReceber = totGeral.aReceber + totGeral.espelhoAReceber;
                   return (

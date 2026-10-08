@@ -80,7 +80,7 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
         // 1. Calcula a Comissão fluindo no período (Fluxo de Caixa / Parcelas ativas)
         Object.keys(venda.projecaoMensal).forEach((mesChave) => {
           const celula = venda.projecaoMensal[mesChave];
-          if (celula && celula.valorVenda > 0 && celula.status !== 'Cancelada') {
+          if (celula && celula.valorVenda > 0 && celula.status !== 'Cancelada' && celula.status !== 'Estornada') {
             if (mesChave >= mesInicioChave && mesChave <= mesFimChave) {
               const comissaoEmpresa = (celula.comissaoGerada || 0);
               const comissaoVendedor = comissaoEmpresa * proporcao;
@@ -191,7 +191,7 @@ export const DashboardVendedores: React.FC<DashboardVendedoresProps> = ({
             v.statusCliente?.toLowerCase() === 'cancelado' ||
             (v.projecaoMensal &&
               Object.values(v.projecaoMensal).length > 0 &&
-              !Object.values(v.projecaoMensal).some((p) => p.status?.toLowerCase() !== 'cancelada' && (p.valorVenda || 0) > 0));
+              !Object.values(v.projecaoMensal).some((p) => p.status?.toLowerCase() !== 'cancelada' && p.status?.toLowerCase() !== 'estornada' && (p.valorVenda || 0) > 0));
 
           if (cotaCancelada) {
             volumeCancelado += Number(v.valorVenda || 0);

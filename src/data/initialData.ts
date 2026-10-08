@@ -130,7 +130,7 @@ export const calcularTotaisLinha = (
       dataRecebimento: celula.dataRecebimento || celula.dataVencimento
     };
 
-    if (celula.status !== 'Cancelada' && valor > 0) {
+    if (celula.status !== 'Cancelada' && celula.status !== 'Estornada' && valor > 0) {
       parcelasAtivas += 1;
       totalComissoes += comissao;
       if (valor > valorMaximoVenda) {

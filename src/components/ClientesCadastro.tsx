@@ -168,7 +168,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
           let mesCancelamento: string | null = null;
           const mesesProjecao = Object.keys(v.projecaoMensal || {}).sort();
           mesesProjecao.forEach(mes => {
-            if (v.projecaoMensal[mes].status === 'Cancelada' && !mesCancelamento) {
+            if (['Cancelada', 'Estornada'].includes(v.projecaoMensal[mes].status as string) && !mesCancelamento) {
               mesCancelamento = mes;
             }
           });
@@ -236,7 +236,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
           if (celula.status === 'Paga') {
             lucroComissaoTotal += (celula.comissaoGerada || 0);
           }
-          if (celula.status === 'Cancelada' && !mesCancelamento) {
+          if (['Cancelada', 'Estornada'].includes(celula.status as string) && !mesCancelamento) {
             mesCancelamento = mes;
           }
         });
@@ -645,7 +645,7 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
         if (celula.status === 'Paga') {
           lucroDesteContrato += (celula.comissaoGerada || 0);
         }
-        if (celula.status === 'Cancelada' && !mesCancelamento) {
+        if (['Cancelada', 'Estornada'].includes(celula.status as string) && !mesCancelamento) {
           mesCancelamento = mes;
         }
       });
@@ -824,7 +824,7 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
                       if (celula.status === 'Paga') {
                         lucroDesteContrato += (celula.comissaoGerada || 0);
                       }
-                      if (celula.status === 'Cancelada' && !mesCancelamento) {
+                      if (['Cancelada', 'Estornada'].includes(celula.status as string) && !mesCancelamento) {
                         mesCancelamento = mes;
                       }
                     });
