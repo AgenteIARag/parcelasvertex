@@ -1876,8 +1876,7 @@ function App() {
                   onAdicionarVenda={handleAdicionarVenda}
                   onAtualizarVenda={handleAtualizarVenda}
                   onExcluirVenda={handleExcluirVenda}
-                  permissoes={usuarioLogado?.permissoes ?? { visualizar: true, editarVendas: isAdminOuMaster, cadastrarVendedores: isAdminOuMaster, cadastrarRegras: false }} somenteDadosCadastrais={usuarioLogado?.role === "editor"}
-                  dataInicio={dataInicio}
+                  permissoes={usuarioLogado?.permissoes ?? { visualizar: true, editarVendas: isAdminOuMaster, cadastrarVendedores: isAdminOuMaster, cadastrarRegras: false }} dataInicio={dataInicio}
                   dataFim={dataFim}
                   ciclos={ciclos}
                   administradoras={administradoras}
@@ -1902,8 +1901,7 @@ function App() {
                 onAtualizarVenda={handleAtualizarVenda}
                 onAdicionarVenda={handleAdicionarVenda}
                 administradoras={administradoras}
-                permissoes={usuarioLogado?.permissoes ?? { visualizar: true, editarVendas: isAdminOuMaster, cadastrarVendedores: isAdminOuMaster, cadastrarRegras: false }} somenteDadosCadastrais={usuarioLogado?.role === "editor"}
-                isMaster={isAdminOuMaster}
+                permissoes={usuarioLogado?.permissoes ?? { visualizar: true, editarVendas: isAdminOuMaster, cadastrarVendedores: isAdminOuMaster, cadastrarRegras: false }} isMaster={isAdminOuMaster}
                 podeVerFinanceiro={podeVerFinanceiro}
               />
             )}

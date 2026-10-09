@@ -131,7 +131,7 @@ const calcularDataPrevisaoRecebimento = (dataVencimentoParcela: string, _ciclos?
 };
 
 interface SimuladorVendasProps {
-  somenteDadosCadastrais?: boolean;
+  
   vendas: LancamentoVenda[];
   regras: RegraMaster[];
   vendedores: Vendedor[];
@@ -151,7 +151,6 @@ interface SimuladorVendasProps {
 
 
 export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
-  somenteDadosCadastrais,
   vendas,
   regras,
   vendedores,
@@ -2822,8 +2821,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         ciclos={ciclos}
         administradoras={administradoras}
         clientes={clientes}
-        somenteDadosCadastrais={somenteDadosCadastrais}
-      />
+        />
 
       {/* Dialog de Edição Individual de Parcela */}
       {editandoParcela && (() => {
@@ -3012,7 +3010,7 @@ const EditarParcelaDialog: React.FC<EditarParcelaDialogProps> = ({ open, onClose
 };
 
 interface EditarVendaDialogProps {
-  somenteDadosCadastrais?: boolean;
+  
   open: boolean;
   onClose: () => void;
   onSave: (venda: LancamentoVenda) => void;
@@ -3025,7 +3023,6 @@ interface EditarVendaDialogProps {
 }
 
 export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
-  somenteDadosCadastrais,
   open,
   onClose,
   onSave,
@@ -3408,8 +3405,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       <DialogContent>
         <Grid container spacing={3} sx={{ mt: 0.5 }}>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <Autocomplete disabled={somenteDadosCadastrais} 
-              options={clientes}
+            <Autocomplete options={clientes}
               getOptionLabel={(option) => option.nome}
               value={clienteSelecionado}
               onChange={(_event, newValue) => {
@@ -3432,7 +3428,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <FormControl fullWidth disabled={somenteDadosCadastrais} error={!!errors.vendedorId}>
+            <FormControl fullWidth error={!!errors.vendedorId}>
               <InputLabel id="edit-vend-venda-label">Vendedor Responsável</InputLabel>
               <Select
                 labelId="edit-vend-venda-label"
@@ -3457,7 +3453,6 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
-              disabled={somenteDadosCadastrais}
               label="Valor do Cr�dito"
               type="text"
               placeholder="Ex: R$ 1.200.000,00"
@@ -3473,7 +3468,6 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
-              disabled={somenteDadosCadastrais}
               label="Valor da Parcela"
               type="text"
               placeholder="Ex: R$ 10.000,00"
@@ -3490,7 +3484,6 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
           <Grid size={{ xs: 12, sm: 3 }}>
             <TextField
               fullWidth
-              disabled={somenteDadosCadastrais}
               label="Data da Venda"
               type="date"
               value={dataVendaInput}
@@ -3503,7 +3496,6 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
           <Grid size={{ xs: 12, sm: 3 }}>
             <TextField
               fullWidth
-              disabled={somenteDadosCadastrais}
               label="Vencimento do Cliente"
               type="date"
               value={dataVencimentoClienteInput}
@@ -3516,7 +3508,6 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
           <Grid size={{ xs: 12, sm: 3 }}>
             <TextField
               fullWidth
-              disabled={somenteDadosCadastrais}
               label="Data da 1� Assembleia"
               type="date"
               value={dataAssembleiaInput}
@@ -3527,7 +3518,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
-            <FormControl fullWidth disabled={somenteDadosCadastrais} error={!!errors.segmento}>
+            <FormControl fullWidth error={!!errors.segmento}>
               <InputLabel id="edit-seg-venda-label">Segmento</InputLabel>
               <Select
                 labelId="edit-seg-venda-label"
@@ -3548,7 +3539,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
           </Grid>
 
           <Grid size={{ xs: 12, sm: 4 }}>
-            <FormControl fullWidth disabled={somenteDadosCadastrais}><InputLabel id="edit-adm-venda-label">Administradora</InputLabel>
+            <FormControl fullWidth ><InputLabel id="edit-adm-venda-label">Administradora</InputLabel>
               <Select
                 labelId="edit-adm-venda-label"
                 value={administradoraIdInput}
@@ -3586,7 +3577,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
-            <FormControl fullWidth disabled={somenteDadosCadastrais} error={!!errors.tabela}>
+            <FormControl fullWidth error={!!errors.tabela}>
               <InputLabel id="edit-tab-venda-label">Tabela</InputLabel>
               <Select
                 labelId="edit-tab-venda-label"
@@ -3610,7 +3601,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
-            <FormControl fullWidth disabled={somenteDadosCadastrais} error={!!errors.qtdParcelas}>
+            <FormControl fullWidth error={!!errors.qtdParcelas}>
               <InputLabel id="edit-parc-venda-label">Quantidade de Parcelas</InputLabel>
               <Select
                 labelId="edit-parc-venda-label"
@@ -3636,7 +3627,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
           <Grid size={{ xs: 12, sm: 6 }}>
             <FormControlLabel
               control={
-                <Switch disabled={somenteDadosCadastrais} checked={contemplado}
+                <Switch checked={contemplado}
                   onChange={(e) => {
                     setContemplado(e.target.checked);
                     if (!e.target.checked) setDataContemplacao('');
@@ -3653,7 +3644,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
           </Grid>
           {contemplado && (
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField disabled={somenteDadosCadastrais} fullWidth label="Data da Contempla��o"
+              <TextField fullWidth label="Data da Contempla��o"
                 type="date"
                 value={dataContemplacao}
                 onChange={(e) => setDataContemplacao(e.target.value)}
