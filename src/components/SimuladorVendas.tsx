@@ -2942,10 +2942,10 @@ const EditarParcelaDialog: React.FC<EditarParcelaDialogProps> = ({ open, onClose
       <DialogContent>
         <Grid container spacing={2} sx={{ mt: 0.5 }}>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField fullWidth label="Data de Vencimento" type="date" value={dataVencimento} onChange={(e) => setDataVencimento(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+            <TextField disabled fullWidth label="Data de Vencimento" type="date" value={dataVencimento} onChange={(e) => setDataVencimento(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
+            <TextField disabled
               fullWidth
               label="Data de Recebimento"
               type="date"
@@ -2957,7 +2957,7 @@ const EditarParcelaDialog: React.FC<EditarParcelaDialogProps> = ({ open, onClose
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
+            <TextField disabled
               fullWidth
               label="Valor da Parcela (R$)"
               type="number"
@@ -2967,7 +2967,7 @@ const EditarParcelaDialog: React.FC<EditarParcelaDialogProps> = ({ open, onClose
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
+            <TextField disabled
               fullWidth
               label="Comissão Gerada (R$)"
               type="number"
