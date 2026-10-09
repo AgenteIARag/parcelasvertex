@@ -248,7 +248,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       }
     };
 
-    const { totalVendas, totalComissoes, projecaoAtualizada: projFina } = calcularTotaisLinha(
+    const { totalVendas, totalComissãoes, projecaoAtualizada: projFina } = calcularTotaisLinha(
       projecaoAtualizada,
       venda.percentualComissao,
       venda.qtdParcelas,
@@ -266,7 +266,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       ...venda,
       projecaoMensal: projFina,
       totalVendas,
-      totalComissoes,
+      totalComissãoes,
       statusCliente: novoStatusCliente
     });
   };
@@ -298,7 +298,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       }
     };
 
-    const { totalVendas, totalComissoes, projecaoAtualizada: projFina } = calcularTotaisLinha(
+    const { totalVendas, totalComissãoes, projecaoAtualizada: projFina } = calcularTotaisLinha(
       projecaoAtualizada,
       venda.percentualComissao,
       venda.qtdParcelas,
@@ -316,7 +316,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       ...venda,
       projecaoMensal: projFina,
       totalVendas,
-      totalComissoes,
+      totalComissãoes,
       statusCliente: novoStatusCliente
     });
   };
@@ -342,7 +342,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       }
     };
 
-    const { totalVendas, totalComissoes, projecaoAtualizada: projFina } = calcularTotaisLinha(
+    const { totalVendas, totalComissãoes, projecaoAtualizada: projFina } = calcularTotaisLinha(
       projecaoAtualizada,
       venda.percentualComissao,
       venda.qtdParcelas,
@@ -360,7 +360,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       ...venda,
       projecaoMensal: projFina,
       totalVendas,
-      totalComissoes,
+      totalComissãoes,
       statusCliente: novoStatusCliente
     });
   };
@@ -396,7 +396,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       }
     });
 
-    const { totalVendas, totalComissoes, projecaoAtualizada: projFina } = calcularTotaisLinha(
+    const { totalVendas, totalComissãoes, projecaoAtualizada: projFina } = calcularTotaisLinha(
       projecaoAtualizada,
       venda.percentualComissao,
       venda.qtdParcelas,
@@ -412,7 +412,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       statusCliente: 'Cancelado',
       projecaoMensal: projFina,
       totalVendas,
-      totalComissoes
+      totalComissãoes
     });
   };
 
@@ -433,7 +433,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     }
     const celulaNova = { ...celulaAtual, ...campos };
     const projecaoAtualizada = { ...venda.projecaoMensal, [mes]: celulaNova };
-    const { totalVendas, totalComissoes, projecaoAtualizada: projFina } = calcularTotaisLinha(
+    const { totalVendas, totalComissãoes, projecaoAtualizada: projFina } = calcularTotaisLinha(
       projecaoAtualizada,
       venda.percentualComissao,
       venda.qtdParcelas,
@@ -444,7 +444,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       venda.valorParcela
     );
     const temParcelasAtivas = Object.values(projFina).some(p => p.status !== 'Cancelada' && p.status !== 'Estornada' && p.valorVenda > 0);
-    onAtualizarVenda({ ...venda, projecaoMensal: projFina, totalVendas, totalComissoes, statusCliente: temParcelasAtivas ? 'Ativo' : 'Cancelado' });
+    onAtualizarVenda({ ...venda, projecaoMensal: projFina, totalVendas, totalComissãoes, statusCliente: temParcelasAtivas ? 'Ativo' : 'Cancelado' });
   };
 
   // Retorna o índice cronológico da parcela (1-based)
@@ -569,7 +569,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
   // Totais de vendas e comissões acumulados no período filtrado para cada linha
   const obterTotaisFiltrados = (venda: LancamentoVenda) => {
-    let totalComissoesPeriodo = 0;
+    let totalComissãoesPeriodo = 0;
     let parcelasAtivasPeriodo = 0;
 
     mesesFiltrados.forEach((mes) => {
@@ -587,7 +587,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
           }
         }
         
-        totalComissoesPeriodo += dadosMes.comissaoGerada || 0;
+        totalComissãoesPeriodo += dadosMes.comissaoGerada || 0;
         parcelasAtivasPeriodo += 1;
       }
     });
@@ -597,7 +597,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
       ? (venda.valorVenda / venda.qtdParcelas) * parcelasAtivasPeriodo 
       : 0;
 
-    return { totalVendasPeriodo, totalComissoesPeriodo };
+    return { totalVendasPeriodo, totalComissãoesPeriodo };
   };
 
   // Cálculo dos totais de rodapé para a timeline filtrados
@@ -608,7 +608,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     });
 
     let totalGeralVendas = 0;
-    let totalGeralComissoes = 0;
+    let totalGeralComissãoes = 0;
 
     vendasFiltradasPorPac.forEach((v) => {
       // Soma o faturamento nominal proporcional da linha no período filtrado
@@ -632,7 +632,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
           totais[mes].vendas += celula.valorVenda || 0;
           totais[mes].comissoes += celula.comissaoGerada || 0;
-          totalGeralComissoes += celula.comissaoGerada || 0;
+          totalGeralComissãoes += celula.comissaoGerada || 0;
         }
       });
     });
@@ -640,7 +640,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
     return {
       mensais: totais,
       totalGeralVendas,
-      totalGeralComissoes
+      totalGeralComissãoes
     };
   };
 
@@ -1801,7 +1801,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
                   {/* Totais Consolidados por Linha Filtrados */}
                   {(() => {
-                    const { totalVendasPeriodo, totalComissoesPeriodo } = obterTotaisFiltrados(venda);
+                    const { totalVendasPeriodo, totalComissãoesPeriodo } = obterTotaisFiltrados(venda);
                     return (
                       <React.Fragment>
                         <TableCell
@@ -1824,7 +1824,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                               bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(16, 185, 129, 0.02)'
                             }}
                           >
-                            {formatarMoeda(totalComissoesPeriodo)}
+                            {formatarMoeda(totalComissãoesPeriodo)}
                           </TableCell>
                         )}
                       </React.Fragment>
@@ -1942,7 +1942,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                       zIndex: 2,
                     }}
                   >
-                    {formatarMoeda(totaisGerais.totalGeralComissoes)}
+                    {formatarMoeda(totaisGerais.totalGeralComissãoes)}
                   </TableCell>
                 )}
 
@@ -2102,7 +2102,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                 )}
 
                 {vendasFiltradasPorPac.slice(pageMatriz * rowsPerPageMatriz, pageMatriz * rowsPerPageMatriz + rowsPerPageMatriz).map((venda, idx) => {
-                  const { totalVendasPeriodo, totalComissoesPeriodo } = obterTotaisFiltrados(venda);
+                  const { totalVendasPeriodo, totalComissãoesPeriodo } = obterTotaisFiltrados(venda);
                   return (
                     <TableRow
                       key={venda.id}
@@ -2331,7 +2331,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           }}
                         >
                           <Typography sx={{ fontSize: '0.85rem', fontWeight: 750, color: theme.palette.success.main }}>
-                            {formatarMoeda(totalComissoesPeriodo)}
+                            {formatarMoeda(totalComissãoesPeriodo)}
                           </Typography>
                         </TableCell>
                       )}
@@ -2449,7 +2449,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
                           bgcolor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.05)'
                         }}
                       >
-                        {formatarMoeda(totaisGerais.totalGeralComissoes)}
+                        {formatarMoeda(totaisGerais.totalGeralComissãoes)}
                       </TableCell>
                     )}
                     {permissoes.editarVendas && (
@@ -3319,7 +3319,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       }
     }
 
-    const { totalVendas, totalComissoes, projecaoAtualizada } = calcularTotaisLinha(
+    const { totalVendas, totalComissãoes, projecaoAtualizada } = calcularTotaisLinha(
       proj,
       percentualComissao,
       parcelas,
@@ -3355,7 +3355,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       valorParcela: valorParcelaV,
       projecaoMensal: projecaoAtualizada,
       totalVendas,
-      totalComissoes,
+      totalComissãoes,
       contemplado,
       dataContemplacao: contemplado ? dataContemplacao : undefined,
       comissaoContemplacao: contemplado && dataContemplacao ? (() => {

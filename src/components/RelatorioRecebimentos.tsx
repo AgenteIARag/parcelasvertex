@@ -1682,6 +1682,7 @@ const GrupoRecebimento = ({
 interface RelatorioRecebimentosProps {
   
   vendas: LancamentoVenda[];
+  clientes?: import('../types').Cliente[];
   vendedores?: Vendedor[];
   regras?: RegraMaster[];
   dataInicio: string;
@@ -3057,7 +3058,7 @@ export const RelatorioRecebimentos = ({
           regras={regras}
           ciclos={ciclos}
           administradoras={administradoras}
-          clientes={[]}
+          clientes={clientes}
         />
       )}
 
