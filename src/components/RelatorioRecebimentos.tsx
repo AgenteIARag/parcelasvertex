@@ -1680,6 +1680,7 @@ const GrupoRecebimento = ({
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface RelatorioRecebimentosProps {
+  somenteDadosCadastrais?: boolean;
   vendas: LancamentoVenda[];
   vendedores?: Vendedor[];
   regras?: RegraMaster[];
@@ -1695,6 +1696,7 @@ interface RelatorioRecebimentosProps {
 }
 
 export const RelatorioRecebimentos = ({
+  somenteDadosCadastrais,
   vendas,
   vendedores = [],
   regras = [],
@@ -2877,6 +2879,7 @@ export const RelatorioRecebimentos = ({
 
       {/* Dialog para Editar Venda */}
       <EditarVendaDialog
+        somenteDadosCadastrais={somenteDadosCadastrais}
         open={openEditDialog}
         onClose={() => {
           setOpenEditDialog(false);

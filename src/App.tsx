@@ -1876,7 +1876,7 @@ function App() {
                   onAdicionarVenda={handleAdicionarVenda}
                   onAtualizarVenda={handleAtualizarVenda}
                   onExcluirVenda={handleExcluirVenda}
-                  permissoes={usuarioLogado?.permissoes ?? { visualizar: true, editarVendas: isAdminOuMaster, cadastrarVendedores: isAdminOuMaster, cadastrarRegras: false }}
+                  permissoes={usuarioLogado?.permissoes ?? { visualizar: true, editarVendas: isAdminOuMaster, cadastrarVendedores: isAdminOuMaster, cadastrarRegras: false }} somenteDadosCadastrais={usuarioLogado?.role === "editor"}
                   dataInicio={dataInicio}
                   dataFim={dataFim}
                   ciclos={ciclos}
@@ -1902,7 +1902,7 @@ function App() {
                 onAtualizarVenda={handleAtualizarVenda}
                 onAdicionarVenda={handleAdicionarVenda}
                 administradoras={administradoras}
-                permissoes={usuarioLogado?.permissoes ?? { visualizar: true, editarVendas: isAdminOuMaster, cadastrarVendedores: isAdminOuMaster, cadastrarRegras: false }}
+                permissoes={usuarioLogado?.permissoes ?? { visualizar: true, editarVendas: isAdminOuMaster, cadastrarVendedores: isAdminOuMaster, cadastrarRegras: false }} somenteDadosCadastrais={usuarioLogado?.role === "editor"}
                 isMaster={isAdminOuMaster}
                 podeVerFinanceiro={podeVerFinanceiro}
               />
@@ -2222,3 +2222,4 @@ function App() {
 }
 
 export default App;
+
