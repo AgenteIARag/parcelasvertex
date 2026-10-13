@@ -1698,6 +1698,7 @@ interface RelatorioRecebimentosProps {
 
 export const RelatorioRecebimentos = ({
   vendas,
+  clientes = [],
   vendedores = [],
   regras = [],
   dataInicio,
