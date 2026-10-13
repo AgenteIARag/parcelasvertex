@@ -3465,7 +3465,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
-              label="Valor do Cr�dito"
+              label="Valor do Crédito"
               type="text"
               placeholder="Ex: R$ 1.200.000,00"
               value={valorVendaExibicao}
@@ -3520,7 +3520,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
           <Grid size={{ xs: 12, sm: 3 }}>
             <TextField
               fullWidth
-              label="Data da 1� Assembleia"
+              label="Data da 1ª Assembleia"
               type="date"
               value={dataAssembleiaInput}
               onChange={(e) => setDataAssembleiaInput(e.target.value)}
@@ -3656,7 +3656,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
           </Grid>
           {contemplado && (
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField fullWidth label="Data da Contempla��o"
+              <TextField fullWidth label="Data da Contemplação"
                 type="date"
                 value={dataContemplacao}
                 onChange={(e) => setDataContemplacao(e.target.value)}
