@@ -24,3 +24,10 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# Scripts locais de migração/teste (mantidos só para consulta; contêm chaves)
+add_estornar.py
+fix_*.py
+fix_*.sql
+refactor_clientes.py
+test_*.js
