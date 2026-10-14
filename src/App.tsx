@@ -1854,12 +1854,13 @@ function App() {
 
             {abaAtiva === 'clientes' && (
               <ClientesCadastro
-                  clientes={clientesFiltrados}
-                  vendas={vendasFiltradas}
-                  empresas={empresas}
-                  onAdicionar={handleAdicionarCliente}
+                clientes={clientesFiltrados}
+                vendas={vendasFiltradas}
+                empresas={empresas}
+                onAdicionar={handleAdicionarCliente}
                 onAtualizar={handleAtualizarCliente}
                 onExcluir={handleExcluirCliente}
+                onAtualizarVenda={handleAtualizarVenda}
                 isSuperMaster={usuarioLogado?.role === 'super_master'}
                 empresaAtiva={canFilterCompany && empresaFiltroMaster ? empresaFiltroMaster : (usuarioLogado?.empresaId || 'emp_vertex')}
               />

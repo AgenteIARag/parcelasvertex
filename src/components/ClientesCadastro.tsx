@@ -22,6 +22,7 @@ import {
   Chip,
   InputAdornment,
   MenuItem,
+  Select,
   Card,
   CardContent,
   Avatar
@@ -40,7 +41,7 @@ import GroupIcon from '@mui/icons-material/Group';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 
-import type { Cliente, LancamentoVenda, Empresa } from '../types';
+import type { Cliente, LancamentoVenda, Empresa, StatusPosVenda } from '../types';
 import { formatarMoeda } from '../utils/formatters';
 
 interface ClientesCadastroProps {
@@ -50,6 +51,7 @@ interface ClientesCadastroProps {
   onAdicionar: (cliente: Cliente) => void;
   onAtualizar: (cliente: Cliente) => void;
   onExcluir: (id: string) => void;
+  onAtualizarVenda?: (venda: LancamentoVenda) => void;
   isSuperMaster?: boolean;
   empresaAtiva?: string;
 }
@@ -61,6 +63,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
   onAdicionar,
   onAtualizar,
   onExcluir,
+  onAtualizarVenda,
   isSuperMaster,
   empresaAtiva
 }) => {
@@ -539,6 +542,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
                   empresas={empresas} 
                   onEdit={() => handleOpenDialog(cliente)}
                   onDelete={() => onExcluir(cliente.id)}
+                  onAtualizarVenda={onAtualizarVenda}
                   theme={theme}
                   isSuperMaster={isSuperMaster}
                 />
@@ -617,7 +621,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
   );
 };
 
-const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSuperMaster }: any) => {
+const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSuperMaster, onAtualizarVenda }: any) => {
   const [open, setOpen] = useState(false);
   
   // Filtrar as vendas vinculadas a este cliente
@@ -809,12 +813,13 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
                     <TableCell align="right">Valor (Crédito)</TableCell>
                     <TableCell align="right">Lucro da Comissão</TableCell>
                     <TableCell align="center">Status</TableCell>
+                    <TableCell align="center">Status Pós-Venda</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {contratos.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} align="center" sx={{ py: 2, color: 'text.secondary' }}>Nenhum contrato lançado</TableCell>
+                      <TableCell colSpan={7} align="center" sx={{ py: 2, color: 'text.secondary' }}>Nenhum contrato lançado</TableCell>
                     </TableRow>
                   ) : contratos.map((venda: LancamentoVenda) => {
                     let mesCancelamento: string | null = null;
@@ -829,6 +834,34 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
                       }
                     });
                     const isCancelado = venda.statusCliente?.toLowerCase() === 'cancelado' || mesCancelamento !== null;
+                    const statusPosVenda: StatusPosVenda = venda.statusPosVenda || 'Em Dias';
+
+                    const configEstilo = {
+                      'Em Dias': {
+                        color: '#10b981',
+                        bgColor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5',
+                        borderColor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.3)' : '#a7f3d0'
+                      },
+                      'Vai Pagar': {
+                        color: '#3b82f6',
+                        bgColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.12)' : '#eff6ff',
+                        borderColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.3)' : '#bfdbfe'
+                      },
+                      'Vai Atrasar': {
+                        color: '#f59e0b',
+                        bgColor: theme.palette.mode === 'dark' ? 'rgba(245, 158, 11, 0.12)' : '#fffbeb',
+                        borderColor: theme.palette.mode === 'dark' ? 'rgba(245, 158, 11, 0.3)' : '#fde68a'
+                      },
+                      'Vai Cancelar': {
+                        color: '#ef4444',
+                        bgColor: theme.palette.mode === 'dark' ? 'rgba(239, 68, 68, 0.12)' : '#fef2f2',
+                        borderColor: theme.palette.mode === 'dark' ? 'rgba(239, 68, 68, 0.3)' : '#fecaca'
+                      }
+                    }[statusPosVenda] || {
+                      color: '#10b981',
+                      bgColor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5',
+                      borderColor: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.3)' : '#a7f3d0'
+                    };
 
                     return (
                       <TableRow key={venda.id} hover sx={{ '& td': { py: 0.6 } }}>
@@ -849,6 +882,65 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
                             variant="outlined"
                             sx={{ height: 18, fontSize: '0.65rem' }}
                           />
+                        </TableCell>
+                        <TableCell align="center">
+                          <Select
+                            value={statusPosVenda}
+                            size="small"
+                            variant="standard"
+                            disableUnderline
+                            onChange={(e) => {
+                              const novoStatus = e.target.value as StatusPosVenda;
+                              if (onAtualizarVenda) {
+                                onAtualizarVenda({
+                                  ...venda,
+                                  statusPosVenda: novoStatus
+                                });
+                              }
+                            }}
+                            sx={{
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              borderRadius: '12px',
+                              border: '1px solid',
+                              borderColor: configEstilo.borderColor,
+                              bgcolor: configEstilo.bgColor,
+                              color: configEstilo.color,
+                              transition: 'all 0.15s ease-in-out',
+                              '&:hover': {
+                                filter: 'brightness(1.08)'
+                              },
+                              '& .MuiSelect-select': {
+                                py: 0.2,
+                                px: 1,
+                                pr: '20px !important',
+                                display: 'flex',
+                                alignItems: 'center'
+                              },
+                              '& .MuiSelect-icon': {
+                                color: configEstilo.color,
+                                fontSize: '0.95rem',
+                                right: 1
+                              }
+                            }}
+                          >
+                            <MenuItem value="Em Dias" sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#10b981', display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#10b981' }} />
+                              Em Dias
+                            </MenuItem>
+                            <MenuItem value="Vai Pagar" sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#3b82f6' }} />
+                              Vai Pagar
+                            </MenuItem>
+                            <MenuItem value="Vai Atrasar" sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#f59e0b' }} />
+                              Vai Atrasar
+                            </MenuItem>
+                            <MenuItem value="Vai Cancelar" sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#ef4444' }} />
+                              Vai Cancelar
+                            </MenuItem>
+                          </Select>
                         </TableCell>
                       </TableRow>
                     );

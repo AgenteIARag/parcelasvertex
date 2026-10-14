@@ -12,7 +12,7 @@ import PercentIcon from '@mui/icons-material/Percent';
 
 import { gerarProjecaoVazia, getStatusInicial, calcularTotaisLinha } from '../data/initialData';
 
-import type { LancamentoVenda, Vendedor, RegraMaster, TipoTabela, SegmentoType, ProjecaoMensalType, Administradora, Cliente } from '../types';
+import type { LancamentoVenda, Vendedor, RegraMaster, TipoTabela, SegmentoType, ProjecaoMensalType, Administradora, Cliente, StatusPosVenda } from '../types';
 
 const extrairValorCru = (valorFormatado: string): number => {
   const apenasNumeros = valorFormatado.replace(/\D/g, '');
@@ -119,6 +119,7 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
   const [dataVendaInput, setDataVendaInput] = useState<string>('');
   const [dataVencimentoClienteInput, setDataVencimentoClienteInput] = useState<string>('');
   const [dataAssembleiaInput, setDataAssembleiaInput] = useState<string>('');
+  const [statusPosVenda, setStatusPosVenda] = useState<StatusPosVenda>('Em Dias');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [tabelasDisponiveis, setTabelasDisponiveis] = useState<string[]>([]);
   const [parcelasDisponiveis, setParcelasDisponiveis] = useState<number[]>([]);
@@ -375,6 +376,7 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
       totalVendas,
       totalComissoes,
       statusCliente: 'Ativo',
+      statusPosVenda: statusPosVenda || 'Em Dias',
       empresaId: 'emp_vertex'
     };
 
@@ -392,6 +394,7 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
     setPercentualComissao(0);
     setPercentualAdesaoInput(0);
     setPercentualMensalInput(0);
+    setStatusPosVenda('Em Dias');
     setValorVendaExibicao('');
     setValorParcelaExibicao('');
     setDataVendaInput('');
@@ -608,7 +611,7 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
             />
           </Grid>
 
-          <Grid size={{ xs: 12, sm: 6 }}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <FormControl fullWidth error={!!errors.tabela} disabled={!segmento}>
               <InputLabel id="tab-venda-label">Tabela</InputLabel>
               <Select
@@ -630,7 +633,7 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
               )}
             </FormControl>
           </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <FormControl fullWidth error={!!errors.qtdParcelas} disabled={!tabela}>
               <InputLabel id="parc-venda-label">Prazo (Parcelas)</InputLabel>
               <Select
@@ -650,6 +653,22 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
                   {errors.qtdParcelas}
                 </Typography>
               )}
+            </FormControl>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <FormControl fullWidth>
+              <InputLabel id="pos-venda-label">Status Pós-Venda</InputLabel>
+              <Select
+                labelId="pos-venda-label"
+                value={statusPosVenda}
+                label="Status Pós-Venda"
+                onChange={(e) => setStatusPosVenda(e.target.value as StatusPosVenda)}
+              >
+                <MenuItem value="Em Dias">Em Dias</MenuItem>
+                <MenuItem value="Vai Pagar">Vai Pagar</MenuItem>
+                <MenuItem value="Vai Atrasar">Vai Atrasar</MenuItem>
+                <MenuItem value="Vai Cancelar">Vai Cancelar</MenuItem>
+              </Select>
             </FormControl>
           </Grid>
 

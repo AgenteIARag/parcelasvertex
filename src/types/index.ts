@@ -58,6 +58,8 @@ export type StatusComissao = 'A pagar' | 'Paga' | 'Contestada';
 
 export type StatusCliente = 'Ativo' | 'Cancelado';
 
+export type StatusPosVenda = 'Em Dias' | 'Vai Pagar' | 'Vai Atrasar' | 'Vai Cancelar';
+
 export interface MesProjecao {
   valorVenda: number; // Valor do crédito
   valorParcela: number; // Valor da parcela
@@ -138,6 +140,7 @@ export interface LancamentoVenda {
   totalVendas: number; // Calculado (faturamento nominal ativo consolidado)
   totalComissoes: number; // Calculado (soma das comissões geradas dos meses ativos e não cancelados)
   statusCliente: StatusCliente;
+  statusPosVenda?: StatusPosVenda; // Status do pós-venda da cota (Em Dias, Vai Pagar, Vai Atrasar, Vai Cancelar)
   pac?: string; // Código do Contrato/PAC
   contemplado?: boolean; // Se o cliente foi contemplado
   dataContemplacao?: string; // Data da contemplação (YYYY-MM-DD)

@@ -333,6 +333,7 @@ export const obterVendasSupabase = async (): Promise<LancamentoVenda[]> => {
     const dataAssembleia = proj.__dataAssembleia || '';
     const administradoraId = v.administradora_id || proj.__administradoraId || undefined;
     const administradoraNome = v.administradora_nome || proj.__administradoraNome || undefined;
+    const statusPosVenda = v.status_pos_venda || proj.__statusPosVenda || 'Em Dias';
 
     // Remove as propriedades especiais de metadados da projeção
     delete proj.__pac;
@@ -340,6 +341,7 @@ export const obterVendasSupabase = async (): Promise<LancamentoVenda[]> => {
     delete proj.__dataAssembleia;
     delete proj.__administradoraId;
     delete proj.__administradoraNome;
+    delete proj.__statusPosVenda;
 
     return {
       id: v.id,
@@ -369,6 +371,7 @@ export const obterVendasSupabase = async (): Promise<LancamentoVenda[]> => {
       totalVendas: Number(v.total_vendas),
       totalComissoes: Number(v.total_comissoes),
       statusCliente: v.status_cliente,
+      statusPosVenda,
       empresaId: v.empresa_id || 'emp_vertex',
       // Campos de hierarquia
       vendaOrigemId: v.venda_origem_id || undefined,
@@ -386,7 +389,8 @@ export const salvarVendaSupabase = async (venda: LancamentoVenda): Promise<void>
     __dataVencimentoCliente: venda.dataVencimentoCliente,
     __dataAssembleia: venda.dataAssembleia,
     __administradoraId: venda.administradoraId,
-    __administradoraNome: venda.administradoraNome
+    __administradoraNome: venda.administradoraNome,
+    __statusPosVenda: venda.statusPosVenda || 'Em Dias'
   };
 
   const payload: Record<string, unknown> = {
@@ -414,6 +418,7 @@ export const salvarVendaSupabase = async (venda: LancamentoVenda): Promise<void>
     total_vendas: venda.totalVendas,
     total_comissoes: venda.totalComissoes,
     status_cliente: venda.statusCliente,
+    status_pos_venda: venda.statusPosVenda || 'Em Dias',
     empresa_id: venda.empresaId || 'emp_vertex',
     venda_origem_id: venda.vendaOrigemId || null,
     is_venda_espelho: venda.isVendaEspelho || false,
@@ -435,6 +440,7 @@ export const salvarVendaSupabase = async (venda: LancamentoVenda): Promise<void>
       delete safePayload.percentual_mensal;
       delete safePayload.percentuais_parcelas;
       delete safePayload.tipo_tabela;
+      delete safePayload.status_pos_venda;
       delete safePayload.venda_origem_id;
       delete safePayload.is_venda_espelho;
       delete safePayload.empresa_filha_origem_id;
@@ -749,6 +755,7 @@ export const migrarTabelasHierarquia = async (): Promise<void> => {
         ALTER TABLE vendas ADD COLUMN IF NOT EXISTS percentual_adesao NUMERIC;
         ALTER TABLE vendas ADD COLUMN IF NOT EXISTS percentual_mensal NUMERIC;
         ALTER TABLE vendas ADD COLUMN IF NOT EXISTS percentuais_parcelas JSONB;
+        ALTER TABLE vendas ADD COLUMN IF NOT EXISTS status_pos_venda TEXT DEFAULT 'Em Dias';
       `
     });
   } catch { /* silencioso */ }
@@ -762,7 +769,10 @@ export const migrarTabelaClientes = async (): Promise<void> => {
     // Tabela existe — garante coluna cliente_id em vendas via RPC (silencioso se falhar)
     try {
       await supabase.rpc('exec_sql', {
-        sql: `ALTER TABLE vendas ADD COLUMN IF NOT EXISTS cliente_id TEXT;`
+        sql: `
+          ALTER TABLE vendas ADD COLUMN IF NOT EXISTS cliente_id TEXT;
+          ALTER TABLE vendas ADD COLUMN IF NOT EXISTS status_pos_venda TEXT DEFAULT 'Em Dias';
+        `
       });
     } catch { /* silencioso — coluna pode já existir */ }
     return;

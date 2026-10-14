@@ -53,7 +53,8 @@ import {
   type UserPermissions,
   type MesProjecao,
   type TipoTabela,
-  type Administradora
+  type Administradora,
+  type StatusPosVenda
 } from '../types';
 import { gerarProjecaoVazia, calcularTotaisLinha, getStatusInicial } from '../data/initialData';
 import { formatarMoeda, formatarChaveMesExibicao, obterStatusEfetivo } from '../utils/formatters';
@@ -3072,6 +3073,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
   const [percentualAdesaoInput, setPercentualAdesaoInput] = useState<number>(0);
   const [percentualMensalInput, setPercentualMensalInput] = useState<number>(0);
   const [percentuaisParcelasInput, setPercentuaisParcelasInput] = useState<number[] | undefined>(undefined);
+  const [statusPosVenda, setStatusPosVenda] = useState<StatusPosVenda>('Em Dias');
 
   const opcoesAdministradoras = useMemo(() => {
     const lista = [...administradoras];
@@ -3116,6 +3118,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       setDataContemplacao(venda.dataContemplacao || '');
       setNumeroRelatorio(venda.numeroRelatorio || '');
       setDataRelatorio(venda.dataRelatorio || '');
+      setStatusPosVenda(venda.statusPosVenda || 'Em Dias');
       setErrors({});
 
       const tabs = regras
@@ -3377,6 +3380,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       })() : undefined,
       numeroRelatorio: numeroRelatorio.trim() || undefined,
       dataRelatorio: dataRelatorio || undefined,
+      statusPosVenda: statusPosVenda || 'Em Dias',
     };
 
     onSave(vendaAtualizada);
@@ -3588,7 +3592,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
             />
           </Grid>
 
-          <Grid size={{ xs: 12, sm: 6 }}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <FormControl fullWidth error={!!errors.tabela}>
               <InputLabel id="edit-tab-venda-label">Tabela</InputLabel>
               <Select
@@ -3612,7 +3616,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
             </FormControl>
           </Grid>
 
-          <Grid size={{ xs: 12, sm: 6 }}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <FormControl fullWidth error={!!errors.qtdParcelas}>
               <InputLabel id="edit-parc-venda-label">Quantidade de Parcelas</InputLabel>
               <Select
@@ -3633,6 +3637,23 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
                   {errors.qtdParcelas}
                 </Typography>
               )}
+            </FormControl>
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <FormControl fullWidth>
+              <InputLabel id="edit-pos-venda-label">Status Pós-Venda</InputLabel>
+              <Select
+                labelId="edit-pos-venda-label"
+                value={statusPosVenda}
+                label="Status Pós-Venda"
+                onChange={(e) => setStatusPosVenda(e.target.value as StatusPosVenda)}
+              >
+                <MenuItem value="Em Dias">Em Dias</MenuItem>
+                <MenuItem value="Vai Pagar">Vai Pagar</MenuItem>
+                <MenuItem value="Vai Atrasar">Vai Atrasar</MenuItem>
+                <MenuItem value="Vai Cancelar">Vai Cancelar</MenuItem>
+              </Select>
             </FormControl>
           </Grid>
 
