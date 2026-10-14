@@ -395,7 +395,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
               <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5, fontSize: '0.73rem' }}>
                 <Box component="span" sx={{ color: 'success.main', fontWeight: 600 }}>{metricas.clientesAtivos} ativos</Box>
                 {' • '}
-                <Box component="span" sx={{ color: 'text.secondary' }}>{metricas.clientesInativos} inativos</Box>
+                <Box component="span" sx={{ color: theme.palette.mode === 'dark' ? '#fb923c' : '#ea580c', fontWeight: 600 }}>{metricas.clientesInativos} inativos</Box>
               </Typography>
             </CardContent>
           </Card>
@@ -733,7 +733,17 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
             {totais.ativos > 0 ? (
               <Chip label="Ativo" size="small" color="success" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 600 }} />
             ) : (
-              <Chip label="Inativo" size="small" color="default" sx={{ height: 20, fontSize: '0.68rem' }} />
+              <Chip 
+                label="Inativo" 
+                size="small" 
+                sx={{ 
+                  height: 20, 
+                  fontSize: '0.68rem', 
+                  fontWeight: 600,
+                  bgcolor: theme.palette.mode === 'dark' ? '#c2410c' : '#ea580c',
+                  color: '#ffffff'
+                }} 
+              />
             )}
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
               ({totais.ativos} ativ. / {totais.cancelados} inat.)
