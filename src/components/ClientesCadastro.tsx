@@ -25,7 +25,8 @@ import {
   Select,
   Card,
   CardContent,
-  Avatar
+  Avatar,
+  Tooltip
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -521,6 +522,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
               <TableCell sx={{ fontWeight: 600 }}>Nome do Cliente</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Contato</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Vendedor</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="center">Total de Contratos</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="right">Lucro Total (LTV)</TableCell>
               <TableCell align="center" width={90} sx={{ fontWeight: 600, px: 1 }}>Ações</TableCell>
@@ -529,7 +531,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
           <TableBody>
             {clientesFiltrados.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                <TableCell colSpan={8} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                   Nenhum cliente encontrado.
                 </TableCell>
               </TableRow>
@@ -669,6 +671,13 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
     return { lucro, vgvAtivo, ativos, cancelados, totalContratos: contratos.length };
   }, [contratos]);
 
+  const vendedoresDoCliente = useMemo(() => {
+    const lista = contratos
+      .map((v: LancamentoVenda) => v.vendedorNome?.trim())
+      .filter(Boolean) as string[];
+    return Array.from(new Set(lista));
+  }, [contratos]);
+
   return (
     <React.Fragment>
       <TableRow 
@@ -731,6 +740,34 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
             </Typography>
           </Box>
         </TableCell>
+        <TableCell sx={{ py: 0.75 }}>
+          {vendedoresDoCliente.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
+              -
+            </Typography>
+          ) : (
+            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, flexWrap: 'nowrap' }}>
+              <Typography variant="body2" sx={{ fontSize: '0.82rem', fontWeight: 500, color: 'text.primary' }}>
+                {vendedoresDoCliente[0]}
+              </Typography>
+              {vendedoresDoCliente.length > 1 && (
+                <Tooltip title={vendedoresDoCliente.join(', ')} arrow placement="top">
+                  <Chip 
+                    label={`+${vendedoresDoCliente.length - 1}`} 
+                    size="small" 
+                    sx={{ 
+                      height: 18, 
+                      fontSize: '0.65rem', 
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' 
+                    }} 
+                  />
+                </Tooltip>
+              )}
+            </Box>
+          )}
+        </TableCell>
         <TableCell align="center" sx={{ py: 0.75 }}>
           <Chip 
             label={`${totais.totalContratos} PAC(s)`} 
@@ -759,7 +796,7 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
         </TableCell>
       </TableRow>
       <TableRow>
-        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={7}>
+        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={8}>
           <Collapse in={open} timeout="auto" unmountOnExit>
             <Box sx={{ margin: 1.5, p: 2.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.5)' : '#f8fafc', borderRadius: 3, border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#e2e8f0'}` }}>
               
@@ -809,6 +846,7 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
                   <TableRow sx={{ '& th': { py: 0.8, whiteSpace: 'nowrap', fontSize: '0.78rem' } }}>
                     <TableCell>PAC</TableCell>
                     <TableCell>Segmento</TableCell>
+                    <TableCell>Vendedor</TableCell>
                     <TableCell>Data da Venda</TableCell>
                     <TableCell align="right">Valor (Crédito)</TableCell>
                     <TableCell align="right">Lucro da Comissão</TableCell>
@@ -819,7 +857,7 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
                 <TableBody>
                   {contratos.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} align="center" sx={{ py: 2, color: 'text.secondary' }}>Nenhum contrato lançado</TableCell>
+                      <TableCell colSpan={8} align="center" sx={{ py: 2, color: 'text.secondary' }}>Nenhum contrato lançado</TableCell>
                     </TableRow>
                   ) : contratos.map((venda: LancamentoVenda) => {
                     let mesCancelamento: string | null = null;
@@ -869,6 +907,7 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
                           {venda.pac || '-'}
                         </TableCell>
                         <TableCell>{venda.segmento}</TableCell>
+                        <TableCell sx={{ fontSize: '0.8rem' }}>{venda.vendedorNome || '-'}</TableCell>
                         <TableCell>{venda.dataVenda ? new Date(venda.dataVenda + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</TableCell>
                         <TableCell align="right">{formatarMoeda(venda.valorVenda)}</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 600, color: 'success.main' }}>
