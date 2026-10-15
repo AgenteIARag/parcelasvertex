@@ -84,6 +84,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
   const [filtroStatus, setFiltroStatus] = useState<string>('Todos');
   const [filtroAdministradora, setFiltroAdministradora] = useState<string>('Todas');
   const [filtroVendedor, setFiltroVendedor] = useState<string>('Todos');
+  const [filtroPosVenda, setFiltroPosVenda] = useState<string>('Todos');
 
   const administradorasUnicas = useMemo(() => {
     const adms = vendas.map(v => v.administradoraNome).filter(Boolean);
@@ -197,9 +198,15 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
         if (!temVendedor) return false;
       }
 
+      // Status Pós-Venda
+      if (filtroPosVenda !== 'Todos') {
+        const temPosVenda = contratos.some(v => (v.statusPosVenda || 'Em Dias') === filtroPosVenda);
+        if (!temPosVenda) return false;
+      }
+
       return true;
     });
-  }, [clientes, vendas, termoBusca, filtroStatus, filtroAdministradora, filtroVendedor]);
+  }, [clientes, vendas, termoBusca, filtroStatus, filtroAdministradora, filtroVendedor, filtroPosVenda]);
 
   // Métricas consolidadas para os cards totalizadores (respondem aos filtros)
   const metricas = useMemo(() => {
@@ -225,6 +232,9 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
       }
       if (filtroVendedor !== 'Todos') {
         contratos = contratos.filter(v => v.vendedorNome === filtroVendedor);
+      }
+      if (filtroPosVenda !== 'Todos') {
+        contratos = contratos.filter(v => (v.statusPosVenda || 'Em Dias') === filtroPosVenda);
       }
 
       let temContratoAtivo = false;
@@ -273,7 +283,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
       vgvTotal,
       lucroComissaoTotal
     };
-  }, [clientesFiltrados, vendas, filtroAdministradora, filtroVendedor]);
+  }, [clientesFiltrados, vendas, filtroAdministradora, filtroVendedor, filtroPosVenda]);
 
   return (
     <Box sx={{ p: 1 }}>
@@ -301,7 +311,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
       </Box>
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <TextField
             fullWidth
             placeholder="Buscar por nome, CPF/CNPJ ou telefone..."
@@ -319,7 +329,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
             }}
           />
         </Grid>
-        <Grid size={{ xs: 12, sm: 4, md: 2 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 2 }}>
           <TextField
             select
             fullWidth
@@ -333,7 +343,35 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
             ))}
           </TextField>
         </Grid>
-        <Grid size={{ xs: 12, sm: 4, md: 3 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 2.5 }}>
+          <TextField
+            select
+            fullWidth
+            label="Pós-Venda"
+            value={filtroPosVenda}
+            onChange={(e) => setFiltroPosVenda(e.target.value)}
+            slotProps={{ input: { sx: { borderRadius: 3 } } }}
+          >
+            <MenuItem value="Todos">Todos</MenuItem>
+            <MenuItem value="Em Dias" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#10b981' }} />
+              Em Dias
+            </MenuItem>
+            <MenuItem value="Vai Pagar" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#3b82f6' }} />
+              Vai Pagar
+            </MenuItem>
+            <MenuItem value="Vai Atrasar" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#f59e0b' }} />
+              Vai Atrasar
+            </MenuItem>
+            <MenuItem value="Vai Cancelar" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#ef4444' }} />
+              Vai Cancelar
+            </MenuItem>
+          </TextField>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 2.25 }}>
           <TextField
             select
             fullWidth
@@ -347,7 +385,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
             ))}
           </TextField>
         </Grid>
-        <Grid size={{ xs: 12, sm: 4, md: 3 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 2.25 }}>
           <TextField
             select
             fullWidth
