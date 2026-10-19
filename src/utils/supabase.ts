@@ -333,7 +333,9 @@ export const obterVendasSupabase = async (): Promise<LancamentoVenda[]> => {
     const dataAssembleia = proj.__dataAssembleia || '';
     const administradoraId = v.administradora_id || proj.__administradoraId || undefined;
     const administradoraNome = v.administradora_nome || proj.__administradoraNome || undefined;
-    const statusPosVenda = v.status_pos_venda || proj.__statusPosVenda || 'Em Dias';
+    const statusPosVenda = (proj.__statusPosVenda && proj.__statusPosVenda !== 'Em Dias')
+      ? proj.__statusPosVenda
+      : (v.status_pos_venda || proj.__statusPosVenda || 'Em Dias');
 
     // Remove as propriedades especiais de metadados da projeção
     delete proj.__pac;
@@ -428,30 +430,43 @@ export const salvarVendaSupabase = async (venda: LancamentoVenda): Promise<void>
   const { error } = await supabase.from('vendas').upsert(payload);
 
   if (error) {
-    // 42703: Undefined Column
-    if (error.code === '42703') {
-      console.warn('Alguma coluna nova não existe no Supabase. Fazendo fallback removendo colunas recentes...', error.message);
+    // 42703 (PostgreSQL Undefined Column) ou PGRST204 (PostgREST Schema Cache missing column)
+    if (error.code === '42703' || error.code === 'PGRST204' || error.message?.includes('status_pos_venda')) {
+      console.warn('Coluna ausente no Supabase (' + error.code + '). Tentando fallback resiliente...', error.message);
       
-      const safePayload = { ...payload };
-      delete safePayload.cliente_id;
-      delete safePayload.administradora_id;
-      delete safePayload.administradora_nome;
-      delete safePayload.percentual_adesao;
-      delete safePayload.percentual_mensal;
-      delete safePayload.percentuais_parcelas;
-      delete safePayload.tipo_tabela;
-      delete safePayload.status_pos_venda;
-      delete safePayload.venda_origem_id;
-      delete safePayload.is_venda_espelho;
-      delete safePayload.empresa_filha_origem_id;
+      // Fallback 1: remove apenas status_pos_venda se o banco ainda não tiver a coluna física
+      // (o valor é preservado com segurança dentro de projecao_mensal.__statusPosVenda)
+      const payloadSemStatusPosVenda = { ...payload };
+      delete payloadSemStatusPosVenda.status_pos_venda;
 
-      const { error: fallbackError } = await supabase.from('vendas').upsert(safePayload);
-      if (fallbackError) {
-        console.error('Erro mesmo no fallback de salvar venda:', fallbackError);
-        throw fallbackError;
+      const { error: fallbackError1 } = await supabase.from('vendas').upsert(payloadSemStatusPosVenda);
+      if (!fallbackError1) {
+        return;
       }
-      console.error('[ALERTA] Dados parciais salvos - campos removidos no fallback: percentual_adesao, percentuais_parcelas, tipo_tabela, etc. Migração de banco necessária.');
-      return;
+
+      // Fallback 2: caso haja outras colunas inexistentes na tabela vendas
+      if (fallbackError1.code === '42703' || fallbackError1.code === 'PGRST204') {
+        const safePayload = { ...payloadSemStatusPosVenda };
+        delete safePayload.cliente_id;
+        delete safePayload.administradora_id;
+        delete safePayload.administradora_nome;
+        delete safePayload.percentual_adesao;
+        delete safePayload.percentual_mensal;
+        delete safePayload.percentuais_parcelas;
+        delete safePayload.tipo_tabela;
+        delete safePayload.venda_origem_id;
+        delete safePayload.is_venda_espelho;
+        delete safePayload.empresa_filha_origem_id;
+
+        const { error: fallbackError2 } = await supabase.from('vendas').upsert(safePayload);
+        if (fallbackError2) {
+          console.error('Erro mesmo no fallback de salvar venda:', fallbackError2);
+          throw fallbackError2;
+        }
+        return;
+      }
+
+      throw fallbackError1;
     }
     
     console.error('Erro ao salvar venda no Supabase:', error);

@@ -961,6 +961,7 @@ function App() {
           valorParcela: vendaAtualizada.valorParcela,
           dataVenda: vendaAtualizada.dataVenda,
           statusCliente: vendaAtualizada.statusCliente,
+          statusPosVenda: vendaAtualizada.statusPosVenda,
           projecaoMensal: projEsp,
           totalVendas: tvEsp,
           totalComissoes: tcEsp,
@@ -968,6 +969,22 @@ function App() {
         salvarVendaSupabase(espelhoAtualizado).catch(err => console.error('Erro ao atualizar espelho:', err));
         return espelhoAtualizado;
       });
+
+      // 3. Se a venda editada for uma venda espelho, propaga statusPosVenda para a venda original
+      if (vendaAtualizada.isVendaEspelho && vendaAtualizada.vendaOrigemId) {
+        nextVendas = nextVendas.map((v) => {
+          if (v.id === vendaAtualizada.vendaOrigemId) {
+            const origemAtualizada = {
+              ...v,
+              statusPosVenda: vendaAtualizada.statusPosVenda,
+              statusCliente: vendaAtualizada.statusCliente
+            };
+            salvarVendaSupabase(origemAtualizada).catch(err => console.error('Erro ao atualizar origem a partir do espelho:', err));
+            return origemAtualizada;
+          }
+          return v;
+        });
+      }
       
       return nextVendas;
     });
