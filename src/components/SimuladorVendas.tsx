@@ -3253,12 +3253,12 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       });
     }
 
-    const mesInicioChave = dataVendaInput.substring(0, 7);
+    const mesInicioChave = dataVencimentoClienteInput.substring(0, 7);
 
     for (let i = 0; i < parcelas; i++) {
       let dataVenc: string;
       if (i === 0) {
-        dataVenc = dataVendaInput;
+        dataVenc = dataVencimentoClienteInput;
       } else {
         /* Mecânica Anterior:
         const dateAssembleiaBase = new Date(dataAssembleiaInput + 'T00:00:00');
@@ -3280,8 +3280,8 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
         const dateVencClienteBase = new Date(dataVencimentoClienteInput + 'T00:00:00');
         const diaVenc = dateVencClienteBase.getDate();
         
-        // i começa em 1 para a segunda parcela. i - 1 = 0 (mesmo mês do vencimento do cliente)
-        const dtAlvo = new Date(dateVencClienteBase.getFullYear(), dateVencClienteBase.getMonth() + (i - 1), 1);
+        // i começa em 1 para a segunda parcela. Com a 1ª parcela já no mês do vencimento, avança i meses
+        const dtAlvo = new Date(dateVencClienteBase.getFullYear(), dateVencClienteBase.getMonth() + i, 1);
         const ultimoDiaMes = new Date(dtAlvo.getFullYear(), dtAlvo.getMonth() + 1, 0).getDate();
         const diaFinal = Math.min(diaVenc, ultimoDiaMes);
         dtAlvo.setDate(diaFinal);
