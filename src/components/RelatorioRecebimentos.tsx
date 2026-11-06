@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Box,
   Typography,
@@ -155,8 +155,10 @@ interface GrupoPeriodo {
   mesPeriodo: string;         // YYYY-MM (chave de agrupamento por mês)
   totalComissoes: number;
   totalParcelas: number;          // Soma do crédito correto (valorVenda p/ vendas, valorParcela p/ recorrência)
-  totalCreditoVendas: number;     // Valor da cota das 1ªs parcelas (vendas novas)
-  totalCreditoRecorrencia: number; // Valor da mensalidade das parcelas 2ª em diante
+  totalCreditoVendas: number;     // Valor da cota das vendas realizadas no mês (dataVenda no mês)
+  totalComissaoVendas: number;    // Comissão da 1ª parcela das vendas realizadas no mês (dataVenda no mês)
+  qtdNovasVendas: number;         // Quantidade de vendas realizadas no mês (dataVenda no mês)
+  totalCreditoRecorrencia: number; // Valor da cota das parcelas de recorrência do mês
   qtdParcelas: number;
   itens: ParcelaLinha[];
   totaisStatus: TotaisStatus;
@@ -426,20 +428,24 @@ const exportarRecebimentosParaPDF = (
     'Comissão'
   ];
 
-  const rows = itens.map(item => [
-    `${item.cliente}${item.pac ? `\nPAC: ${item.pac}` : ''}\n(${item.parcelaIndex === 1 ? 'Venda' : 'Recorrência'})`,
-    item.administradoraNome || '—',
-    item.vendedorNome || '—',
-    item.dataVenda ? formatarData(item.dataVenda) : '—',
-    formatarData(item.dataVencimento),
-    formatarMoeda(item.valorVenda),
-    formatarMoeda(item.valorParcela),
-    item.tabela,
-    item.statusParcela,
-    item.situacaoRecebimento,
-    `${item.parcelaIndex}/${item.qtdParcelas}`,
-    formatarMoeda(item.comissao)
-  ]);
+  const rows = itens.map(item => {
+    const mesVendaItem = item.dataVenda ? item.dataVenda.substring(0, 7) : item.grupoVisual;
+    const isVendaNoMes = item.parcelaIndex === 1 && mesVendaItem === item.grupoVisual;
+    return [
+      `${item.cliente}${item.pac ? `\nPAC: ${item.pac}` : ''}\n(${isVendaNoMes ? 'Venda' : 'Recorrência'})`,
+      item.administradoraNome || '—',
+      item.vendedorNome || '—',
+      item.dataVenda ? formatarData(item.dataVenda) : '—',
+      formatarData(item.dataVencimento),
+      formatarMoeda(item.valorVenda),
+      formatarMoeda(item.valorParcela),
+      item.tabela,
+      item.statusParcela,
+      item.situacaoRecebimento,
+      `${item.parcelaIndex}/${item.qtdParcelas}`,
+      formatarMoeda(item.comissao)
+    ];
+  });
 
   autoTable(doc, {
     startY: 45 + offset,
@@ -960,7 +966,7 @@ const SubGrupoData = ({
                           </Typography>
                         )}
                         <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', fontWeight: 600, display: 'block' }}>
-                          {item.parcelaIndex === 1 ? 'Venda' : 'Recorrência'}
+                          {item.parcelaIndex === 1 && (!item.dataVenda || item.dataVenda.substring(0, 7) === item.grupoVisual) ? 'Venda' : 'Recorrência'}
                         </Typography>
                         {item.isEspelho && (
                            <Box sx={{ display: 'block', mt: 0.5 }}>
@@ -1372,15 +1378,17 @@ const GrupoRecebimento = ({
 
   const datasUnicas = [...new Set(grupo.itens.map((i) => i.dataPrevisaoRecebimento))].sort();
 
-  // Indicadores de Vendas Novas vs Recorrência do Mês
-  const itensNovasVendas = useMemo(() => grupo.itens.filter(i => i.parcelaIndex === 1), [grupo.itens]);
-  const totalNovasVendasComissao = useMemo(() => itensNovasVendas.reduce((acc, i) => acc + i.comissao, 0), [itensNovasVendas]);
-  const totalNovasVendasCredito = useMemo(() => itensNovasVendas.reduce((acc, i) => acc + i.valorVenda, 0), [itensNovasVendas]);
-  const qtdNovasVendas = itensNovasVendas.length;
+  // Indicadores de Vendas Novas (pela Data da Venda no mês) vs Recorrência do Mês
+  const totalNovasVendasComissao = grupo.totalComissaoVendas;
+  const totalNovasVendasCredito = grupo.totalCreditoVendas;
+  const qtdNovasVendas = grupo.qtdNovasVendas;
 
-  const itensRecorrencia = useMemo(() => grupo.itens.filter(i => i.parcelaIndex > 1), [grupo.itens]);
+  const itensRecorrencia = useMemo(
+    () => grupo.itens.filter(i => !i.isEspelho && (i.parcelaIndex > 1 || (i.dataVenda && i.dataVenda.substring(0, 7) !== grupo.mesPeriodo))),
+    [grupo.itens, grupo.mesPeriodo]
+  );
   const totalRecorrenciaComissao = useMemo(() => itensRecorrencia.reduce((acc, i) => acc + i.comissao, 0), [itensRecorrencia]);
-  const totalRecorrenciaCredito = useMemo(() => itensRecorrencia.reduce((acc, i) => acc + i.valorVenda, 0), [itensRecorrencia]);
+  const totalRecorrenciaCredito = grupo.totalCreditoRecorrencia;
   const qtdRecorrencia = itensRecorrencia.length;
 
   return (
@@ -2123,9 +2131,11 @@ export const RelatorioRecebimentos = ({
           if (!dtPag || dtPag > filtroDataPagamentoFim) criarOriginal = false;
         }
 
-        // Filtro de tipo: Vendas (1ª parcela) vs Recorrência (2ª em diante)
-        if (filtroTipo === 'Vendas' && parcelaIndex !== 1) criarOriginal = false;
-        if (filtroTipo === 'Recorrência' && parcelaIndex === 1) criarOriginal = false;
+        // Filtro de tipo: Vendas (1ª parcela no próprio mês da venda) vs Recorrência (2ª em diante ou venda de mês anterior)
+        const mesDaVenda = venda.dataVenda ? venda.dataVenda.substring(0, 7) : mesVencimento;
+        const isVendaNoMesVencimento = parcelaIndex === 1 && mesDaVenda === mesVencimento;
+        if (filtroTipo === 'Vendas' && !isVendaNoMesVencimento) criarOriginal = false;
+        if (filtroTipo === 'Recorrência' && isVendaNoMesVencimento) criarOriginal = false;
 
         if (criarOriginal) {
           lista.push({
@@ -2144,8 +2154,9 @@ export const RelatorioRecebimentos = ({
           if (dataFim && dtPag > dataFim) criarEspelho = false;
 
           // Filtro de tipo também se aplica aos espelhos
-          if (filtroTipo === 'Vendas' && parcelaIndex !== 1) criarEspelho = false;
-          if (filtroTipo === 'Recorrência' && parcelaIndex === 1) criarEspelho = false;
+          const isVendaNoMesPagamento = parcelaIndex === 1 && mesDaVenda === mesPagamento;
+          if (filtroTipo === 'Vendas' && !isVendaNoMesPagamento) criarEspelho = false;
+          if (filtroTipo === 'Recorrência' && isVendaNoMesPagamento) criarEspelho = false;
 
           if (criarEspelho) {
             lista.push({
@@ -2163,6 +2174,85 @@ export const RelatorioRecebimentos = ({
     return lista;
   }, [vendas, dataInicio, dataFim, ciclos, busca, buscaRelatorio, filtroStatus, filtroTipo, filtroDataPagamentoInicio, filtroDataPagamentoFim]);
 
+  // 1.1 Vendas (1ª parcela) avaliadas pela Data da Venda (dataVenda) para o cálculo de "Vendas do Mês" e "Crédito de Vendas"
+  const vendasPorDataVenda = useMemo(() => {
+    if (filtroTipo === 'Recorrência') return [];
+
+    const resultado: {
+      vendaId: string;
+      dataVenda: string;
+      mesVenda: string;
+      valorVenda: number;
+      comissaoPrimeiraParcela: number;
+    }[] = [];
+
+    vendas.forEach((venda) => {
+      if (venda.statusCliente === 'Cancelado') return;
+
+      const todasParcelasVenda = Object.keys(venda.projecaoMensal)
+        .filter((m) => { const c = venda.projecaoMensal[m]; return c && c.valorVenda > 0; })
+        .sort();
+
+      if (todasParcelasVenda.length === 0) return;
+
+      const mesChave1 = todasParcelasVenda[0];
+      const celula1 = venda.projecaoMensal[mesChave1];
+      if (!celula1 || !celula1.valorVenda || celula1.valorVenda <= 0) return;
+
+      const dtVenc1 = celula1.dataVencimento || `${mesChave1}-15`;
+      const statusParcela1 = obterStatusEfetivo(celula1.status, dtVenc1);
+      const situacaoRecebimento1: 'A receber' | 'Recebida' | 'Estornada' =
+        statusParcela1 === 'Estornada' ? 'Estornada' : celula1.recebida ? 'Recebida' : 'A receber';
+
+      if (filtroStatus.length > 0) {
+        const selectedStatus = filtroStatus.filter(s => ['A vencer', 'Vencida', 'Paga', 'Cancelada', 'Estornada'].includes(s));
+        const selectedRecebimento = filtroStatus.filter(s => ['A receber', 'Recebida', 'Estornada'].includes(s));
+
+        if (selectedStatus.length > 0) {
+          if (!selectedStatus.includes(statusParcela1)) return;
+        } else {
+          if (['Cancelada', 'Estornada'].includes(statusParcela1)) return;
+        }
+
+        if (selectedRecebimento.length > 0) {
+          if (!selectedRecebimento.includes(situacaoRecebimento1)) return;
+        }
+      } else {
+        if (['Cancelada', 'Estornada'].includes(statusParcela1)) return;
+      }
+
+      const termoBusca = busca.toLowerCase();
+      if (termoBusca && !(
+        venda.cliente.toLowerCase().includes(termoBusca) ||
+        (venda.pac || '').toLowerCase().includes(termoBusca) ||
+        (venda.vendedorNome || '').toLowerCase().includes(termoBusca)
+      )) return;
+
+      const termoRel = buscaRelatorio.trim().toLowerCase();
+      if (termoRel && !(venda.numeroRelatorio || '').toLowerCase().includes(termoRel)) return;
+
+      const dtPag1 = statusParcela1 === 'Paga'
+        ? (celula1.dataRelatorioRecebimento || celula1.dataPagamentoCliente || celula1.dataRecebimento || celula1.dataVencimento)
+        : undefined;
+
+      if (filtroDataPagamentoInicio && (!dtPag1 || dtPag1 < filtroDataPagamentoInicio)) return;
+      if (filtroDataPagamentoFim && (!dtPag1 || dtPag1 > filtroDataPagamentoFim)) return;
+
+      const dtVenda = venda.dataVenda || dtVenc1;
+      const mesVenda = dtVenda.substring(0, 7);
+
+      resultado.push({
+        vendaId: venda.id,
+        dataVenda: dtVenda,
+        mesVenda,
+        valorVenda: venda.valorVenda,
+        comissaoPrimeiraParcela: celula1.comissaoGerada || 0,
+      });
+    });
+
+    return resultado;
+  }, [vendas, busca, buscaRelatorio, filtroStatus, filtroTipo, filtroDataPagamentoInicio, filtroDataPagamentoFim]);
+
 
   // 2. Agrupa por grupoVisual (que é o Mês/Ano onde a linha deve aparecer)
   const grupos = useMemo<GrupoPeriodo[]>(() => {
@@ -2177,6 +2267,8 @@ export const RelatorioRecebimentos = ({
           totalComissoes: 0,
           totalParcelas: 0,
           totalCreditoVendas: 0,
+          totalComissaoVendas: 0,
+          qtdNovasVendas: 0,
           totalCreditoRecorrencia: 0,
           qtdParcelas: 0,
           itens: [],
@@ -2191,15 +2283,15 @@ export const RelatorioRecebimentos = ({
       if (!p.isEspelho) {
         g.totalComissoes += p.comissao;
         g.qtdParcelas += 1;
+
+        const mesDaVenda = p.dataVenda ? p.dataVenda.substring(0, 7) : p.grupoVisual;
+        const isVendaDoProprioMes = p.parcelaIndex === 1 && mesDaVenda === key;
         
         // Garante que o crédito da cota (valorVenda) seja somado apenas 1x por PAC no mês
         if (!pacsDoMes.has(p.vendaId)) {
           pacsDoMes.add(p.vendaId);
-          // 1ª parcela = Venda nova → soma valorVenda (valor da cota)
-          // 2ª+ parcela = Recorrência → soma valorVenda (valor da cota)
-          if (p.parcelaIndex === 1) {
-            g.totalCreditoVendas += p.valorVenda;
-          } else {
+          // Parcela de venda realizada em mês anterior ou 2ª+ parcela conta como Recorrência no mês de vencimento
+          if (!isVendaDoProprioMes) {
             g.totalCreditoRecorrencia += p.valorVenda;
           }
           g.totalParcelas += p.valorVenda;
@@ -2209,6 +2301,23 @@ export const RelatorioRecebimentos = ({
       g.itens.push(p);
     });
 
+    // Contabiliza "Vendas do Mês" e "Crédito Vendas" no mês correspondente à Data da Venda (mesVenda)
+    const pacsVendaPorMes = new Map<string, Set<string>>();
+    vendasPorDataVenda.forEach((v) => {
+      const g = mapa.get(v.mesVenda);
+      if (!g) return;
+      if (!pacsVendaPorMes.has(v.mesVenda)) {
+        pacsVendaPorMes.set(v.mesVenda, new Set<string>());
+      }
+      const pacsVenda = pacsVendaPorMes.get(v.mesVenda)!;
+      if (!pacsVenda.has(v.vendaId)) {
+        pacsVenda.add(v.vendaId);
+        g.totalCreditoVendas += v.valorVenda;
+      }
+      g.totalComissaoVendas += v.comissaoPrimeiraParcela;
+      g.qtdNovasVendas += 1;
+    });
+
     // Recalcula totais por status após montar os grupos
     const resultado = Array.from(mapa.values());
     resultado.forEach((g) => {
@@ -2216,7 +2325,7 @@ export const RelatorioRecebimentos = ({
     });
 
     return resultado.sort((a, b) => a.mesPeriodo.localeCompare(b.mesPeriodo));
-  }, [parcelas]);
+  }, [parcelas, vendasPorDataVenda]);
 
 
   // 3. Totais gerais
@@ -2236,26 +2345,34 @@ export const RelatorioRecebimentos = ({
     return creditoUnico;
   }, [parcelas]);
 
-  // Totais consolidados de Vendas do Mês vs Recorrência no período filtrado
+  // Totais consolidados de Vendas do Mês (pela Data da Venda no período) vs Recorrência no período filtrado
   const totalNovasVendasGeral = useMemo(() => {
-    const itensNovos = parcelas.filter(p => !p.isEspelho && p.parcelaIndex === 1);
+    const vendasNoPeriodo = vendasPorDataVenda.filter((v) => {
+      if (dataInicio && v.dataVenda < dataInicio) return false;
+      if (dataFim && v.dataVenda > dataFim) return false;
+      return true;
+    });
     const pacsUnicos = new Set<string>();
     let creditoUnico = 0;
-    itensNovos.forEach(p => {
-      if (!pacsUnicos.has(p.vendaId)) {
-        pacsUnicos.add(p.vendaId);
-        creditoUnico += p.valorVenda;
+    vendasNoPeriodo.forEach(v => {
+      if (!pacsUnicos.has(v.vendaId)) {
+        pacsUnicos.add(v.vendaId);
+        creditoUnico += v.valorVenda;
       }
     });
     return {
-      comissao: itensNovos.reduce((acc, p) => acc + p.comissao, 0),
+      comissao: vendasNoPeriodo.reduce((acc, v) => acc + v.comissaoPrimeiraParcela, 0),
       credito: creditoUnico,
-      qtd: itensNovos.length
+      qtd: vendasNoPeriodo.length
     };
-  }, [parcelas]);
+  }, [vendasPorDataVenda, dataInicio, dataFim]);
 
   const totalRecorrenciaGeral = useMemo(() => {
-    const itensRecorrentes = parcelas.filter(p => !p.isEspelho && p.parcelaIndex > 1);
+    const itensRecorrentes = parcelas.filter(p => {
+      if (p.isEspelho) return false;
+      const mesDaVenda = p.dataVenda ? p.dataVenda.substring(0, 7) : p.grupoVisual;
+      return p.parcelaIndex > 1 || mesDaVenda !== p.grupoVisual;
+    });
     const pacsUnicos = new Set<string>();
     let creditoUnico = 0;
     itensRecorrentes.forEach(p => {
