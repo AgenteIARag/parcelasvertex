@@ -172,6 +172,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
 
   // Filtro visual das linhas
   const [filtroAbas, setFiltroAbas] = useState<'TODOS' | 'OK' | 'DIVERGENTE' | 'NAO_ENCONTRADO' | 'JA_RECEBIDO'>('TODOS');
+  const [filtroEmpresa, setFiltroEmpresa] = useState<string>('TODAS');
 
   // Modo colar texto manual (caso o PDF seja imagem escaneada)
   const [mostrarColarTexto, setMostrarColarTexto] = useState(false);
@@ -579,6 +580,30 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
       0
     );
 
+    // Agrupamento por empresa (Vertex, Winvest, Shazam, etc.)
+    const mapaEmpresas = new Map<
+      string,
+      { id: string; nome: string; qtd: number; valorComissao: number; valorBase: number }
+    >();
+    for (const ic of itensConciliados) {
+      if (ic.vendaEncontrada) {
+        const empId = ic.vendaEncontrada.empresaId || 'emp_vertex';
+        const nome = obterNomeEmpresa(empId);
+        const atual = mapaEmpresas.get(empId) || {
+          id: empId,
+          nome,
+          qtd: 0,
+          valorComissao: 0,
+          valorBase: 0,
+        };
+        atual.qtd += 1;
+        atual.valorComissao = Number((atual.valorComissao + ic.itemPdf.valorComissao).toFixed(2));
+        atual.valorBase = Number((atual.valorBase + ic.itemPdf.valorBase).toFixed(2));
+        mapaEmpresas.set(empId, atual);
+      }
+    }
+    const porEmpresa = Array.from(mapaEmpresas.values()).sort((a, b) => b.qtd - a.qtd);
+
     return {
       totalItens,
       totalValorPdf,
@@ -593,8 +618,9 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
       diferencaLiquidaComissao,
       qtdSelecionados: selecionadosValidos.length,
       valorSelecionado,
+      porEmpresa,
     };
-  }, [itensConciliados, itensSelecionados]);
+  }, [itensConciliados, itensSelecionados, empresas]);
 
   // Corrige a data de venda de um único contrato para a data do PDF
   const handleCorrigirDataVendaIndividual = async (
@@ -652,9 +678,15 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
   };
 
   const itensFiltrados = useMemo(() => {
-    if (filtroAbas === 'TODOS') return itensConciliados;
-    return itensConciliados.filter((i) => i.statusConciliacao === filtroAbas);
-  }, [itensConciliados, filtroAbas]);
+    return itensConciliados.filter((i) => {
+      if (filtroAbas !== 'TODOS' && i.statusConciliacao !== filtroAbas) return false;
+      if (filtroEmpresa !== 'TODAS') {
+        const empId = i.vendaEncontrada ? i.vendaEncontrada.empresaId || 'emp_vertex' : 'SEM_EMPRESA';
+        if (empId !== filtroEmpresa) return false;
+      }
+      return true;
+    });
+  }, [itensConciliados, filtroAbas, filtroEmpresa]);
 
   const handleToggleItem = (id: string) => {
     setItensSelecionados((prev) =>
@@ -830,6 +862,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
 
     const headers = [
       'Contrato (PAC)',
+      'Empresa',
       'Cliente no Sistema',
       'Parcela',
       'Venda (PDF / Sist.)',
@@ -852,6 +885,11 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
 
       return [
         `${ic.itemPdf.contrato}\n(Gr: ${ic.itemPdf.grupo} / Cota: ${ic.itemPdf.cota})`,
+        ic.vendaEncontrada
+          ? obterNomeEmpresa(ic.vendaEncontrada.empresaId)
+          : ic.vendaSugerida
+          ? `Sug.: ${obterNomeEmpresa(ic.vendaSugerida.empresaId)}`
+          : '—',
         ic.vendaEncontrada ? ic.vendaEncontrada.cliente : 'NÃO ENCONTRADO',
         `${ic.itemPdf.parcela}${ic.vendaEncontrada ? `/${ic.vendaEncontrada.qtdParcelas}` : ''}`,
         `${ic.itemPdf.dataVendaBr}\nSist: ${ic.dataVendaSistema ? formatarData(ic.dataVendaSistema) : '—'}`,
@@ -881,15 +919,16 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         valign: 'middle',
       },
       columnStyles: {
-        0: { cellWidth: 28 },
-        1: { cellWidth: 35 },
-        2: { cellWidth: 14, halign: 'center' },
-        3: { cellWidth: 25, halign: 'center' },
-        4: { cellWidth: 32, halign: 'right' },
-        5: { cellWidth: 24, halign: 'right' },
-        6: { cellWidth: 24, halign: 'right' },
+        0: { cellWidth: 26 },
+        1: { cellWidth: 20, halign: 'center' },
+        2: { cellWidth: 32 },
+        3: { cellWidth: 13, halign: 'center' },
+        4: { cellWidth: 24, halign: 'center' },
+        5: { cellWidth: 29, halign: 'right' },
+        6: { cellWidth: 22, halign: 'right' },
         7: { cellWidth: 22, halign: 'right' },
-        8: { cellWidth: 65 },
+        8: { cellWidth: 20, halign: 'right' },
+        9: { cellWidth: 60 },
       },
       margin: { left: 14, right: 14 },
     });
@@ -1460,6 +1499,67 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
               )}
             </Box>
 
+            {/* Resumo e Filtro por Empresa (Vertex, Winvest, Shazam, etc.) */}
+            {resumo.porEmpresa.length > 0 && (
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  flexWrap: 'wrap',
+                  px: 1.5,
+                  py: 1,
+                  borderRadius: 2,
+                  bgcolor: isDark ? 'rgba(15, 23, 42, 0.7)' : '#f8fafc',
+                  border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
+                }}
+              >
+                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', mr: 0.5 }}>
+                  EMPRESAS NO RELATÓRIO:
+                </Typography>
+                <Chip
+                  label={`Todas as Empresas (${resumo.totalItens})`}
+                  size="small"
+                  onClick={() => setFiltroEmpresa('TODAS')}
+                  variant={filtroEmpresa === 'TODAS' ? 'filled' : 'outlined'}
+                  sx={{
+                    fontWeight: 700,
+                    fontSize: '0.71rem',
+                    cursor: 'pointer',
+                    bgcolor: filtroEmpresa === 'TODAS' ? '#475569' : 'transparent',
+                    color: filtroEmpresa === 'TODAS' ? '#fff' : 'text.secondary',
+                    borderColor: isDark ? '#334155' : '#cbd5e1',
+                  }}
+                />
+                {resumo.porEmpresa.map((emp) => {
+                  const ativo = filtroEmpresa === emp.id;
+                  const corEmp =
+                    emp.id === 'emp_vertex'
+                      ? '#6366f1'
+                      : emp.id === 'emp_winvest'
+                      ? '#0ea5e9'
+                      : '#a855f7';
+                  return (
+                    <Chip
+                      key={emp.id}
+                      label={`${emp.nome}: ${emp.qtd} cota(s) · ${formatarMoeda(emp.valorComissao)}`}
+                      size="small"
+                      onClick={() => setFiltroEmpresa(ativo ? 'TODAS' : emp.id)}
+                      variant={ativo ? 'filled' : 'outlined'}
+                      sx={{
+                        fontWeight: 800,
+                        fontSize: '0.72rem',
+                        cursor: 'pointer',
+                        bgcolor: ativo ? corEmp : `${corEmp}14`,
+                        color: ativo ? '#fff' : corEmp,
+                        borderColor: corEmp,
+                      }}
+                    />
+                  );
+                })}
+              </Box>
+            )}
+
             {/* Tabela de Conciliação */}
             <TableContainer
               component={Paper}
@@ -1498,6 +1598,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
                     </TableCell>
                     {[
                       'Contrato PDF / Cota',
+                      'Empresa',
                       'Contrato / Cliente no Sistema',
                       'Venda (PDF vs Sist.)',
                       'Parc.',
@@ -1570,37 +1671,67 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
                           </Typography>
                         </TableCell>
 
+                        {/* Empresa do Contrato */}
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                          {vendaEncontrada ? (
+                            <Chip
+                              label={obterNomeEmpresa(vendaEncontrada.empresaId)}
+                              size="small"
+                              sx={{
+                                height: 22,
+                                fontSize: '0.7rem',
+                                fontWeight: 800,
+                                bgcolor:
+                                  (vendaEncontrada.empresaId || 'emp_vertex') === 'emp_vertex'
+                                    ? 'rgba(99, 102, 241, 0.15)'
+                                    : vendaEncontrada.empresaId === 'emp_winvest'
+                                    ? 'rgba(14, 165, 233, 0.15)'
+                                    : 'rgba(168, 85, 247, 0.15)',
+                                color:
+                                  (vendaEncontrada.empresaId || 'emp_vertex') === 'emp_vertex'
+                                    ? '#6366f1'
+                                    : vendaEncontrada.empresaId === 'emp_winvest'
+                                    ? '#0ea5e9'
+                                    : '#a855f7',
+                                border: `1px solid ${
+                                  (vendaEncontrada.empresaId || 'emp_vertex') === 'emp_vertex'
+                                    ? 'rgba(99, 102, 241, 0.35)'
+                                    : vendaEncontrada.empresaId === 'emp_winvest'
+                                    ? 'rgba(14, 165, 233, 0.35)'
+                                    : 'rgba(168, 85, 247, 0.35)'
+                                }`,
+                              }}
+                            />
+                          ) : vendaSugerida ? (
+                            <Tooltip title={`Empresa da venda sugerida (${vendaSugerida.cliente})`}>
+                              <Chip
+                                label={`Sug.: ${obterNomeEmpresa(vendaSugerida.empresaId)}`}
+                                size="small"
+                                variant="outlined"
+                                sx={{
+                                  height: 21,
+                                  fontSize: '0.65rem',
+                                  fontWeight: 700,
+                                  borderStyle: 'dashed',
+                                  color: '#0ea5e9',
+                                  borderColor: '#0ea5e9',
+                                }}
+                              />
+                            </Tooltip>
+                          ) : (
+                            <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 600 }}>
+                              Não identificada
+                            </Typography>
+                          )}
+                        </TableCell>
+
                         {/* Cliente no Sistema (ou seletor de vínculo manual) */}
                         <TableCell sx={{ minWidth: 250 }}>
                           {vendaEncontrada && !ic.vinculoManual ? (
                             <Box>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7, flexWrap: 'wrap' }}>
-                                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.78rem' }}>
-                                  {vendaEncontrada.cliente}
-                                </Typography>
-                                <Chip
-                                  label={obterNomeEmpresa(vendaEncontrada.empresaId)}
-                                  size="small"
-                                  sx={{
-                                    height: 17,
-                                    fontSize: '0.62rem',
-                                    fontWeight: 700,
-                                    bgcolor:
-                                      (vendaEncontrada.empresaId || 'emp_vertex') === 'emp_vertex'
-                                        ? 'rgba(99, 102, 241, 0.14)'
-                                        : vendaEncontrada.empresaId === 'emp_winvest'
-                                        ? 'rgba(14, 165, 233, 0.14)'
-                                        : 'rgba(168, 85, 247, 0.14)',
-                                    color:
-                                      (vendaEncontrada.empresaId || 'emp_vertex') === 'emp_vertex'
-                                        ? '#6366f1'
-                                        : vendaEncontrada.empresaId === 'emp_winvest'
-                                        ? '#0ea5e9'
-                                        : '#a855f7',
-                                    '& .MuiChip-label': { px: 0.8 },
-                                  }}
-                                />
-                              </Box>
+                              <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.78rem' }}>
+                                {vendaEncontrada.cliente}
+                              </Typography>
                               <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.66rem' }}>
                                 PAC: {vendaEncontrada.pac || '—'} · Vend: {vendaEncontrada.vendedorNome || '—'} · {vendaEncontrada.tabela}
                               </Typography>
