@@ -160,6 +160,8 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
   // Opções de conciliação
   const [atualizarComissaoParaValorPdf, setAtualizarComissaoParaValorPdf] = useState<boolean>(false);
   const [marcarParcelaPagaAutomaticamente, setMarcarParcelaPagaAutomaticamente] = useState<boolean>(true);
+  const [corrigirDatasDivergentesAutomaticamente, setCorrigirDatasDivergentesAutomaticamente] = useState<boolean>(false);
+  const [datasCorrigidasLocalmente, setDatasCorrigidasLocalmente] = useState<Record<string, string>>({});
   const salvarPacEmVinculoManual = true;
 
   // Vínculos manuais (itemPdf.id -> venda.id)
@@ -181,7 +183,8 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     const mapa = new Map<string, LancamentoVenda>();
     for (const v of vendas) {
       if (v && v.id && !v.isVendaEspelho) {
-        mapa.set(v.id, v);
+        const dataCorrigida = datasCorrigidasLocalmente[v.id];
+        mapa.set(v.id, dataCorrigida ? { ...v, dataVenda: dataCorrigida } : v);
       }
     }
     try {
@@ -190,7 +193,8 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         const todas: LancamentoVenda[] = JSON.parse(salvas);
         for (const v of todas) {
           if (v && v.id && !v.isVendaEspelho && !mapa.has(v.id)) {
-            mapa.set(v.id, v);
+            const dataCorrigida = datasCorrigidasLocalmente[v.id];
+            mapa.set(v.id, dataCorrigida ? { ...v, dataVenda: dataCorrigida } : v);
           }
         }
       }
@@ -198,7 +202,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
       // Ignora erro de leitura do localStorage
     }
     return Array.from(mapa.values());
-  }, [vendas, open]);
+  }, [vendas, open, datasCorrigidasLocalmente]);
 
   // Processa os itens do PDF cruzando com as vendas do sistema (todas as empresas)
   const itensConciliados = useMemo<ItemConciliacao[]>(() => {
@@ -550,6 +554,9 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     const qtdDivergente = itensConciliados.filter((i) => i.statusConciliacao === 'DIVERGENTE').length;
     const qtdNaoEncontrado = itensConciliados.filter((i) => i.statusConciliacao === 'NAO_ENCONTRADO').length;
     const qtdJaRecebido = itensConciliados.filter((i) => i.statusConciliacao === 'JA_RECEBIDO').length;
+    const qtdDatasDivergentes = itensConciliados.filter((i) =>
+      i.divergencias.some((d) => d.tipo === 'DATA_VENDA_DIVERGENTE')
+    ).length;
 
     const itensEncontrados = itensConciliados.filter((i) => i.vendaEncontrada && i.mesChaveParcela);
     const somaComissaoSistemaEncontrados = itensEncontrados.reduce(
@@ -580,6 +587,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
       qtdDivergente,
       qtdNaoEncontrado,
       qtdJaRecebido,
+      qtdDatasDivergentes,
       somaComissaoSistemaEncontrados,
       somaComissaoPdfEncontrados,
       diferencaLiquidaComissao,
@@ -587,6 +595,61 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
       valorSelecionado,
     };
   }, [itensConciliados, itensSelecionados]);
+
+  // Corrige a data de venda de um único contrato para a data do PDF
+  const handleCorrigirDataVendaIndividual = async (
+    venda: LancamentoVenda,
+    novaDataISO: string
+  ) => {
+    if (!novaDataISO || venda.dataVenda === novaDataISO) return;
+    const vendaAtualizada: LancamentoVenda = {
+      ...venda,
+      dataVenda: novaDataISO,
+    };
+    setDatasCorrigidasLocalmente((prev) => ({
+      ...prev,
+      [venda.id]: novaDataISO,
+    }));
+    onAtualizarVenda(vendaAtualizada);
+    try {
+      await salvarVendaSupabase(vendaAtualizada);
+    } catch (err) {
+      console.error('Erro ao salvar data de venda corrigida no Supabase:', err);
+    }
+  };
+
+  // Corrige em lote todas as datas de venda divergentes para a data constante no PDF
+  const handleCorrigirTodasDatasDivergentes = async () => {
+    const itensComDataDiv = itensConciliados.filter(
+      (i) =>
+        i.vendaEncontrada &&
+        i.itemPdf.dataVendaISO &&
+        i.divergencias.some((d) => d.tipo === 'DATA_VENDA_DIVERGENTE')
+    );
+    if (itensComDataDiv.length === 0) return;
+
+    const novoMapaDatas: Record<string, string> = {};
+    const vendasParaSalvar: LancamentoVenda[] = [];
+
+    for (const ic of itensComDataDiv) {
+      const v = ic.vendaEncontrada!;
+      const novaData = ic.itemPdf.dataVendaISO;
+      if (v.dataVenda !== novaData) {
+        novoMapaDatas[v.id] = novaData;
+        vendasParaSalvar.push({ ...v, dataVenda: novaData });
+      }
+    }
+
+    setDatasCorrigidasLocalmente((prev) => ({ ...prev, ...novoMapaDatas }));
+    for (const vUpd of vendasParaSalvar) {
+      onAtualizarVenda(vUpd);
+      try {
+        await salvarVendaSupabase(vUpd);
+      } catch (err) {
+        console.error('Erro ao corrigir data em lote no Supabase:', err);
+      }
+    }
+  };
 
   const itensFiltrados = useMemo(() => {
     if (filtroAbas === 'TODOS') return itensConciliados;
@@ -702,9 +765,15 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
             ? itemConc.itemPdf.contrato
             : vendaBase.pac;
 
+        const novaDataVenda =
+          corrigirDatasDivergentesAutomaticamente && itemConc.itemPdf.dataVendaISO
+            ? itemConc.itemPdf.dataVendaISO
+            : vendaBase.dataVenda;
+
         const vendaAtualizada: LancamentoVenda = {
           ...vendaBase,
           pac: novoPac,
+          dataVenda: novaDataVenda,
           numeroRelatorio: numRelatorioFinal,
           dataRelatorio: dataRelatorioFinal,
           projecaoMensal: novaProjecao,
@@ -1121,6 +1190,45 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
                     }
                   />
                 </Tooltip>
+
+                <Tooltip title="Ao confirmar a baixa, atualiza também a Data da Venda no sistema para a data constante no relatório PDF da administradora">
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        size="small"
+                        color="info"
+                        checked={corrigirDatasDivergentesAutomaticamente}
+                        onChange={(e) => setCorrigirDatasDivergentesAutomaticamente(e.target.checked)}
+                      />
+                    }
+                    label={
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                        Corrigir datas divergentes p/ PDF
+                      </Typography>
+                    }
+                  />
+                </Tooltip>
+
+                {resumo.qtdDatasDivergentes > 0 && (
+                  <Tooltip title="Atualiza imediatamente todas as datas de venda divergentes no sistema para a data constante no PDF">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="warning"
+                      onClick={handleCorrigirTodasDatasDivergentes}
+                      sx={{
+                        borderRadius: 2,
+                        fontWeight: 700,
+                        fontSize: '0.72rem',
+                        textTransform: 'none',
+                        py: 0.4,
+                        px: 1.4,
+                      }}
+                    >
+                      Corrigir {resumo.qtdDatasDivergentes} Data(s) Divergente(s)
+                    </Button>
+                  </Tooltip>
+                )}
               </Box>
             </Box>
           </Paper>
@@ -1559,9 +1667,41 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
                             {itemPdf.dataVendaBr}
                           </Typography>
                           {ic.dataVendaSistema && (
-                            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', display: 'block' }}>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: temDivDataVenda ? '#f59e0b' : 'text.secondary',
+                                fontWeight: temDivDataVenda ? 700 : 500,
+                                fontSize: '0.65rem',
+                                display: 'block',
+                              }}
+                            >
                               Sist: {formatarData(ic.dataVendaSistema)}
                             </Typography>
+                          )}
+                          {temDivDataVenda && vendaEncontrada && itemPdf.dataVendaISO && (
+                            <Button
+                              size="small"
+                              variant="text"
+                              onClick={() =>
+                                handleCorrigirDataVendaIndividual(vendaEncontrada, itemPdf.dataVendaISO)
+                              }
+                              sx={{
+                                p: 0,
+                                mt: 0.2,
+                                minWidth: 'auto',
+                                fontSize: '0.65rem',
+                                fontWeight: 700,
+                                color: '#0ea5e9',
+                                textTransform: 'none',
+                                '&:hover': {
+                                  textDecoration: 'underline',
+                                  bgcolor: 'transparent',
+                                },
+                              }}
+                            >
+                              Corrigir p/ {itemPdf.dataVendaBr}
+                            </Button>
                           )}
                         </TableCell>
 
@@ -1708,6 +1848,36 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
                                       <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, lineHeight: 1.2 }}>
                                         {div.titulo}
                                       </Typography>
+                                      {div.tipo === 'DATA_VENDA_DIVERGENTE' &&
+                                        vendaEncontrada &&
+                                        itemPdf.dataVendaISO && (
+                                          <Button
+                                            size="small"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleCorrigirDataVendaIndividual(
+                                                vendaEncontrada,
+                                                itemPdf.dataVendaISO
+                                              );
+                                            }}
+                                            sx={{
+                                              ml: 0.5,
+                                              px: 0.7,
+                                              py: 0.1,
+                                              minWidth: 'auto',
+                                              height: 18,
+                                              fontSize: '0.62rem',
+                                              fontWeight: 800,
+                                              textTransform: 'none',
+                                              borderRadius: 1,
+                                              bgcolor: '#0ea5e9',
+                                              color: '#fff',
+                                              '&:hover': { bgcolor: '#0284c7' },
+                                            }}
+                                          >
+                                            Corrigir
+                                          </Button>
+                                        )}
                                     </Box>
                                   </Tooltip>
                                 );
