@@ -53,6 +53,7 @@ export const parseMoedaBr = (valorStr: string): number => {
  * Carrega o PDF.js dinamicamente via CDN caso ainda não esteja disponível em window.pdfjsLib
  */
 async function obterPdfJsLib(): Promise<any | null> {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return null;
   const win = window as any;
   if (win.pdfjsLib) return win.pdfjsLib;
 
@@ -76,7 +77,7 @@ async function obterPdfJsLib(): Promise<any | null> {
 
 /**
  * Extrai o texto do PDF preservando a estrutura de linhas (agrupando itens pela coordenada Y)
- * usando PDF.js
+ * e unindo fragmentos adjacentes (ex: kerning de "1000452" + "111" ou "03/" + "11/2026") usando PDF.js
  */
 async function extrairTextoComPdfJs(buffer: ArrayBuffer): Promise<string | null> {
   try {
@@ -95,6 +96,7 @@ async function extrairTextoComPdfJs(buffer: ArrayBuffer): Promise<string | null>
         str: string;
         x: number;
         y: number;
+        width: number;
       }
 
       const items: PosItem[] = [];
@@ -105,6 +107,7 @@ async function extrairTextoComPdfJs(buffer: ArrayBuffer): Promise<string | null>
             str: item.str,
             x: tx ? tx[4] : 0,
             y: tx ? tx[5] : 0,
+            width: typeof item.width === 'number' ? item.width : item.str.length * 4.2,
           });
         }
       }
@@ -128,7 +131,27 @@ async function extrairTextoComPdfJs(buffer: ArrayBuffer): Promise<string | null>
       const linhasPagina = linhasAgrupadas.map((linha) => {
         // Ordena da esquerda para a direita (X crescente)
         linha.items.sort((a, b) => a.x - b.x);
-        return linha.items.map((i) => i.str.trim()).join(' ');
+        if (linha.items.length === 0) return '';
+
+        let resultado = linha.items[0].str.trim();
+        for (let idx = 1; idx < linha.items.length; idx++) {
+          const ant = linha.items[idx - 1];
+          const atual = linha.items[idx];
+          const txtAnt = ant.str.trim();
+          const txtAtual = atual.str.trim();
+          const fimAnt = ant.x + (ant.width || 0);
+          const gap = atual.x - fimAnt;
+
+          // Se os fragmentos estão colados (kerning Crystal Reports, ex: "1000452" + "111" ou "03/" + "11/2026")
+          const colados =
+            gap <= 2.5 ||
+            txtAnt.endsWith('/') ||
+            txtAtual.startsWith('/') ||
+            txtAtual === ':';
+
+          resultado += (colados ? '' : ' ') + txtAtual;
+        }
+        return resultado;
       });
 
       paginasTexto.push(linhasPagina.join('\n'));
@@ -136,16 +159,16 @@ async function extrairTextoComPdfJs(buffer: ArrayBuffer): Promise<string | null>
 
     return paginasTexto.join('\n');
   } catch (err) {
-    console.warn('Falha ao extrair texto via PDF.js, tentando fallback nativo:', err);
+    console.warn('Falha ao extrair texto via PDF.js, tentando extrator nativo CMap:', err);
     return null;
   }
 }
 
 /**
- * Fallback nativo usando DecompressionStream do navegador para descomprimir FlateDecode streams
- * caso o usuário esteja sem acesso ao CDN do PDF.js.
+ * Descomprime bytes FlateDecode usando DecompressionStream nativo do navegador
  */
 async function descomprimirFlate(dados: Uint8Array): Promise<Uint8Array | null> {
+  if (typeof DecompressionStream === 'undefined') return null;
   for (const formato of ['deflate', 'deflate-raw'] as const) {
     try {
       const ds = new DecompressionStream(formato);
@@ -173,59 +196,182 @@ function decodificarLiteralPdf(raw: string): string {
     .replace(/\\\\/g, '\\');
 }
 
+/**
+ * Extrator nativo completo com suporte a tabelas ToUnicode CMap (Crystal Reports / SAP B1 / Administradoras)
+ * e posicionamento de matriz de texto (Tm / Td / Tj / TJ). Funciona 100% offline no navegador.
+ */
 async function extrairTextoNativoFallback(buffer: ArrayBuffer): Promise<string> {
   const bytes = new Uint8Array(buffer);
   const latin1 = new TextDecoder('latin1').decode(bytes);
-  const partesTexto: string[] = [];
 
-  const regexStream = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
-  let match: RegExpExecArray | null;
+  // 1. Descomprime todos os objetos stream do PDF
+  const streamsPorObj: Record<string, string> = {};
+  const regexObjStream =
+    /(\d+)\s+0\s+obj\s*<<(?:(?!endobj)[\s\S])*?>>\s*stream\r?\n([\s\S]*?)\r?\n?endstream/g;
+  let matchObj: RegExpExecArray | null;
 
-  while ((match = regexStream.exec(latin1)) !== null) {
-    const conteudoRaw = match[1];
+  while ((matchObj = regexObjStream.exec(latin1)) !== null) {
+    const objId = matchObj[1];
+    const conteudoRaw = matchObj[2];
     const streamBytes = new Uint8Array(conteudoRaw.length);
     for (let i = 0; i < conteudoRaw.length; i++) {
       streamBytes[i] = conteudoRaw.charCodeAt(i) & 0xff;
     }
-
     const descomprimido = await descomprimirFlate(streamBytes);
-    const textoStream = descomprimido
+    streamsPorObj[objId] = descomprimido
       ? new TextDecoder('latin1').decode(descomprimido)
       : conteudoRaw;
+  }
 
-    // Extrai strings entre parênteses (...) ou hexadecimais <...> em blocos de texto PDF
-    const regexTokens = /\((?:\\.|[^\\()])*\)|<([0-9A-Fa-f\s]{2,})>/g;
-    let mStr: RegExpExecArray | null;
-    const tokensStream: string[] = [];
-    while ((mStr = regexTokens.exec(textoStream)) !== null) {
-      if (mStr[0].startsWith('(')) {
-        const interno = mStr[0].slice(1, -1);
-        const dec = decodificarLiteralPdf(interno).trim();
-        if (dec) tokensStream.push(dec);
-      } else if (mStr[1]) {
-        const hex = mStr[1].replace(/\s+/g, '');
-        if (hex.length % 4 === 0 && /^(00[2-7][0-9A-Fa-f])+$/i.test(hex)) {
-          let s = '';
-          for (let i = 0; i < hex.length; i += 4) {
-            s += String.fromCharCode(parseInt(hex.slice(i, i + 4), 16));
-          }
-          if (s.trim()) tokensStream.push(s.trim());
-        }
+  // 2. Mapeia fontes (/9, /d, /e, /l, etc.) para suas tabelas ToUnicode CMap
+  const fontObjParaToUnicodeObj: Record<string, string> = {};
+  const reFontObj =
+    /(\d+)\s+0\s+obj\s*<<(?:(?!endobj)[\s\S])*?\/ToUnicode\s+(\d+)\s+0\s+R(?:(?!endobj)[\s\S])*?>>/g;
+  let mFont: RegExpExecArray | null;
+  while ((mFont = reFontObj.exec(latin1)) !== null) {
+    fontObjParaToUnicodeObj[mFont[1]] = mFont[2];
+  }
+
+  const fontNameParaUniObj: Record<string, string> = {};
+  const reFontRes = /\/Font\s*<<([\s\S]*?)>>/g;
+  let mRes: RegExpExecArray | null;
+  while ((mRes = reFontRes.exec(latin1)) !== null) {
+    const interno = mRes[1];
+    const r2 = /(\/[0-9a-zA-Z_]+)\s+(\d+)\s+0\s+R/g;
+    let m2: RegExpExecArray | null;
+    while ((m2 = r2.exec(interno)) !== null) {
+      const fName = m2[1];
+      const fObj = m2[2];
+      if (fontObjParaToUnicodeObj[fObj]) {
+        fontNameParaUniObj[fName] = fontObjParaToUnicodeObj[fObj];
       }
-    }
-    if (tokensStream.length > 0) {
-      partesTexto.push(tokensStream.join(' '));
     }
   }
 
-  return partesTexto.join('\n');
+  const cmaps: Record<string, Record<number, string>> = {};
+  for (const [fName, uniObjId] of Object.entries(fontNameParaUniObj)) {
+    const cmapText = streamsPorObj[uniObjId] || '';
+    const map: Record<number, string> = {};
+
+    const bfrangeBlocks = cmapText.match(/beginbfrange[\s\S]*?endbfrange/g) || [];
+    for (const blk of bfrangeBlocks) {
+      const rRange = /<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>/g;
+      let cm: RegExpExecArray | null;
+      while ((cm = rRange.exec(blk)) !== null) {
+        const start = parseInt(cm[1], 16);
+        const end = parseInt(cm[2], 16);
+        const uni = parseInt(cm[3], 16);
+        for (let c = start; c <= end; c++) {
+          map[c] = String.fromCodePoint(uni + (c - start));
+        }
+      }
+    }
+
+    const bfcharBlocks = cmapText.match(/beginbfchar[\s\S]*?endbfchar/g) || [];
+    for (const blk of bfcharBlocks) {
+      const rChar = /<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>/g;
+      let cm: RegExpExecArray | null;
+      while ((cm = rChar.exec(blk)) !== null) {
+        map[parseInt(cm[1], 16)] = String.fromCodePoint(parseInt(cm[2], 16));
+      }
+    }
+
+    cmaps[fName] = map;
+  }
+
+  // 3. Percorre os content streams que possuem blocos BT ... ET e reconstrói as linhas por coordenada (X, Y)
+  interface ItemPosicionado {
+    x: number;
+    y: number;
+    text: string;
+  }
+  const itemsPosicionados: ItemPosicionado[] = [];
+
+  for (const conteudo of Object.values(streamsPorObj)) {
+    if (!conteudo.includes('BT') || conteudo.includes('begincmap')) continue;
+
+    let curFont = '/d';
+    let x = 0;
+    let y = 0;
+    let moveuDesdeUltimoTexto = true;
+
+    const linhasStream = conteudo.split(/\r?\n/);
+    for (const l of linhasStream) {
+      const fm = l.match(/(\/[0-9a-zA-Z_]+)\s+[\d.]+\s+Tf/);
+      if (fm) curFont = fm[1];
+
+      const tm = l.match(/1\s+0\s+0\s+1\s+([-\d.]+)\s+([-\d.]+)\s+Tm/);
+      if (tm) {
+        x = parseFloat(tm[1]);
+        y = parseFloat(tm[2]);
+        moveuDesdeUltimoTexto = true;
+      }
+
+      const td = l.match(/([-\d.]+)\s+([-\d.]+)\s+T[dD]/);
+      if (td) {
+        x += parseFloat(td[1]);
+        y += parseFloat(td[2]);
+        moveuDesdeUltimoTexto = true;
+      }
+
+      if (l.includes('Tj') || l.includes('TJ')) {
+        const partes: string[] = [];
+        const rStr = /\((?:\\.|[^\\()])*\)/g;
+        let sm: RegExpExecArray | null;
+        while ((sm = rStr.exec(l)) !== null) {
+          const raw = decodificarLiteralPdf(sm[0].slice(1, -1));
+          const traduzido = Array.from(raw)
+            .map((ch) => cmaps[curFont]?.[ch.charCodeAt(0)] ?? ch)
+            .join('');
+          partes.push(traduzido);
+        }
+        const textoOp = partes.join('');
+        if (
+          !moveuDesdeUltimoTexto &&
+          itemsPosicionados.length > 0 &&
+          Math.abs(itemsPosicionados[itemsPosicionados.length - 1].y - y) < 0.5
+        ) {
+          // Mesmo ponto sem Td/Tm intermediário (ex: kerning "1000452" + "111" ou "03/" + "11/2026")
+          itemsPosicionados[itemsPosicionados.length - 1].text += textoOp;
+        } else {
+          itemsPosicionados.push({ x, y, text: textoOp });
+        }
+        moveuDesdeUltimoTexto = false;
+      }
+    }
+  }
+
+  if (itemsPosicionados.length > 0) {
+    const linhasAgrupadas: { y: number; items: ItemPosicionado[] }[] = [];
+    for (const it of itemsPosicionados) {
+      let linha = linhasAgrupadas.find((r) => Math.abs(r.y - it.y) <= 3.5);
+      if (!linha) {
+        linha = { y: it.y, items: [] };
+        linhasAgrupadas.push(linha);
+      }
+      linha.items.push(it);
+    }
+    linhasAgrupadas.sort((a, b) => b.y - a.y);
+    return linhasAgrupadas
+      .map((r) => {
+        r.items.sort((a, b) => a.x - b.x);
+        return r.items.map((i) => i.text.trim()).join(' ');
+      })
+      .join('\n');
+  }
+
+  return '';
 }
 
 /**
  * Faz o parse do texto extraído do PDF de Relatório de Comissão (padrão Âncora / Administradoras)
  */
 export function analisarTextoRelatorioPDF(texto: string): DadosRelatorioPDF {
-  const textoNormalizado = texto.replace(/\r/g, '\n');
+  // Normaliza quebras de linha, datas partidas por kerning ("06/ 11 /2026" -> "06/11/2026") e espaços antes de ":"
+  const textoNormalizado = texto
+    .replace(/\r/g, '\n')
+    .replace(/(\d{2})\s*\/\s*(\d{2})\s*\/\s*(\d{4})/g, '$1/$2/$3')
+    .replace(/\s+:/g, ':');
 
   // Metadados do cabeçalho
   const matchCodPN = textoNormalizado.match(/C[óo]digo\s+do\s+PN:\s*([A-Z0-9_-]+)/i);
@@ -234,17 +380,16 @@ export function analisarTextoRelatorioPDF(texto: string): DadosRelatorioPDF {
   const matchNumDocHeader = textoNormalizado.match(/N[º°o]\s*documento:\s*(\d+)/i);
   const matchStatus = textoNormalizado.match(/Status:\s*([A-Za-zÀ-ÿ]+)/i);
   const matchDataGeracao = textoNormalizado.match(/Relat[óo]rio\s+gerado\s+em\s+(\d{2}\/\d{2}\/\d{4})/i);
-  const matchTotalLiquido = textoNormalizado.match(/TOTAL\s+L[ÍI]QUIDO:\s*R?\$?\s*([\d.]+,\d{2})/i);
+  const matchTotalLiquido = textoNormalizado.match(/TOTAL\s+L[ÍI]QUIDO:?\s*R?\$?\s*([\d.]+,\d{2})/i);
   const matchTotalBruto = textoNormalizado.match(/TOTAL\s+BRUTO:?\s*R?\$?\s*([\d.]+,\d{2})/i);
 
   const itens: ItemRelatorioPDF[] = [];
   const chavesVistas = new Set<string>();
 
   // 1. Regex completa da linha padrão do relatório de comissão:
-  // Nº doc | Repres | Data | Descrição | Tipo | Contrato | Venda | Grupo | Cota | Parcela | Valor Base | Valor
-  // Exemplo: 53637 18880 03/11/2026 COMISSÃO S/ VENDAS I 1000413312 18/08/2026 00707 1124 3 300.000,00 750,00
+  // Nº doc | Repres | Data | Descrição | Tipo | Contrato (permite espaço de kerning ex: "1000452 111") | Venda | Grupo | Cota | Parcela | Valor Base | Valor
   const regexLinhaCompleta =
-    /(\d{3,10})\s+(\d{3,10})\s+(\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+([A-Z])\s+(\d{5,15})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2,6})\s+(\d{1,6})\s+(\d{1,3})\s+([\d.]+,\d{2})\s+(-?[\d.]+,\d{2})/g;
+    /(\d{3,10})\s+(\d{3,10})\s+(\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+([A-Z])\s+(\d[\d\s]{4,16}\d)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2,6})\s+(\d{1,6})\s+(\d{1,3})\s+([\d.]+,\d{2})\s+(-?[\d.]+,\d{2})/g;
 
   let m: RegExpExecArray | null;
   while ((m = regexLinhaCompleta.exec(textoNormalizado)) !== null) {
@@ -253,7 +398,7 @@ export function analisarTextoRelatorioPDF(texto: string): DadosRelatorioPDF {
     const dataRelBr = m[3].trim();
     const descricao = m[4].trim();
     const tipo = m[5].trim();
-    const contrato = m[6].trim();
+    const contrato = m[6].replace(/\s+/g, '');
     const dataVendaBr = m[7].trim();
     const grupo = m[8].trim();
     const cota = m[9].trim();
@@ -287,12 +432,12 @@ export function analisarTextoRelatorioPDF(texto: string): DadosRelatorioPDF {
   // 2. Fallback: caso o PDF tenha quebrado a parte inicial da linha ou não tenha coluna "Tipo" de 1 letra
   if (itens.length === 0) {
     const regexFallback =
-      /(?:(\d{3,10})\s+(?:\d{3,10}\s+)?(\d{2}\/\d{2}\/\d{4})\s+[^\d\n]+?\s+)?(\d{6,15})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2,6})\s+(\d{1,6})\s+(\d{1,3})\s+([\d.]+,\d{2})\s+(-?[\d.]+,\d{2})/g;
+      /(?:(\d{3,10})\s+(?:\d{3,10}\s+)?(\d{2}\/\d{2}\/\d{4})\s+[^\d\n]+?\s+)?(\d[\d\s]{5,16}\d)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2,6})\s+(\d{1,6})\s+(\d{1,3})\s+([\d.]+,\d{2})\s+(-?[\d.]+,\d{2})/g;
 
     while ((m = regexFallback.exec(textoNormalizado)) !== null) {
       const numDoc = (m[1] || matchNumDocHeader?.[1] || '').trim();
       const dataRelBr = (m[2] || matchDataGeracao?.[1] || '').trim();
-      const contrato = m[3].trim();
+      const contrato = m[3].replace(/\s+/g, '');
       const dataVendaBr = m[4].trim();
       const grupo = m[5].trim();
       const cota = m[6].trim();
@@ -347,23 +492,35 @@ export function analisarTextoRelatorioPDF(texto: string): DadosRelatorioPDF {
 }
 
 /**
- * Lê um arquivo PDF (File) e retorna os dados estruturados do Relatório de Comissão
+ * Lê um arquivo PDF (File) e retorna os dados estruturados do Relatório de Comissão.
+ * Executa tanto o extrator nativo CMap quanto o PDF.js e escolhe o que extrair mais itens com precisão.
  */
 export async function extrairDadosRelatorioPDF(arquivo: File): Promise<DadosRelatorioPDF> {
   const buffer = await arquivo.arrayBuffer();
 
-  // Tenta primeiro via PDF.js (mantém ordenação exata por coordenadas X/Y)
-  let texto = await extrairTextoComPdfJs(buffer);
-  let resultado = texto ? analisarTextoRelatorioPDF(texto) : null;
+  const textoNativo = await extrairTextoNativoFallback(buffer);
+  const resultadoNativo = textoNativo ? analisarTextoRelatorioPDF(textoNativo) : null;
 
-  // Se não encontrou itens pelo PDF.js, tenta o extrator nativo FlateDecode
-  if (!resultado || resultado.itens.length === 0) {
-    const textoFallback = await extrairTextoNativoFallback(buffer);
-    const resultadoFallback = analisarTextoRelatorioPDF(textoFallback);
-    if (resultadoFallback.itens.length > 0 || !resultado) {
-      resultado = resultadoFallback;
-    }
+  // Se o extrator nativo CMap já extraiu os itens e bateu com o total líquido do relatório, retorna imediatamente
+  if (
+    resultadoNativo &&
+    resultadoNativo.itens.length > 0 &&
+    resultadoNativo.totalLiquido &&
+    Math.abs(
+      resultadoNativo.itens.reduce((s, i) => s + i.valorComissao, 0) - resultadoNativo.totalLiquido
+    ) < 0.05
+  ) {
+    return resultadoNativo;
   }
 
-  return resultado;
+  const textoPdfJs = await extrairTextoComPdfJs(buffer);
+  const resultadoPdfJs = textoPdfJs ? analisarTextoRelatorioPDF(textoPdfJs) : null;
+
+  if (resultadoPdfJs && resultadoNativo) {
+    return resultadoPdfJs.itens.length >= resultadoNativo.itens.length
+      ? resultadoPdfJs
+      : resultadoNativo;
+  }
+
+  return resultadoPdfJs || resultadoNativo || analisarTextoRelatorioPDF('');
 }

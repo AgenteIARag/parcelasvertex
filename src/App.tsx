@@ -2282,7 +2282,8 @@ function App() {
       <ImportarRelatorioComissaoModal
         open={modalImportarPdfGlobal}
         onClose={() => setModalImportarPdfGlobal(false)}
-        vendas={vendasFiltradas}
+        vendas={vendas}
+        empresas={empresas}
         onAtualizarVenda={handleAtualizarVenda}
       />
 

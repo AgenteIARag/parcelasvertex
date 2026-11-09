@@ -42,7 +42,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-import type { LancamentoVenda, StatusParcela } from '../types';
+import type { LancamentoVenda, StatusParcela, Empresa } from '../types';
 import { calcularTotaisLinha } from '../data/initialData';
 import { obterStatusEfetivo } from '../utils/formatters';
 import { salvarVendaSupabase } from '../utils/supabase';
@@ -68,6 +68,14 @@ const normalizarCodigoContrato = (codigo?: string): string => {
   const apenasDigitos = codigo.replace(/\D/g, '').replace(/^0+/, '');
   if (apenasDigitos.length > 0) return apenasDigitos;
   return codigo.trim().toLowerCase();
+};
+
+const calcularDiferencaDias = (isoA?: string, isoB?: string): number => {
+  if (!isoA || !isoB) return 9999;
+  const tA = new Date(`${isoA}T12:00:00`).getTime();
+  const tB = new Date(`${isoB}T12:00:00`).getTime();
+  if (isNaN(tA) || isNaN(tB)) return 9999;
+  return Math.abs(Math.round((tA - tB) / (1000 * 60 * 60 * 24)));
 };
 
 export type TipoDivergencia =
@@ -110,6 +118,7 @@ interface ImportarRelatorioComissaoModalProps {
   open: boolean;
   onClose: () => void;
   vendas: LancamentoVenda[];
+  empresas?: Empresa[];
   onAtualizarVenda: (venda: LancamentoVenda) => void;
   onSucesso?: (mensagem: string) => void;
 }
@@ -118,11 +127,23 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
   open,
   onClose,
   vendas,
+  empresas = [],
   onAtualizarVenda,
   onSucesso,
 }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+
+  const obterNomeEmpresa = (empresaId?: string): string => {
+    const id = empresaId || 'emp_vertex';
+    const encontrada = empresas.find((e) => e.id === id);
+    if (encontrada) return encontrada.nome;
+    if (id === 'emp_vertex') return 'Vertex';
+    if (id === 'emp_winvest') return 'Winvest';
+    if (id === 'emp_shazam') return 'Shazam';
+    if (id.includes('vetex_master') || id.includes('vertex_master')) return 'Vertex Master';
+    return id.replace(/^emp_/, '');
+  };
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [carregando, setCarregando] = useState(false);
@@ -154,15 +175,38 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
   const [mostrarColarTexto, setMostrarColarTexto] = useState(false);
   const [textoManualInput, setTextoManualInput] = useState('');
 
-  // Vendas reais (não espelho) para conciliação direta
-  const vendasPrincipais = useMemo(
-    () => vendas.filter((v) => !v.isVendaEspelho),
-    [vendas]
-  );
+  // Vendas reais (não espelho) para conciliação direta, abrangendo todas as empresas (Vertex, Winvest, Shazam)
+  // mesmo quando o filtro de empresa estiver ativo na aba atual
+  const vendasPrincipais = useMemo(() => {
+    const mapa = new Map<string, LancamentoVenda>();
+    for (const v of vendas) {
+      if (v && v.id && !v.isVendaEspelho) {
+        mapa.set(v.id, v);
+      }
+    }
+    try {
+      const salvas = localStorage.getItem('apex_lancamentos_vendas');
+      if (salvas) {
+        const todas: LancamentoVenda[] = JSON.parse(salvas);
+        for (const v of todas) {
+          if (v && v.id && !v.isVendaEspelho && !mapa.has(v.id)) {
+            mapa.set(v.id, v);
+          }
+        }
+      }
+    } catch {
+      // Ignora erro de leitura do localStorage
+    }
+    return Array.from(mapa.values());
+  }, [vendas, open]);
 
-  // Processa os itens do PDF cruzando com as vendas do sistema
+  // Processa os itens do PDF cruzando com as vendas do sistema (todas as empresas)
   const itensConciliados = useMemo<ItemConciliacao[]>(() => {
     if (!dadosPdf) return [];
+
+    const pacsNoPdf = new Set(
+      dadosPdf.itens.map((it) => normalizarCodigoContrato(it.contrato)).filter(Boolean)
+    );
 
     return dadosPdf.itens.map((item) => {
       const codPdfNorm = normalizarCodigoContrato(item.contrato);
@@ -175,27 +219,55 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         vendaEncontrada = vendasPrincipais.find((v) => v.id === idManual) || null;
         vinculoManual = !!vendaEncontrada;
       } else if (codPdfNorm) {
-        vendaEncontrada =
-          vendasPrincipais.find(
-            (v) =>
-              normalizarCodigoContrato(v.pac) === codPdfNorm ||
-              (v.pac && v.pac.trim().toLowerCase() === item.contrato.trim().toLowerCase())
-          ) || null;
+        // Caso haja mais de uma venda com o mesmo PAC no banco (ex: duplicidade de digitação),
+        // prioriza aquela cujo Valor Base (valorVenda) e Data da Venda coincidem com o PDF
+        const candidatasPac = vendasPrincipais.filter(
+          (v) =>
+            normalizarCodigoContrato(v.pac) === codPdfNorm ||
+            (v.pac && v.pac.trim().toLowerCase() === item.contrato.trim().toLowerCase())
+        );
+
+        if (candidatasPac.length === 1) {
+          vendaEncontrada = candidatasPac[0];
+        } else if (candidatasPac.length > 1) {
+          const pontuar = (v: LancamentoVenda) => {
+            let score = 0;
+            if (Math.abs((v.valorVenda || 0) - item.valorBase) < 1) score += 100;
+            if (v.dataVenda === item.dataVendaISO) score += 50;
+            const diffDias = calcularDiferencaDias(v.dataVenda, item.dataVendaISO);
+            if (diffDias <= 7) score += Math.max(0, 20 - diffDias);
+            return score;
+          };
+          vendaEncontrada = [...candidatasPac].sort((a, b) => pontuar(b) - pontuar(a))[0];
+        }
       }
 
-      // Caso não encontre pelo PAC, procura uma venda sugerida com mesmo valor de crédito e data próxima
+      // Caso não encontre pelo PAC, procura uma venda sugerida com mesmo valor de crédito e data próxima ou PAC similar
       let vendaSugerida: LancamentoVenda | null = null;
       if (!vendaEncontrada) {
-        vendaSugerida =
-          vendasPrincipais.find(
-            (v) =>
-              Math.abs((v.valorVenda || 0) - item.valorBase) < 1 &&
-              v.dataVenda === item.dataVendaISO
-          ) ||
-          vendasPrincipais.find(
-            (v) => Math.abs((v.valorVenda || 0) - item.valorBase) < 1 && !v.pac
-          ) ||
-          null;
+        const candidatasSugestao = vendasPrincipais
+          .filter((v) => {
+            const pacNorm = normalizarCodigoContrato(v.pac);
+            // Não sugere vendas que já batem exatamente com outro contrato presente no mesmo PDF
+            if (pacNorm && pacsNoPdf.has(pacNorm)) return false;
+            return Math.abs((v.valorVenda || 0) - item.valorBase) < 1;
+          })
+          .map((v) => {
+            const diffDias = calcularDiferencaDias(v.dataVenda, item.dataVendaISO);
+            const pacNorm = normalizarCodigoContrato(v.pac);
+            const prefixoComum =
+              pacNorm && codPdfNorm && pacNorm.slice(0, 7) === codPdfNorm.slice(0, 7);
+            let score = 0;
+            if (diffDias === 0) score += 100;
+            else if (diffDias <= 15) score += 70 - diffDias * 3;
+            if (prefixoComum) score += 40;
+            if (!v.pac) score += 25;
+            return { venda: v, score, diffDias };
+          })
+          .filter((c) => c.score > 0)
+          .sort((a, b) => b.score - a.score);
+
+        vendaSugerida = candidatasSugestao[0]?.venda || null;
       }
 
       const divergencias: DivergenciaDetalhe[] = [];
@@ -206,7 +278,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
           severidade: 'error',
           titulo: 'Contrato não localizado',
           descricao: vendaSugerida
-            ? `PAC ${item.contrato} não cadastrado. Sugestão encontrada: ${vendaSugerida.cliente} (${formatarMoeda(vendaSugerida.valorVenda)}).`
+            ? `PAC ${item.contrato} não cadastrado. Possível correspondência por Valor/Data próxima: ${vendaSugerida.cliente} (${obterNomeEmpresa(vendaSugerida.empresaId)} · PAC no sistema: ${vendaSugerida.pac || 'Sem PAC'} · Venda: ${formatarData(vendaSugerida.dataVenda)} · ${formatarMoeda(vendaSugerida.valorVenda)}).`
             : `Nenhum contrato com PAC "${item.contrato}" foi encontrado no sistema.`,
           valorPdf: item.contrato,
           valorSistema: 'Não cadastrado',
@@ -1394,9 +1466,33 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
                         <TableCell sx={{ minWidth: 250 }}>
                           {vendaEncontrada && !ic.vinculoManual ? (
                             <Box>
-                              <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.78rem' }}>
-                                {vendaEncontrada.cliente}
-                              </Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7, flexWrap: 'wrap' }}>
+                                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.78rem' }}>
+                                  {vendaEncontrada.cliente}
+                                </Typography>
+                                <Chip
+                                  label={obterNomeEmpresa(vendaEncontrada.empresaId)}
+                                  size="small"
+                                  sx={{
+                                    height: 17,
+                                    fontSize: '0.62rem',
+                                    fontWeight: 700,
+                                    bgcolor:
+                                      (vendaEncontrada.empresaId || 'emp_vertex') === 'emp_vertex'
+                                        ? 'rgba(99, 102, 241, 0.14)'
+                                        : vendaEncontrada.empresaId === 'emp_winvest'
+                                        ? 'rgba(14, 165, 233, 0.14)'
+                                        : 'rgba(168, 85, 247, 0.14)',
+                                    color:
+                                      (vendaEncontrada.empresaId || 'emp_vertex') === 'emp_vertex'
+                                        ? '#6366f1'
+                                        : vendaEncontrada.empresaId === 'emp_winvest'
+                                        ? '#0ea5e9'
+                                        : '#a855f7',
+                                    '& .MuiChip-label': { px: 0.8 },
+                                  }}
+                                />
+                              </Box>
                               <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.66rem' }}>
                                 PAC: {vendaEncontrada.pac || '—'} · Vend: {vendaEncontrada.vendedorNome || '—'} · {vendaEncontrada.tabela}
                               </Typography>
@@ -1408,7 +1504,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
                                 options={vendasPrincipais}
                                 value={vendaEncontrada}
                                 getOptionLabel={(opt) =>
-                                  `${opt.cliente} ${opt.pac ? `(PAC: ${opt.pac})` : '(Sem PAC)'} - ${formatarMoeda(opt.valorVenda)}`
+                                  `[${obterNomeEmpresa(opt.empresaId)}] ${opt.cliente} ${opt.pac ? `(PAC: ${opt.pac})` : '(Sem PAC)'} - ${formatarMoeda(opt.valorVenda)}`
                                 }
                                 onChange={(_, novaVenda) =>
                                   handleVincularContratoManual(itemPdf.id, novaVenda)
@@ -1440,9 +1536,10 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
                                     color: '#0ea5e9',
                                     fontWeight: 700,
                                     textTransform: 'none',
+                                    textAlign: 'left',
                                   }}
                                 >
-                                  Sugestão: Vincular a {vendaSugerida.cliente} ({formatarMoeda(vendaSugerida.valorVenda)})
+                                  Sugestão: Vincular a {vendaSugerida.cliente} [{obterNomeEmpresa(vendaSugerida.empresaId)} · PAC {vendaSugerida.pac || 'S/N'} · {formatarData(vendaSugerida.dataVenda)} · {formatarMoeda(vendaSugerida.valorVenda)}]
                                 </Button>
                               )}
                             </Box>
