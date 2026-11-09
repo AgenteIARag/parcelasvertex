@@ -210,3 +210,24 @@ export interface Usuario {
   vendedorId?: string; // ID do vendedor vinculado (quando role === 'vendedor')
   created_at?: string;
 }
+
+export interface RelatorioComissaoSalvo {
+  id: string;
+  nomeArquivo: string;
+  numeroDocumento: string;
+  codigoPN?: string;
+  nomePN?: string;
+  cnpj?: string;
+  dataGeracaoISO?: string;
+  dataGeracaoBr?: string;
+  dataRecebimentoInput?: string;
+  notaFiscalInput?: string;
+  totalValorBase: number;
+  totalLiquido: number;
+  qtdItens: number;
+  dadosPdf: any;
+  vinculosManuais?: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+}
+

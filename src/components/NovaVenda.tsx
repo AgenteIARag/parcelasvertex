@@ -257,46 +257,31 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
     const projVaziaBase = gerarProjecaoVazia();
     Object.assign(proj, projVaziaBase);
 
-    const mesInicioChave = dataVencimentoClienteInput.substring(0, 7);
+    const dateVencClienteBase = new Date(dataVencimentoClienteInput + 'T00:00:00');
+    const diaVenc = dateVencClienteBase.getDate();
+    const mesVenda = dataVendaInput.substring(0, 7);
+    const mesVencCliente = dataVencimentoClienteInput.substring(0, 7);
+    // O campo Vencimento do Cliente representa a Data da 2ª parcela.
+    // Assim, a 1ª parcela (i = 0) ocorre 1 mês antes da 2ª parcela (offset -1),
+    // exceto quando o vencimento informado já está no próprio mês da venda (offset 0).
+    const offsetInicial = mesVencCliente > mesVenda ? -1 : 0;
+    let mesInicioChave = mesVencCliente;
 
     for (let i = 0; i < parcelas; i++) {
-      let dataVenc: string;
-      if (i === 0) {
-        dataVenc = dataVencimentoClienteInput;
-      } else {
-        /* Mecânica Anterior:
-        const dateAssembleiaBase = new Date(dataAssembleiaInput + 'T00:00:00');
-        const dateVencClienteBase = new Date(dataVencimentoClienteInput + 'T00:00:00');
-        const diaVenc = dateVencClienteBase.getDate();
-        
-        const dtAlvo = new Date(dateAssembleiaBase.getFullYear(), dateAssembleiaBase.getMonth() + (i - 1), 1);
-        const ultimoDiaMes = new Date(dtAlvo.getFullYear(), dtAlvo.getMonth() + 1, 0).getDate();
-        const diaFinal = Math.min(diaVenc, ultimoDiaMes);
-        dtAlvo.setDate(diaFinal);
-        
-        const anoCalc = dtAlvo.getFullYear();
-        const mesCalc = String(dtAlvo.getMonth() + 1).padStart(2, '0');
-        const diaCalc = String(dtAlvo.getDate()).padStart(2, '0');
-        dataVenc = `${anoCalc}-${mesCalc}-${diaCalc}`;
-        */
+      const dtAlvo = new Date(dateVencClienteBase.getFullYear(), dateVencClienteBase.getMonth() + i + offsetInicial, 1);
+      const ultimoDiaMes = new Date(dtAlvo.getFullYear(), dtAlvo.getMonth() + 1, 0).getDate();
+      const diaFinal = Math.min(diaVenc, ultimoDiaMes);
+      dtAlvo.setDate(diaFinal);
 
-        // Nova Mecânica: Usa a data de Vencimento do Cliente (Data da 2ª parcela) a partir dela gera as demais parcelas
-        const dateVencClienteBase = new Date(dataVencimentoClienteInput + 'T00:00:00');
-        const diaVenc = dateVencClienteBase.getDate();
-        
-        // i começa em 1 para a segunda parcela. Com a 1ª parcela já no mês do vencimento, avança i meses
-        const dtAlvo = new Date(dateVencClienteBase.getFullYear(), dateVencClienteBase.getMonth() + i, 1);
-        const ultimoDiaMes = new Date(dtAlvo.getFullYear(), dtAlvo.getMonth() + 1, 0).getDate();
-        const diaFinal = Math.min(diaVenc, ultimoDiaMes);
-        dtAlvo.setDate(diaFinal);
-        
-        const anoCalc = dtAlvo.getFullYear();
-        const mesCalc = String(dtAlvo.getMonth() + 1).padStart(2, '0');
-        const diaCalc = String(dtAlvo.getDate()).padStart(2, '0');
-        dataVenc = `${anoCalc}-${mesCalc}-${diaCalc}`;
-      }
+      const anoCalc = dtAlvo.getFullYear();
+      const mesCalc = String(dtAlvo.getMonth() + 1).padStart(2, '0');
+      const diaCalc = String(dtAlvo.getDate()).padStart(2, '0');
+      const dataVenc = `${anoCalc}-${mesCalc}-${diaCalc}`;
 
       const mesChave = dataVenc.substring(0, 7);
+      if (i === 0) {
+        mesInicioChave = mesChave;
+      }
       const status = i === 0 ? 'Paga' : getStatusInicial(dataVenc);
       const dataPrevisaoRecebimento = calcularDataPrevisaoRecebimento(dataVenc, ciclos);
 

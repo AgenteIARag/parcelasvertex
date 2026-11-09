@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { LancamentoVenda, RegraMaster, RegraFilha, Vendedor, Usuario, Empresa, Administradora } from '../types';
+import type { LancamentoVenda, RegraMaster, RegraFilha, Vendedor, Usuario, Empresa, Administradora, RelatorioComissaoSalvo } from '../types';
 import { INITIAL_ADMINISTRADORAS } from '../data/initialData';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://fisnjgoggqvnvkyyyrwo.supabase.co';
@@ -1169,3 +1169,203 @@ export const inicializarAdministradorasPadrao = async (): Promise<Administradora
     return obterAdministradorasLocais();
   }
 };
+
+// ==========================================
+// RELATÓRIOS DE COMISSÃO PDF CADASTRADOS
+// ==========================================
+
+const STORAGE_KEY_RELATORIOS_PDF = 'apex_relatorios_comissao_pdf';
+
+export const migrarTabelaRelatoriosComissaoPdf = async (): Promise<void> => {
+  try {
+    await supabase.rpc('exec_sql', {
+      sql: `
+        CREATE TABLE IF NOT EXISTS public.relatorios_comissao_pdf (
+          id TEXT PRIMARY KEY,
+          nome_arquivo TEXT NOT NULL,
+          numero_documento TEXT NOT NULL,
+          codigo_pn TEXT,
+          nome_pn TEXT,
+          cnpj TEXT,
+          data_geracao_iso TEXT,
+          data_geracao_br TEXT,
+          data_recebimento_input TEXT,
+          nota_fiscal_input TEXT,
+          total_valor_base NUMERIC DEFAULT 0,
+          total_liquido NUMERIC DEFAULT 0,
+          qtd_itens INTEGER DEFAULT 0,
+          dados_pdf JSONB NOT NULL,
+          vinculos_manuais JSONB DEFAULT '{}'::jsonb,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        ALTER TABLE public.relatorios_comissao_pdf ENABLE ROW LEVEL SECURITY;
+
+        GRANT SELECT ON public.relatorios_comissao_pdf TO anon;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON public.relatorios_comissao_pdf TO authenticated;
+        GRANT ALL ON public.relatorios_comissao_pdf TO service_role;
+      `,
+    });
+  } catch {
+    // Silencioso caso o RPC exec_sql não esteja disponível
+  }
+};
+
+export const obterRelatoriosPdfLocais = (): RelatorioComissaoSalvo[] => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_RELATORIOS_PDF);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return parsed.sort((a, b) => (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || ''));
+      }
+    }
+  } catch (e) {
+    console.error('Erro ao ler relatórios PDF locais:', e);
+  }
+  return [];
+};
+
+export const salvarRelatorioPdfLocal = (relatorio: RelatorioComissaoSalvo): RelatorioComissaoSalvo[] => {
+  const atuais = obterRelatoriosPdfLocais();
+  const index = atuais.findIndex(
+    (r) =>
+      r.id === relatorio.id ||
+      (relatorio.numeroDocumento && r.numeroDocumento === relatorio.numeroDocumento)
+  );
+  let novos: RelatorioComissaoSalvo[];
+  if (index >= 0) {
+    const existente = atuais[index];
+    const atualizado: RelatorioComissaoSalvo = {
+      ...existente,
+      ...relatorio,
+      id: existente.id,
+      createdAt: existente.createdAt || relatorio.createdAt,
+      updatedAt: new Date().toISOString(),
+    };
+    novos = [...atuais];
+    novos[index] = atualizado;
+  } else {
+    novos = [relatorio, ...atuais];
+  }
+  novos.sort((a, b) => (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || ''));
+  localStorage.setItem(STORAGE_KEY_RELATORIOS_PDF, JSON.stringify(novos));
+  return novos;
+};
+
+export const excluirRelatorioPdfLocal = (id: string): RelatorioComissaoSalvo[] => {
+  const atuais = obterRelatoriosPdfLocais();
+  const novos = atuais.filter((r) => r.id !== id);
+  localStorage.setItem(STORAGE_KEY_RELATORIOS_PDF, JSON.stringify(novos));
+  return novos;
+};
+
+export const obterRelatoriosPdfSupabase = async (): Promise<RelatorioComissaoSalvo[]> => {
+  const locais = obterRelatoriosPdfLocais();
+  try {
+    await migrarTabelaRelatoriosComissaoPdf();
+    const { data, error } = await supabase
+      .from('relatorios_comissao_pdf')
+      .select('*')
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      return locais;
+    }
+
+    if (data && data.length > 0) {
+      const remotos: RelatorioComissaoSalvo[] = data.map((r: any) => ({
+        id: r.id,
+        nomeArquivo: r.nome_arquivo,
+        numeroDocumento: r.numero_documento,
+        codigoPN: r.codigo_pn || undefined,
+        nomePN: r.nome_pn || undefined,
+        cnpj: r.cnpj || undefined,
+        dataGeracaoISO: r.data_geracao_iso || undefined,
+        dataGeracaoBr: r.data_geracao_br || undefined,
+        dataRecebimentoInput: r.data_recebimento_input || undefined,
+        notaFiscalInput: r.nota_fiscal_input || undefined,
+        totalValorBase: Number(r.total_valor_base || 0),
+        totalLiquido: Number(r.total_liquido || 0),
+        qtdItens: Number(r.qtd_itens || 0),
+        dadosPdf: r.dados_pdf,
+        vinculosManuais: r.vinculos_manuais || {},
+        createdAt: r.created_at || new Date().toISOString(),
+        updatedAt: r.updated_at || new Date().toISOString(),
+      }));
+
+      // Mescla com locais para não perder nenhum relatório salvo offline
+      const mapa = new Map<string, RelatorioComissaoSalvo>();
+      for (const rem of remotos) mapa.set(rem.id, rem);
+      for (const loc of locais) {
+        if (!mapa.has(loc.id)) {
+          mapa.set(loc.id, loc);
+          salvarRelatorioPdfSupabase(loc).catch(() => {});
+        }
+      }
+      const unificados = Array.from(mapa.values()).sort((a, b) =>
+        (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || '')
+      );
+      localStorage.setItem(STORAGE_KEY_RELATORIOS_PDF, JSON.stringify(unificados));
+      return unificados;
+    }
+
+    if (locais.length > 0) {
+      for (const loc of locais) {
+        salvarRelatorioPdfSupabase(loc).catch(() => {});
+      }
+    }
+    return locais;
+  } catch {
+    return locais;
+  }
+};
+
+export const salvarRelatorioPdfSupabase = async (
+  relatorio: RelatorioComissaoSalvo
+): Promise<RelatorioComissaoSalvo[]> => {
+  const listaAtualizada = salvarRelatorioPdfLocal(relatorio);
+  const salvo =
+    listaAtualizada.find(
+      (r) =>
+        r.id === relatorio.id ||
+        (relatorio.numeroDocumento && r.numeroDocumento === relatorio.numeroDocumento)
+    ) || relatorio;
+
+  try {
+    await supabase.from('relatorios_comissao_pdf').upsert({
+      id: salvo.id,
+      nome_arquivo: salvo.nomeArquivo,
+      numero_documento: salvo.numeroDocumento,
+      codigo_pn: salvo.codigoPN || null,
+      nome_pn: salvo.nomePN || null,
+      cnpj: salvo.cnpj || null,
+      data_geracao_iso: salvo.dataGeracaoISO || null,
+      data_geracao_br: salvo.dataGeracaoBr || null,
+      data_recebimento_input: salvo.dataRecebimentoInput || null,
+      nota_fiscal_input: salvo.notaFiscalInput || null,
+      total_valor_base: salvo.totalValorBase,
+      total_liquido: salvo.totalLiquido,
+      qtd_itens: salvo.qtdItens,
+      dados_pdf: salvo.dadosPdf,
+      vinculos_manuais: salvo.vinculosManuais || {},
+      created_at: salvo.createdAt,
+      updated_at: salvo.updatedAt,
+    });
+  } catch {
+    // Mantém salvo no localStorage
+  }
+  return listaAtualizada;
+};
+
+export const excluirRelatorioPdfSupabase = async (id: string): Promise<RelatorioComissaoSalvo[]> => {
+  const listaAtualizada = excluirRelatorioPdfLocal(id);
+  try {
+    await supabase.from('relatorios_comissao_pdf').delete().eq('id', id);
+  } catch {
+    // Mantém removido no localStorage
+  }
+  return listaAtualizada;
+};
+
