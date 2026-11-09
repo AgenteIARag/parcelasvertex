@@ -29,6 +29,8 @@ import BusinessIcon from '@mui/icons-material/Business';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AddIcon from '@mui/icons-material/Add';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import { ImportarRelatorioComissaoModal } from './components/ImportarRelatorioComissaoModal';
 import { EmpresasCadastro } from './components/EmpresasCadastro';
 import { RegrasFilha } from './components/RegrasFilha';
 import { AdministradorasCadastro } from './components/AdministradorasCadastro';
@@ -278,6 +280,7 @@ function App() {
   const canFilterCompany = isSuperMaster || usuarioLogado?.role === 'financeiro_master';
   const podeVerFinanceiro = isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'financeiro' || usuarioLogado?.role === 'financeiro_master' || usuarioLogado?.role === 'representante';
   const [modalNovaVendaGlobal, setModalNovaVendaGlobal] = useState(false);
+  const [modalImportarPdfGlobal, setModalImportarPdfGlobal] = useState(false);
 
   // Empresa do usuário logado
   const empresaAtual = useMemo(() =>
@@ -1596,6 +1599,31 @@ function App() {
                     Filtrar
                   </Button>
 
+                  {podeVerFinanceiro && (
+                    <Button
+                      variant="contained"
+                      size="small"
+                      startIcon={<UploadFileIcon />}
+                      onClick={() => setModalImportarPdfGlobal(true)}
+                      sx={{
+                        borderRadius: 2,
+                        textTransform: 'none',
+                        fontWeight: 700,
+                        fontFamily: 'Outfit, sans-serif',
+                        py: 1,
+                        px: 2,
+                        height: 40,
+                        background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                        boxShadow: '0 4px 12px rgba(14, 165, 233, 0.25)',
+                        '&:hover': {
+                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                          boxShadow: '0 6px 16px rgba(14, 165, 233, 0.35)',
+                        }
+                      }}
+                    >
+                      Importar Relatório PDF
+                    </Button>
+                  )}
                   {(isAdminOuMaster || usuarioLogado?.permissoes?.editarVendas !== false) && (
                     <Button
                       variant="contained"
@@ -2218,6 +2246,14 @@ function App() {
           </Container>
         </Box>
       </Box>
+
+      {/* Dialog Global de Importação e Conciliação de Relatório PDF */}
+      <ImportarRelatorioComissaoModal
+        open={modalImportarPdfGlobal}
+        onClose={() => setModalImportarPdfGlobal(false)}
+        vendas={vendasFiltradas}
+        onAtualizarVenda={handleAtualizarVenda}
+      />
 
       {/* Dialog Global de Nova Venda */}
       <NovaVendaDialog

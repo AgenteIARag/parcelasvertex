@@ -48,10 +48,12 @@ import ReceiptIcon from '@mui/icons-material/Receipt';
 import RemoveCircleOutlinedIcon from '@mui/icons-material/RemoveCircleOutlined';
 import AddIcon from '@mui/icons-material/Add';
 import BlockIcon from '@mui/icons-material/Block';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import Snackbar from '@mui/material/Snackbar';
 import type { LancamentoVenda, Vendedor, RegraMaster, UserPermissions, StatusParcela, Administradora } from '../types';
 import { EditarVendaDialog } from './SimuladorVendas';
 import { NovaVendaDialog } from './NovaVenda';
+import { ImportarRelatorioComissaoModal } from './ImportarRelatorioComissaoModal';
 import { obterStatusEfetivo } from '../utils/formatters';
 import { salvarVendaSupabase } from '../utils/supabase';
 
@@ -1732,6 +1734,7 @@ export const RelatorioRecebimentos = ({
   const [filtroDataPagamentoFim, setFiltroDataPagamentoFim] = useState('');
 
   const [openNovaVenda, setOpenNovaVenda] = useState(false);
+  const [openImportarPdf, setOpenImportarPdf] = useState(false);
   const [openEditDialog, setOpenEditDialog] = useState(false);
   const [vendaEmEdicao, setVendaEmEdicao] = useState<LancamentoVenda | null>(null);
   const [snackbarMsg, setSnackbarMsg] = useState('');
@@ -2473,7 +2476,32 @@ export const RelatorioRecebimentos = ({
             Parcelas agrupadas por mês de vencimento · Período: {formatarData(dataInicio)} até {formatarData(dataFim)}
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+          {onAtualizarVenda && (
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<UploadFileIcon />}
+              onClick={() => setOpenImportarPdf(true)}
+              sx={{
+                borderRadius: 2,
+                fontWeight: 700,
+                fontFamily: 'Outfit, sans-serif',
+                textTransform: 'none',
+                fontSize: '0.85rem',
+                py: 0.8,
+                px: 2,
+                background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  boxShadow: '0 6px 16px rgba(14, 165, 233, 0.4)',
+                }
+              }}
+            >
+              Importar Relatório PDF
+            </Button>
+          )}
           {onAdicionarVenda && (
             <Button
               variant="contained"
@@ -3162,6 +3190,16 @@ export const RelatorioRecebimentos = ({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {onAtualizarVenda && (
+        <ImportarRelatorioComissaoModal
+          open={openImportarPdf}
+          onClose={() => setOpenImportarPdf(false)}
+          vendas={vendas}
+          onAtualizarVenda={onAtualizarVenda}
+          onSucesso={(msg) => setSnackbarMsg(msg)}
+        />
+      )}
 
       {onAdicionarVenda && (
         <NovaVendaDialog
