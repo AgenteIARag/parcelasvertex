@@ -32,7 +32,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import CancelIcon from '@mui/icons-material/Cancel';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
@@ -1586,7 +1586,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
                                     : 'rgba(14,165,233,0.12)';
                                 const Icone =
                                   div.severidade === 'error'
-                                    ? ErrorOutlineIcon
+                                    ? CancelIcon
                                     : div.severidade === 'warning'
                                     ? WarningAmberIcon
                                     : InfoOutlinedIcon;

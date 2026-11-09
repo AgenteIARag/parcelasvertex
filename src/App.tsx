@@ -1373,6 +1373,36 @@ function App() {
             )}
 
             {usuarioLogado?.role !== 'vendedor' && (
+              <Tooltip title="Importar Relatório de Comissão (PDF)" placement="right" disableHoverListener={!sidebarContraida}>
+                <Button
+                  variant="contained"
+                  startIcon={!sidebarContraida ? <UploadFileIcon /> : undefined}
+                  onClick={() => setModalImportarPdfGlobal(true)}
+                  fullWidth
+                  sx={{
+                    justifyContent: sidebarContraida ? 'center' : 'flex-start',
+                    py: 1.25,
+                    px: sidebarContraida ? 0 : 2,
+                    minWidth: sidebarContraida ? 48 : undefined,
+                    borderRadius: 2,
+                    mb: 1,
+                    fontWeight: 700,
+                    fontFamily: 'Outfit, sans-serif',
+                    fontSize: '0.9rem',
+                    color: '#ffffff',
+                    background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                    boxShadow: '0 4px 12px rgba(14, 165, 233, 0.25)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                      color: '#ffffff'
+                    }
+                  }}
+                >
+                  {sidebarContraida ? <UploadFileIcon /> : 'Importar Relatório PDF'}
+                </Button>
+              </Tooltip>
+            )}
+            {usuarioLogado?.role !== 'vendedor' && (
               <Tooltip title="Retenção e LTV" placement="right" disableHoverListener={!sidebarContraida}>
                 <Button
                   variant={abaAtiva === 'retencao_ltv' ? 'contained' : 'text'}
@@ -1960,6 +1990,7 @@ function App() {
                 dataFim={dataFim}
                 ciclos={ciclos}
                 onAlterarStatusComissao={handleAlterarStatusComissao}
+                onAtualizarVenda={handleAtualizarVenda}
                 podeEditarComissao={isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'financeiro' || usuarioLogado?.role === 'financeiro_master' || usuarioLogado?.role === 'representante'}
                 podeVerFinanceiro={podeVerFinanceiro}
               />

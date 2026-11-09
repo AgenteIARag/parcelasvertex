@@ -38,7 +38,9 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import CancelIcon from '@mui/icons-material/Cancel';
 import PersonIcon from '@mui/icons-material/Person';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import type { LancamentoVenda, StatusComissao, Vendedor } from '../types';
+import { ImportarRelatorioComissaoModal } from './ImportarRelatorioComissaoModal';
 
 // ──────────────────────────────────────────────────────────
 // Helpers
@@ -1013,6 +1015,7 @@ interface RelatorioComissoesProps {
   dataFim: string;
   ciclos: Record<string, [number, number]>;
   onAlterarStatusComissao: (vendaId: string, mesChave: string, novoStatus: StatusComissao) => void;
+  onAtualizarVenda?: (venda: LancamentoVenda) => void;
   podeEditarComissao?: boolean;
   podeVerFinanceiro?: boolean;
 }
@@ -1024,12 +1027,15 @@ export const RelatorioComissoes = ({
   dataFim,
   ciclos,
   onAlterarStatusComissao,
+  onAtualizarVenda,
   podeEditarComissao = false,
   podeVerFinanceiro = true,
 }: RelatorioComissoesProps) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const hoje = new Date().toISOString().split('T')[0];
+
+  const [openImportarPdf, setOpenImportarPdf] = useState(false);
 
   const [busca, setBusca] = useState('');
   const [buscaRelatorio, setBuscaRelatorio] = useState('');
@@ -1257,15 +1263,42 @@ export const RelatorioComissoes = ({
             Comissões agrupadas por data de corte · Período: {formatarData(dataInicio)} até {formatarData(dataFim)}
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<DownloadIcon />}
-          onClick={exportarCSV}
-          sx={{ borderRadius: 2, fontWeight: 600, textTransform: 'none', fontSize: '0.82rem' }}
-        >
-          Exportar CSV
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+          {onAtualizarVenda && (
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<UploadFileIcon />}
+              onClick={() => setOpenImportarPdf(true)}
+              sx={{
+                borderRadius: 2,
+                fontWeight: 700,
+                fontFamily: 'Outfit, sans-serif',
+                textTransform: 'none',
+                fontSize: '0.85rem',
+                py: 0.8,
+                px: 2,
+                background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  boxShadow: '0 6px 16px rgba(14, 165, 233, 0.4)',
+                }
+              }}
+            >
+              Importar Relatório PDF
+            </Button>
+          )}
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<DownloadIcon />}
+            onClick={exportarCSV}
+            sx={{ borderRadius: 2, fontWeight: 600, textTransform: 'none', fontSize: '0.82rem' }}
+          >
+            Exportar CSV
+          </Button>
+        </Box>
       </Box>
 
       {/* ── KPIs ── */}
@@ -1488,6 +1521,15 @@ export const RelatorioComissoes = ({
             />
           ))}
         </Box>
+      )}
+
+      {onAtualizarVenda && (
+        <ImportarRelatorioComissaoModal
+          open={openImportarPdf}
+          onClose={() => setOpenImportarPdf(false)}
+          vendas={vendas}
+          onAtualizarVenda={onAtualizarVenda}
+        />
       )}
 
     </Box>

@@ -43,6 +43,8 @@ import TableChartIcon from '@mui/icons-material/TableChart';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AddIcon from '@mui/icons-material/Add';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import { ImportarRelatorioComissaoModal } from './ImportarRelatorioComissaoModal';
 import {
   type LancamentoVenda,
   type RegraMaster,
@@ -92,43 +94,16 @@ const extrairValorCru = (valorFormatado: string): number => {
   return parseFloat(limpo) || 0;
 };
 
-// Calcula a data de previsão de recebimento da comissão de acordo com os ciclos de fechamento/pagamento
+// Calcula a data de previsão de recebimento da comissão (último dia do mês de vencimento da parcela)
 const calcularDataPrevisaoRecebimento = (dataVencimentoParcela: string, _ciclos?: Record<string, [number, number]>): string => {
   if (!dataVencimentoParcela) return '';
   const dt = new Date(dataVencimentoParcela + 'T00:00:00');
-  const dia = dt.getDate();
-  const mes = dt.getMonth(); // 0 a 11
-  const ano = dt.getFullYear();
-
-  let diaRecebimento = 15;
-  let mesesAdicionais = 1;
-
-  if (dia <= 5) {
-    diaRecebimento = 15;
-    mesesAdicionais = 1;
-  } else if (dia <= 10) {
-    diaRecebimento = 20;
-    mesesAdicionais = 1;
-  } else if (dia <= 15) {
-    diaRecebimento = 25;
-    mesesAdicionais = 1;
-  } else if (dia <= 20) {
-    diaRecebimento = 30;
-    mesesAdicionais = 1;
-  } else if (dia <= 25) {
-    diaRecebimento = 5;
-    mesesAdicionais = 2;
-  } else {
-    diaRecebimento = 10;
-    mesesAdicionais = 2;
-  }
-
-  const dtRecebimento = new Date(ano, mes + mesesAdicionais, diaRecebimento);
-  const anoReceb = dtRecebimento.getFullYear();
-  const mesReceb = String(dtRecebimento.getMonth() + 1).padStart(2, '0');
-  const diaReceb = String(dtRecebimento.getDate()).padStart(2, '0');
-
-  return `${anoReceb}-${mesReceb}-${diaReceb}`;
+  if (isNaN(dt.getTime())) return '';
+  const ultimoDia = new Date(dt.getFullYear(), dt.getMonth() + 1, 0);
+  const ano = ultimoDia.getFullYear();
+  const mes = String(ultimoDia.getMonth() + 1).padStart(2, '0');
+  const dia = String(ultimoDia.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
 };
 
 interface SimuladorVendasProps {
@@ -171,6 +146,7 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
 
   // Estados para inclusão de nova venda
   const [openNovaVenda, setOpenNovaVenda] = useState(false);
+  const [openImportarPdf, setOpenImportarPdf] = useState(false);
 
 
   // Estado para controle de edição inline das células de venda
@@ -847,6 +823,31 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
               <MenuItem value="Estornada">Estornada</MenuItem>
             </Select>
           </FormControl>
+          {podeVerFinanceiro && (
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<UploadFileIcon />}
+              onClick={() => setOpenImportarPdf(true)}
+              sx={{
+                borderRadius: 2,
+                fontWeight: 700,
+                fontFamily: 'Outfit, sans-serif',
+                textTransform: 'none',
+                fontSize: '0.85rem',
+                py: 0.8,
+                px: 2,
+                background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  boxShadow: '0 6px 16px rgba(14, 165, 233, 0.4)',
+                }
+              }}
+            >
+              Importar Relatório PDF
+            </Button>
+          )}
           {true && (
             <Button
               variant="contained"
@@ -2836,6 +2837,14 @@ export const SimuladorVendas: React.FC<SimuladorVendasProps> = ({
         clientes={clientes}
         />
 
+      <ImportarRelatorioComissaoModal
+        open={openImportarPdf}
+        onClose={() => setOpenImportarPdf(false)}
+        vendas={vendas}
+        onAtualizarVenda={onAtualizarVenda}
+        onSucesso={(msg) => mostrarSnackbar(msg)}
+      />
+
       {/* Dialog de Edição Individual de Parcela */}
       {editandoParcela && (() => {
         const venda = vendas.find(v => v.id === editandoParcela.vendaId);
@@ -3240,65 +3249,80 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
     // Traz o histórico da venda antiga (se houver parcelas pagas/recebidas),
     // mas ZERA os valores financeiros para que os meses antigos não contabilizem 
     // indevidamente na nova grade de parcelas e datas que será calculada.
+    const mesesAtivosAnteriores = venda?.projecaoMensal
+      ? Object.keys(venda.projecaoMensal)
+          .filter((m) => /^\d{4}-\d{2}$/.test(m) && (venda.projecaoMensal[m]?.valorVenda || 0) > 0)
+          .sort()
+      : [];
+    const mesPrimeiraAnterior = mesesAtivosAnteriores[0];
+
     if (venda?.projecaoMensal) {
       Object.entries(venda.projecaoMensal).forEach(([mes, cel]) => {
+        if (!cel || (cel.valorVenda || 0) <= 0) return;
+        const eraPrimeiraSemBaixa =
+          mes === mesPrimeiraAnterior &&
+          cel.status === 'Paga' &&
+          !cel.recebida &&
+          !cel.dataPagamentoCliente &&
+          !cel.numeroRelatorioRecebimento &&
+          !cel.dataRelatorioRecebimento;
         proj[mes] = {
           ...(proj[mes] || projVaziaBase[mes] || {}), // base
           ...cel, // dados históricos
           valorVenda: 0, 
           valorParcela: 0,
           comissaoGerada: 0,
-          status: (cel.status === 'Paga' || cel.status === 'Cancelada') ? cel.status : getStatusInicial(cel.dataVencimento || `${mes}-15`)
+          status: (!eraPrimeiraSemBaixa && (cel.status === 'Paga' || cel.status === 'Cancelada'))
+            ? cel.status
+            : getStatusInicial(cel.dataVencimento || `${mes}-15`)
         };
       });
     }
 
-    const mesInicioChave = dataVencimentoClienteInput.substring(0, 7);
+    const dateVencClienteBase = new Date(dataVencimentoClienteInput + 'T00:00:00');
+    const diaVenc = dateVencClienteBase.getDate();
+    const mesVenda = dataVendaInput.substring(0, 7);
+    const mesVencCliente = dataVencimentoClienteInput.substring(0, 7);
+    // O campo Vencimento do Cliente representa a Data da 2ª parcela.
+    // Assim, a 1ª parcela (i = 0) ocorre 1 mês antes da 2ª parcela (offset -1),
+    // exceto quando o vencimento informado já está no próprio mês da venda (offset 0).
+    const offsetInicial = mesVencCliente > mesVenda ? -1 : 0;
+    let mesInicioChave = mesVencCliente;
 
     for (let i = 0; i < parcelas; i++) {
-      let dataVenc: string;
-      if (i === 0) {
-        dataVenc = dataVencimentoClienteInput;
-      } else {
-        /* Mecânica Anterior:
-        const dateAssembleiaBase = new Date(dataAssembleiaInput + 'T00:00:00');
-        const dateVencClienteBase = new Date(dataVencimentoClienteInput + 'T00:00:00');
-        const diaVenc = dateVencClienteBase.getDate();
-        
-        const dtAlvo = new Date(dateAssembleiaBase.getFullYear(), dateAssembleiaBase.getMonth() + (i - 1), 1);
-        const ultimoDiaMes = new Date(dtAlvo.getFullYear(), dtAlvo.getMonth() + 1, 0).getDate();
-        const diaFinal = Math.min(diaVenc, ultimoDiaMes);
-        dtAlvo.setDate(diaFinal);
-        
-        const anoCalc = dtAlvo.getFullYear();
-        const mesCalc = String(dtAlvo.getMonth() + 1).padStart(2, '0');
-        const diaCalc = String(dtAlvo.getDate()).padStart(2, '0');
-        dataVenc = `${anoCalc}-${mesCalc}-${diaCalc}`;
-        */
+      const dtAlvo = new Date(dateVencClienteBase.getFullYear(), dateVencClienteBase.getMonth() + i + offsetInicial, 1);
+      const ultimoDiaMes = new Date(dtAlvo.getFullYear(), dtAlvo.getMonth() + 1, 0).getDate();
+      const diaFinal = Math.min(diaVenc, ultimoDiaMes);
+      dtAlvo.setDate(diaFinal);
 
-        // Nova Mecânica: Usa a data de Vencimento do Cliente (Data da 2ª parcela) a partir dela gera as demais parcelas
-        const dateVencClienteBase = new Date(dataVencimentoClienteInput + 'T00:00:00');
-        const diaVenc = dateVencClienteBase.getDate();
-        
-        // i começa em 1 para a segunda parcela. Com a 1ª parcela já no mês do vencimento, avança i meses
-        const dtAlvo = new Date(dateVencClienteBase.getFullYear(), dateVencClienteBase.getMonth() + i, 1);
-        const ultimoDiaMes = new Date(dtAlvo.getFullYear(), dtAlvo.getMonth() + 1, 0).getDate();
-        const diaFinal = Math.min(diaVenc, ultimoDiaMes);
-        dtAlvo.setDate(diaFinal);
-        
-        const anoCalc = dtAlvo.getFullYear();
-        const mesCalc = String(dtAlvo.getMonth() + 1).padStart(2, '0');
-        const diaCalc = String(dtAlvo.getDate()).padStart(2, '0');
-        dataVenc = `${anoCalc}-${mesCalc}-${diaCalc}`;
-      }
+      const anoCalc = dtAlvo.getFullYear();
+      const mesCalc = String(dtAlvo.getMonth() + 1).padStart(2, '0');
+      const diaCalc = String(dtAlvo.getDate()).padStart(2, '0');
+      const dataVenc = `${anoCalc}-${mesCalc}-${diaCalc}`;
 
       const mesChave = dataVenc.substring(0, 7);
-      const statusAnterior = venda.projecaoMensal[mesChave]?.status;
+      if (i === 0) {
+        mesInicioChave = mesChave;
+      }
+      const celAnterior = venda.projecaoMensal[mesChave];
+      const tinhaParcelaAtiva = !!(celAnterior && (celAnterior.valorVenda || 0) > 0);
+      const eraPrimeiraSemBaixa =
+        mesChave === mesPrimeiraAnterior &&
+        i > 0 &&
+        celAnterior?.status === 'Paga' &&
+        !celAnterior?.recebida &&
+        !celAnterior?.dataPagamentoCliente &&
+        !celAnterior?.numeroRelatorioRecebimento &&
+        !celAnterior?.dataRelatorioRecebimento;
+      const statusAnterior = tinhaParcelaAtiva && !eraPrimeiraSemBaixa ? celAnterior.status : undefined;
       const status = i === 0 ? (statusAnterior || 'Paga') : (statusAnterior || getStatusInicial(dataVenc));
       const dataPrevisaoRecebimento = calcularDataPrevisaoRecebimento(dataVenc, ciclos);
 
       let comissaoCalculada = 0;
-      if (isAdesao) {
+      if (percentuaisParcelasInput && percentuaisParcelasInput.length > 0) {
+        const pParcela = percentuaisParcelasInput[i] !== undefined ? percentuaisParcelasInput[i] : 0;
+        comissaoCalculada = Number((valorVendaV * (pParcela / 100)).toFixed(2));
+      } else if (isAdesao) {
         if (i === 0) {
           comissaoCalculada = Number((valorVendaV * (percentualAdesaoInput / 100)).toFixed(2));
         } else {
@@ -3308,7 +3332,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
         comissaoCalculada = Number((valorVendaV * (percentualMensalLinear / 100)).toFixed(2));
       }
 
-      const oldEntry = venda.projecaoMensal[mesChave] || {};
+      const oldEntry: Partial<MesProjecao> = tinhaParcelaAtiva ? celAnterior : {};
 
       proj[mesChave] = {
         ...oldEntry,
@@ -3318,7 +3342,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
         status,
         dataVencimento: dataVenc,
         dataPrevisaoRecebimento,
-        dataRecebimento: oldEntry.dataRecebimento || dataVenc
+        dataRecebimento: (tinhaParcelaAtiva && !eraPrimeiraSemBaixa && oldEntry.dataRecebimento) ? oldEntry.dataRecebimento : dataVenc
       };
     }
 
