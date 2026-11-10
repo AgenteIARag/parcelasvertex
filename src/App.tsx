@@ -2014,7 +2014,6 @@ function App() {
                 vendas={vendas}
                 empresas={empresas}
                 onAtualizarVenda={handleAtualizarVenda}
-                onSucesso={(msg) => setSnackbar({ open: true, message: msg, severity: 'success' })}
               />
             )}
 

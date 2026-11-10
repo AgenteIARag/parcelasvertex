@@ -1,9 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Box,
   Typography,
   Button,
