@@ -1196,9 +1196,16 @@ export const migrarTabelaRelatoriosComissaoPdf = async (): Promise<void> => {
           qtd_itens INTEGER DEFAULT 0,
           dados_pdf JSONB NOT NULL,
           vinculos_manuais JSONB DEFAULT '{}'::jsonb,
+          ajustes_pendentes JSONB DEFAULT '{}'::jsonb,
+          processado BOOLEAN DEFAULT false,
+          data_processamento TIMESTAMPTZ,
           created_at TIMESTAMPTZ DEFAULT NOW(),
           updated_at TIMESTAMPTZ DEFAULT NOW()
         );
+
+        ALTER TABLE public.relatorios_comissao_pdf ADD COLUMN IF NOT EXISTS ajustes_pendentes JSONB DEFAULT '{}'::jsonb;
+        ALTER TABLE public.relatorios_comissao_pdf ADD COLUMN IF NOT EXISTS processado BOOLEAN DEFAULT false;
+        ALTER TABLE public.relatorios_comissao_pdf ADD COLUMN IF NOT EXISTS data_processamento TIMESTAMPTZ;
 
         ALTER TABLE public.relatorios_comissao_pdf ENABLE ROW LEVEL SECURITY;
 
@@ -1291,13 +1298,26 @@ export const obterRelatoriosPdfSupabase = async (): Promise<RelatorioComissaoSal
         qtdItens: Number(r.qtd_itens || 0),
         dadosPdf: r.dados_pdf,
         vinculosManuais: r.vinculos_manuais || {},
+        ajustesPendentes: r.ajustes_pendentes || {},
+        processado: !!r.processado,
+        dataProcessamento: r.data_processamento || undefined,
         createdAt: r.created_at || new Date().toISOString(),
         updatedAt: r.updated_at || new Date().toISOString(),
       }));
 
       // Mescla com locais para não perder nenhum relatório salvo offline
       const mapa = new Map<string, RelatorioComissaoSalvo>();
-      for (const rem of remotos) mapa.set(rem.id, rem);
+      for (const rem of remotos) {
+        const loc = locais.find((l) => l.id === rem.id);
+        mapa.set(rem.id, {
+          ...rem,
+          processado: rem.processado || loc?.processado || false,
+          dataProcessamento: rem.dataProcessamento || loc?.dataProcessamento,
+          ajustesPendentes: rem.ajustesPendentes && Object.keys(rem.ajustesPendentes).length > 0
+            ? rem.ajustesPendentes
+            : loc?.ajustesPendentes || {},
+        });
+      }
       for (const loc of locais) {
         if (!mapa.has(loc.id)) {
           mapa.set(loc.id, loc);
@@ -1350,6 +1370,9 @@ export const salvarRelatorioPdfSupabase = async (
       qtd_itens: salvo.qtdItens,
       dados_pdf: salvo.dadosPdf,
       vinculos_manuais: salvo.vinculosManuais || {},
+      ajustes_pendentes: salvo.ajustesPendentes || {},
+      processado: !!salvo.processado,
+      data_processamento: salvo.dataProcessamento || null,
       created_at: salvo.createdAt,
       updated_at: salvo.updatedAt,
     });

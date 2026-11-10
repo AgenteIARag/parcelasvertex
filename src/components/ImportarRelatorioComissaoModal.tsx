@@ -42,10 +42,19 @@ import DownloadIcon from '@mui/icons-material/Download';
 import LockIcon from '@mui/icons-material/Lock';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import FolderSpecialIcon from '@mui/icons-material/FolderSpecial';
+import BusinessIcon from '@mui/icons-material/Business';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-import type { LancamentoVenda, StatusParcela, Empresa, RelatorioComissaoSalvo } from '../types';
+import type {
+  LancamentoVenda,
+  StatusParcela,
+  Empresa,
+  RelatorioComissaoSalvo,
+  AjustesPendentesRelatorioPDF,
+} from '../types';
 import { calcularTotaisLinha } from '../data/initialData';
 import { obterStatusEfetivo } from '../utils/formatters';
 import {
@@ -115,9 +124,15 @@ export interface ItemConciliacao {
   mesChaveParcela: string | null;
   statusParcelaSistema?: StatusParcela;
   jaRecebidaSistema?: boolean;
+  comissaoSistemaOriginal?: number;
   comissaoSistema?: number;
+  valorBaseSistemaOriginal?: number;
   valorBaseSistema?: number;
+  dataVendaSistemaOriginal?: string;
   dataVendaSistema?: string;
+  dataAjustadaPendente?: boolean;
+  comissaoAjustadaPendente?: boolean;
+  baseAjustadaPendente?: boolean;
   divergencias: DivergenciaDetalhe[];
   statusConciliacao: 'OK' | 'DIVERGENTE' | 'NAO_ENCONTRADO' | 'JA_RECEBIDO';
   podeMarcarRecebido: boolean;
@@ -153,6 +168,15 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     if (id.includes('vetex_master') || id.includes('vertex_master')) return 'Vertex Master';
     return id.replace(/^emp_/, '');
   };
+
+  const obterCorEmpresa = (empresaId?: string): string => {
+    const id = empresaId || 'emp_vertex';
+    if (id === 'emp_vertex') return '#6366f1';
+    if (id === 'emp_winvest') return '#0ea5e9';
+    if (id === 'emp_shazam') return '#a855f7';
+    return '#10b981';
+  };
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [carregando, setCarregando] = useState(false);
@@ -167,19 +191,29 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     obterRelatoriosPdfLocais()
   );
   const [relatorioAtivoId, setRelatorioAtivoId] = useState<string | null>(null);
-  const [vendasAtualizadasSessao, setVendasAtualizadasSessao] = useState<Record<string, LancamentoVenda>>({});
+  const [vendasAtualizadasSessao, setVendasAtualizadasSessao] = useState<
+    Record<string, LancamentoVenda>
+  >({});
 
   // Campos editáveis para o lote de recebimento
   const [numeroRelatorioInput, setNumeroRelatorioInput] = useState<string>('');
   const [dataRelatorioInput, setDataRelatorioInput] = useState<string>('');
   const [notaFiscalInput, setNotaFiscalInput] = useState<string>('');
 
-  // Opções de conciliação
+  // Opções globais de conciliação em rascunho (só salvas no banco ao clicar em "Receber Parcelas")
   const [atualizarComissaoParaValorPdf, setAtualizarComissaoParaValorPdf] = useState<boolean>(false);
-  const [marcarParcelaPagaAutomaticamente, setMarcarParcelaPagaAutomaticamente] = useState<boolean>(true);
-  const [corrigirDatasDivergentesAutomaticamente, setCorrigirDatasDivergentesAutomaticamente] = useState<boolean>(false);
-  const [datasCorrigidasLocalmente, setDatasCorrigidasLocalmente] = useState<Record<string, string>>({});
-  const salvarPacEmVinculoManual = true;
+  const [marcarParcelaPagaAutomaticamente, setMarcarParcelaPagaAutomaticamente] =
+    useState<boolean>(true);
+  const [corrigirDatasDivergentesAutomaticamente, setCorrigirDatasDivergentesAutomaticamente] =
+    useState<boolean>(false);
+
+  // Ajustes de divergências em rascunho (só efetivados no banco ao clicar em "Receber Parcelas")
+  const [ajustesPendentes, setAjustesPendentes] = useState<AjustesPendentesRelatorioPDF>({
+    datasAjustadas: {},
+    comissoesAjustadas: {},
+    valoresBaseAjustados: {},
+    divergenciasAceitas: {},
+  });
 
   // Vínculos manuais (itemPdf.id -> venda.id)
   const [vinculosManuais, setVinculosManuais] = useState<Record<string, string>>({});
@@ -188,25 +222,21 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
   const [itensSelecionados, setItensSelecionados] = useState<string[]>([]);
 
   // Filtro visual das linhas
-  const [filtroAbas, setFiltroAbas] = useState<'TODOS' | 'OK' | 'DIVERGENTE' | 'NAO_ENCONTRADO' | 'JA_RECEBIDO'>('TODOS');
+  const [filtroAbas, setFiltroAbas] = useState<
+    'TODOS' | 'OK' | 'DIVERGENTE' | 'NAO_ENCONTRADO' | 'JA_RECEBIDO'
+  >('TODOS');
   const [filtroEmpresa, setFiltroEmpresa] = useState<string>('TODAS');
 
-  // Modo colar texto manual (caso o PDF seja imagem escaneada)
+  // Modo colar texto manual
   const [mostrarColarTexto, setMostrarColarTexto] = useState(false);
   const [textoManualInput, setTextoManualInput] = useState('');
 
   // Vendas reais (não espelho) para conciliação direta, abrangendo todas as empresas (Vertex, Winvest, Shazam)
-  // mesmo quando o filtro de empresa estiver ativo na aba atual
   const vendasPrincipais = useMemo(() => {
     const mapa = new Map<string, LancamentoVenda>();
     for (const v of vendas) {
       if (v && v.id && !v.isVendaEspelho) {
-        const vendaSessao = vendasAtualizadasSessao[v.id] || v;
-        const dataCorrigida = datasCorrigidasLocalmente[v.id];
-        mapa.set(
-          v.id,
-          dataCorrigida ? { ...vendaSessao, dataVenda: dataCorrigida } : vendaSessao
-        );
+        mapa.set(v.id, vendasAtualizadasSessao[v.id] || v);
       }
     }
     try {
@@ -215,12 +245,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         const todas: LancamentoVenda[] = JSON.parse(salvas);
         for (const v of todas) {
           if (v && v.id && !v.isVendaEspelho && !mapa.has(v.id)) {
-            const vendaSessao = vendasAtualizadasSessao[v.id] || v;
-            const dataCorrigida = datasCorrigidasLocalmente[v.id];
-            mapa.set(
-              v.id,
-              dataCorrigida ? { ...vendaSessao, dataVenda: dataCorrigida } : vendaSessao
-            );
+            mapa.set(v.id, vendasAtualizadasSessao[v.id] || v);
           }
         }
       }
@@ -229,15 +254,64 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     }
     for (const [idSessao, vSessao] of Object.entries(vendasAtualizadasSessao)) {
       if (!vSessao.isVendaEspelho) {
-        const dataCorrigida = datasCorrigidasLocalmente[idSessao];
-        mapa.set(
-          idSessao,
-          dataCorrigida ? { ...vSessao, dataVenda: dataCorrigida } : vSessao
-        );
+        mapa.set(idSessao, vSessao);
       }
     }
     return Array.from(mapa.values());
-  }, [vendas, open, datasCorrigidasLocalmente, vendasAtualizadasSessao]);
+  }, [vendas, open, vendasAtualizadasSessao]);
+
+  // Verifica o status (Processado vs Não Processado) de qualquer relatório salvo
+  const obterStatusRelatorioSalvo = (rel: RelatorioComissaoSalvo) => {
+    const itensRel: ItemRelatorioPDF[] = rel.dadosPdf?.itens || [];
+    const vinculosRel = rel.vinculosManuais || {};
+    let recebidosCount = 0;
+
+    for (const it of itensRel) {
+      const codNorm = normalizarCodigoContrato(it.contrato);
+      const idMan = vinculosRel[it.id];
+      let vendaMatch: LancamentoVenda | undefined;
+      if (idMan) {
+        vendaMatch = vendasPrincipais.find((v) => v.id === idMan);
+      } else {
+        const candidatas = vendasPrincipais.filter(
+          (v) =>
+            normalizarCodigoContrato(v.pac) === codNorm ||
+            (v.pac && v.pac.trim().toLowerCase() === it.contrato.trim().toLowerCase())
+        );
+        if (candidatas.length === 1) {
+          vendaMatch = candidatas[0];
+        } else if (candidatas.length > 1) {
+          vendaMatch = [...candidatas].sort((a, b) => {
+            const sA =
+              (Math.abs((a.valorVenda || 0) - it.valorBase) < 1 ? 100 : 0) +
+              (a.dataVenda === it.dataVendaISO ? 50 : 0);
+            const sB =
+              (Math.abs((b.valorVenda || 0) - it.valorBase) < 1 ? 100 : 0) +
+              (b.dataVenda === it.dataVendaISO ? 50 : 0);
+            return sB - sA;
+          })[0];
+        }
+      }
+      if (vendaMatch) {
+        const mesesAtivos = Object.keys(vendaMatch.projecaoMensal || {})
+          .filter((m) => (vendaMatch!.projecaoMensal[m]?.valorVenda || 0) > 0)
+          .sort();
+        const mesChave = mesesAtivos[it.parcela - 1];
+        if (mesChave && vendaMatch.projecaoMensal[mesChave]?.recebida) {
+          recebidosCount += 1;
+        }
+      }
+    }
+
+    const todosRecebidos = itensRel.length > 0 && recebidosCount === itensRel.length;
+    const isProcessado = !!rel.processado || todosRecebidos;
+
+    return {
+      isProcessado,
+      recebidosCount,
+      totalItens: itensRel.length,
+    };
+  };
 
   // Calcula os IDs de itens elegíveis para seleção automática (exclui os já recebidos)
   const calcularSelecaoInicial = (
@@ -285,7 +359,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     return idsParaSelecionar;
   };
 
-  // Carrega um relatório PDF salvo do cadastro
+  // Carrega um relatório PDF salvo da barra lateral
   const selecionarRelatorioSalvo = (rel: RelatorioComissaoSalvo) => {
     if (!rel || !rel.dadosPdf) return;
     setErroLeitura('');
@@ -305,6 +379,14 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     setNotaFiscalInput(rel.notaFiscalInput || '');
     const vinculos = rel.vinculosManuais || {};
     setVinculosManuais(vinculos);
+    setAjustesPendentes(
+      rel.ajustesPendentes || {
+        datasAjustadas: {},
+        comissoesAjustadas: {},
+        valoresBaseAjustados: {},
+        divergenciasAceitas: {},
+      }
+    );
     setFiltroAbas('TODOS');
     setFiltroEmpresa('TODAS');
     setMostrarColarTexto(false);
@@ -328,16 +410,44 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     });
   }, [open]);
 
-  // Recalcula seleção quando as vendas mudam para remover automaticamente qualquer item já recebido
+  // Recalcula seleção quando as vendas mudam para garantir que todos os itens conciliados e ainda não recebidos fiquem marcados
   useEffect(() => {
     if (!dadosPdf) return;
-    setItensSelecionados((prev) => {
-      const elegiveis = new Set(calcularSelecaoInicial(dadosPdf, vinculosManuais));
-      return prev.filter((id) => elegiveis.has(id));
-    });
-  }, [vendasPrincipais]);
+    setItensSelecionados(calcularSelecaoInicial(dadosPdf, vinculosManuais));
+  }, [vendasPrincipais, vinculosManuais]);
 
-  // Processa os itens do PDF cruzando com as vendas do sistema (todas as empresas)
+  const relatorioAtivoObj = useMemo(
+    () => relatoriosSalvos.find((r) => r.id === relatorioAtivoId) || null,
+    [relatoriosSalvos, relatorioAtivoId]
+  );
+
+  // Sincroniza metadados, vínculos e ajustes em rascunho no cadastro persistente do relatório
+  const atualizarCadastroRelatorioAtivo = (
+    camposParciais: Partial<
+      Pick<
+        RelatorioComissaoSalvo,
+        | 'numeroDocumento'
+        | 'dataRecebimentoInput'
+        | 'notaFiscalInput'
+        | 'vinculosManuais'
+        | 'ajustesPendentes'
+        | 'processado'
+        | 'dataProcessamento'
+      >
+    >
+  ) => {
+    if (!relatorioAtivoId || !dadosPdf) return;
+    const atual = relatoriosSalvos.find((r) => r.id === relatorioAtivoId);
+    if (!atual) return;
+    const atualizado: RelatorioComissaoSalvo = {
+      ...atual,
+      ...camposParciais,
+      updatedAt: new Date().toISOString(),
+    };
+    salvarRelatorioPdfSupabase(atualizado).then((lista) => setRelatoriosSalvos(lista));
+  };
+
+  // Processa os itens do PDF cruzando com as vendas do sistema e aplicando os ajustes em rascunho
   const itensConciliados = useMemo<ItemConciliacao[]>(() => {
     if (!dadosPdf) return [];
 
@@ -356,8 +466,6 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         vendaEncontrada = vendasPrincipais.find((v) => v.id === idManual) || null;
         vinculoManual = !!vendaEncontrada;
       } else if (codPdfNorm) {
-        // Caso haja mais de uma venda com o mesmo PAC no banco (ex: duplicidade de digitação),
-        // prioriza aquela cujo Valor Base (valorVenda) e Data da Venda coincidem com o PDF
         const candidatasPac = vendasPrincipais.filter(
           (v) =>
             normalizarCodigoContrato(v.pac) === codPdfNorm ||
@@ -385,7 +493,6 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         const candidatasSugestao = vendasPrincipais
           .filter((v) => {
             const pacNorm = normalizarCodigoContrato(v.pac);
-            // Não sugere vendas que já batem exatamente com outro contrato presente no mesmo PDF
             if (pacNorm && pacsNoPdf.has(pacNorm)) return false;
             return Math.abs((v.valorVenda || 0) - item.valorBase) < 1;
           })
@@ -415,8 +522,8 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
           severidade: 'error',
           titulo: 'Contrato não localizado',
           descricao: vendaSugerida
-            ? `PAC ${item.contrato} não cadastrado. Possível correspondência por Valor/Data próxima: ${vendaSugerida.cliente} (${obterNomeEmpresa(vendaSugerida.empresaId)} · PAC no sistema: ${vendaSugerida.pac || 'Sem PAC'} · Venda: ${formatarData(vendaSugerida.dataVenda)} · ${formatarMoeda(vendaSugerida.valorVenda)}).`
-            : `Nenhum contrato com PAC "${item.contrato}" foi encontrado no sistema.`,
+            ? `PAC ${item.contrato} não cadastrado. Possível correspondência: ${vendaSugerida.cliente} (${obterNomeEmpresa(vendaSugerida.empresaId)} · PAC: ${vendaSugerida.pac || 'Sem PAC'} · Venda: ${formatarData(vendaSugerida.dataVenda)} · ${formatarMoeda(vendaSugerida.valorVenda)}).`
+            : `Nenhum contrato com PAC "${item.contrato}" foi encontrado no sistema. Vincule manualmente ao cliente correspondente.`,
           valorPdf: item.contrato,
           valorSistema: 'Não cadastrado',
         });
@@ -470,48 +577,117 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         celula.status,
         celula.dataVencimento || `${mesChaveParcela}-15`
       );
-      const comissaoSistema = Number((celula.comissaoGerada || 0).toFixed(2));
-      const valorBaseSistema = Number((vendaEncontrada.valorVenda || 0).toFixed(2));
-      const dataVendaSistema = vendaEncontrada.dataVenda || '';
+      const comissaoSistemaOriginal = Number((celula.comissaoGerada || 0).toFixed(2));
+      const valorBaseSistemaOriginal = Number((vendaEncontrada.valorVenda || 0).toFixed(2));
+      const dataVendaSistemaOriginal = vendaEncontrada.dataVenda || '';
       const jaRecebida = !!celula.recebida;
 
-      // 1. Verifica divergência de Valor da Comissão
+      // Valores efetivos considerando os ajustes em rascunho (só salvos ao clicar em Receber Parcelas)
+      const dataAjustadaISO = corrigirDatasDivergentesAutomaticamente
+        ? item.dataVendaISO
+        : ajustesPendentes.datasAjustadas?.[item.id];
+      const dataVendaSistema = dataAjustadaISO || dataVendaSistemaOriginal;
+      const dataAjustadaPendente =
+        !jaRecebida &&
+        !!dataAjustadaISO &&
+        dataAjustadaISO !== dataVendaSistemaOriginal;
+
+      const comissaoAjustadaVal = atualizarComissaoParaValorPdf
+        ? item.valorComissao
+        : ajustesPendentes.comissoesAjustadas?.[item.id];
+      const comissaoSistema =
+        comissaoAjustadaVal !== undefined ? comissaoAjustadaVal : comissaoSistemaOriginal;
+      const comissaoAjustadaPendente =
+        !jaRecebida &&
+        comissaoAjustadaVal !== undefined &&
+        Math.abs(comissaoAjustadaVal - comissaoSistemaOriginal) > 0.05;
+
+      const baseAjustadaVal = ajustesPendentes.valoresBaseAjustados?.[item.id];
+      const valorBaseSistema =
+        baseAjustadaVal !== undefined ? baseAjustadaVal : valorBaseSistemaOriginal;
+      const baseAjustadaPendente =
+        !jaRecebida &&
+        baseAjustadaVal !== undefined &&
+        Math.abs(baseAjustadaVal - valorBaseSistemaOriginal) > 0.05;
+
+      // Se a parcela já está marcada como recebida, não aponta divergências pendentes e bloqueia edição
+      if (jaRecebida) {
+        divergencias.push({
+          tipo: 'PARCELA_JA_RECEBIDA',
+          severidade: 'info',
+          titulo: '🔒 Recebido (Bloqueado p/ alteração)',
+          descricao: `Parcela já marcada como recebida${celula.numeroRelatorioRecebimento ? ` no Relatório nº ${celula.numeroRelatorioRecebimento}` : ''}${celula.dataRelatorioRecebimento ? ` em ${formatarData(celula.dataRelatorioRecebimento)}` : ''}.`,
+          valorPdf: `Doc ${item.numDoc}`,
+          valorSistema: celula.numeroRelatorioRecebimento
+            ? `Doc ${celula.numeroRelatorioRecebimento}`
+            : 'Recebida',
+        });
+
+        return {
+          itemPdf: item,
+          vendaEncontrada,
+          vendaSugerida: null,
+          vinculoManual,
+          mesChaveParcela,
+          statusParcelaSistema: statusEfetivo,
+          jaRecebidaSistema: true,
+          comissaoSistemaOriginal,
+          comissaoSistema: comissaoSistemaOriginal,
+          valorBaseSistemaOriginal,
+          valorBaseSistema: valorBaseSistemaOriginal,
+          dataVendaSistemaOriginal,
+          dataVendaSistema: dataVendaSistemaOriginal,
+          divergencias,
+          statusConciliacao: 'JA_RECEBIDO',
+          podeMarcarRecebido: false,
+        };
+      }
+
+      // 1. Verifica divergência de Valor da Comissão (se ainda não ajustada/aceita no rascunho)
       const difComissao = Number((item.valorComissao - comissaoSistema).toFixed(2));
-      if (Math.abs(difComissao) > 0.05) {
+      const comissaoAceita = !!ajustesPendentes.divergenciasAceitas?.[`${item.id}_COMISSAO`];
+      if (Math.abs(difComissao) > 0.05 && !comissaoAceita) {
         divergencias.push({
           tipo: 'VALOR_COMISSAO_DIVERGENTE',
           severidade: 'warning',
           titulo: 'Comissão divergente',
-          descricao: `Comissão no PDF (${formatarMoeda(item.valorComissao)}) difere do valor previsto no sistema (${formatarMoeda(comissaoSistema)}). Diferença: ${difComissao > 0 ? '+' : ''}${formatarMoeda(difComissao)}.`,
+          descricao: `Comissão no PDF (${formatarMoeda(item.valorComissao)}) difere do valor no sistema (${formatarMoeda(comissaoSistemaOriginal)}). Diferença: ${difComissao > 0 ? '+' : ''}${formatarMoeda(difComissao)}.`,
           valorPdf: formatarMoeda(item.valorComissao),
-          valorSistema: formatarMoeda(comissaoSistema),
+          valorSistema: formatarMoeda(comissaoSistemaOriginal),
           diferencaValor: difComissao,
         });
       }
 
       // 2. Verifica divergência de Valor Base (Crédito da Cota)
       const difBase = Number((item.valorBase - valorBaseSistema).toFixed(2));
-      if (Math.abs(difBase) > 0.05) {
+      const baseAceita = !!ajustesPendentes.divergenciasAceitas?.[`${item.id}_BASE`];
+      if (Math.abs(difBase) > 0.05 && !baseAceita) {
         divergencias.push({
           tipo: 'VALOR_BASE_DIVERGENTE',
           severidade: 'warning',
           titulo: 'Valor Base (Crédito) divergente',
-          descricao: `Valor Base no PDF (${formatarMoeda(item.valorBase)}) difere do Valor da Cota no sistema (${formatarMoeda(valorBaseSistema)}). Diferença: ${difBase > 0 ? '+' : ''}${formatarMoeda(difBase)}.`,
+          descricao: `Valor Base no PDF (${formatarMoeda(item.valorBase)}) difere do Valor da Cota no sistema (${formatarMoeda(valorBaseSistemaOriginal)}). Diferença: ${difBase > 0 ? '+' : ''}${formatarMoeda(difBase)}.`,
           valorPdf: formatarMoeda(item.valorBase),
-          valorSistema: formatarMoeda(valorBaseSistema),
+          valorSistema: formatarMoeda(valorBaseSistemaOriginal),
           diferencaValor: difBase,
         });
       }
 
       // 3. Verifica divergência de Data da Venda
-      if (dataVendaSistema && item.dataVendaISO && dataVendaSistema !== item.dataVendaISO) {
+      const dataAceita = !!ajustesPendentes.divergenciasAceitas?.[`${item.id}_DATA`];
+      if (
+        dataVendaSistema &&
+        item.dataVendaISO &&
+        dataVendaSistema !== item.dataVendaISO &&
+        !dataAceita
+      ) {
         divergencias.push({
           tipo: 'DATA_VENDA_DIVERGENTE',
-          severidade: 'info',
+          severidade: 'warning',
           titulo: 'Data da Venda divergente',
-          descricao: `Data da venda no PDF (${item.dataVendaBr}) difere da cadastrada no sistema (${formatarData(dataVendaSistema)}).`,
+          descricao: `Data da venda no PDF (${item.dataVendaBr}) difere da cadastrada no sistema (${formatarData(dataVendaSistemaOriginal)}).`,
           valorPdf: item.dataVendaBr,
-          valorSistema: formatarData(dataVendaSistema),
+          valorSistema: formatarData(dataVendaSistemaOriginal),
         });
       }
 
@@ -520,8 +696,9 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         vendaEncontrada.statusCliente === 'Cancelado' ||
         statusEfetivo === 'Cancelada' ||
         statusEfetivo === 'Estornada';
+      const canceladoAceito = !!ajustesPendentes.divergenciasAceitas?.[`${item.id}_CANCELADO`];
 
-      if (isCancelado) {
+      if (isCancelado && !canceladoAceito) {
         divergencias.push({
           tipo: 'CONTRATO_CANCELADO',
           severidade: 'error',
@@ -532,29 +709,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         });
       }
 
-      // 5. Verifica se já foi marcada como Recebida anteriormente (bloqueado para alterações)
-      if (jaRecebida) {
-        divergencias.unshift({
-          tipo: 'PARCELA_JA_RECEBIDA',
-          severidade: 'info',
-          titulo: '🔒 Recebido (Bloqueado p/ alteração)',
-          descricao: `Parcela já marcada como recebida${celula.numeroRelatorioRecebimento ? ` no Relatório nº ${celula.numeroRelatorioRecebimento}` : ''}${celula.dataRelatorioRecebimento ? ` em ${formatarData(celula.dataRelatorioRecebimento)}` : ''}. Registros recebidos ficam bloqueados e não podem mais ser alterados pelo modal do PDF.`,
-          valorPdf: `Doc ${item.numDoc}`,
-          valorSistema: celula.numeroRelatorioRecebimento ? `Doc ${celula.numeroRelatorioRecebimento}` : 'Recebida',
-        });
-      } else if (statusEfetivo !== 'Paga' && !isCancelado) {
-        // 6. Parcela ainda estava "A vencer" ou "Vencida" (não baixada como Paga pelo cliente)
-        divergencias.push({
-          tipo: 'PARCELA_NAO_PAGA_CLIENTE',
-          severidade: 'info',
-          titulo: `Status atual: ${statusEfetivo}`,
-          descricao: `A parcela ainda não havia sido marcada como "Paga" pelo cliente. Será atualizada para "Paga" + "Recebida".`,
-          valorPdf: 'Paga',
-          valorSistema: statusEfetivo,
-        });
-      }
-
-      const temDivergenciaRelevante = divergencias.some(
+      const temDivergenciaPendente = divergencias.some(
         (d) =>
           d.tipo === 'VALOR_COMISSAO_DIVERGENTE' ||
           d.tipo === 'VALOR_BASE_DIVERGENTE' ||
@@ -562,13 +717,9 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
           d.tipo === 'CONTRATO_CANCELADO'
       );
 
-      // Se a parcela já foi marcada como recebida, seu status principal é JA_RECEBIDO e fica bloqueada
-      let statusConciliacao: ItemConciliacao['statusConciliacao'] = 'OK';
-      if (jaRecebida) {
-        statusConciliacao = 'JA_RECEBIDO';
-      } else if (temDivergenciaRelevante) {
-        statusConciliacao = 'DIVERGENTE';
-      }
+      const statusConciliacao: ItemConciliacao['statusConciliacao'] = temDivergenciaPendente
+        ? 'DIVERGENTE'
+        : 'OK';
 
       return {
         itemPdf: item,
@@ -577,18 +728,31 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         vinculoManual,
         mesChaveParcela,
         statusParcelaSistema: statusEfetivo,
-        jaRecebidaSistema: jaRecebida,
+        jaRecebidaSistema: false,
+        comissaoSistemaOriginal,
         comissaoSistema,
+        valorBaseSistemaOriginal,
         valorBaseSistema,
+        dataVendaSistemaOriginal,
         dataVendaSistema,
+        dataAjustadaPendente,
+        comissaoAjustadaPendente,
+        baseAjustadaPendente,
         divergencias,
         statusConciliacao,
-        podeMarcarRecebido: !jaRecebida && !isCancelado,
+        podeMarcarRecebido: !isCancelado || canceladoAceito,
       };
     });
-  }, [dadosPdf, vendasPrincipais, vinculosManuais]);
+  }, [
+    dadosPdf,
+    vendasPrincipais,
+    vinculosManuais,
+    ajustesPendentes,
+    corrigirDatasDivergentesAutomaticamente,
+    atualizarComissaoParaValorPdf,
+  ]);
 
-  // Inicializa seleção padrão e cadastra/atualiza o relatório PDF no histórico persistente
+  // Inicializa seleção padrão e cadastra/atualiza o relatório PDF na barra lateral
   const aplicarDadosExtraidos = async (dados: DadosRelatorioPDF, origemNome: string) => {
     const numDoc = dados.numeroDocumento || dados.itens[0]?.numDoc || 'S/N';
     const dataRec =
@@ -603,6 +767,12 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     );
 
     const vinculosIniciais = existente?.vinculosManuais || {};
+    const ajustesIniciais: AjustesPendentesRelatorioPDF = existente?.ajustesPendentes || {
+      datasAjustadas: {},
+      comissoesAjustadas: {},
+      valoresBaseAjustados: {},
+      divergenciasAceitas: {},
+    };
     const nfInicial = existente?.notaFiscalInput || '';
     const idRelatorio =
       existente?.id ||
@@ -615,6 +785,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     setDataRelatorioInput(existente?.dataRecebimentoInput || dataRec);
     setNotaFiscalInput(nfInicial);
     setVinculosManuais(vinculosIniciais);
+    setAjustesPendentes(ajustesIniciais);
     setFiltroAbas('TODOS');
     setFiltroEmpresa('TODAS');
     setMensagemSucessoLocal('');
@@ -640,32 +811,15 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
       qtdItens: dados.itens.length,
       dadosPdf: dados,
       vinculosManuais: vinculosIniciais,
+      ajustesPendentes: ajustesIniciais,
+      processado: existente?.processado || false,
+      dataProcessamento: existente?.dataProcessamento,
       createdAt: existente?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     const listaAtualizada = await salvarRelatorioPdfSupabase(novoCadastro);
     setRelatoriosSalvos(listaAtualizada);
-  };
-
-  // Sincroniza metadados e vínculos manuais do relatório ativo no cadastro persistente
-  const atualizarCadastroRelatorioAtivo = (
-    camposParciais: Partial<
-      Pick<
-        RelatorioComissaoSalvo,
-        'numeroDocumento' | 'dataRecebimentoInput' | 'notaFiscalInput' | 'vinculosManuais'
-      >
-    >
-  ) => {
-    if (!relatorioAtivoId || !dadosPdf) return;
-    const atual = relatoriosSalvos.find((r) => r.id === relatorioAtivoId);
-    if (!atual) return;
-    const atualizado: RelatorioComissaoSalvo = {
-      ...atual,
-      ...camposParciais,
-      updatedAt: new Date().toISOString(),
-    };
-    salvarRelatorioPdfSupabase(atualizado).then((lista) => setRelatoriosSalvos(lista));
   };
 
   const handleExcluirRelatorioSalvo = async (id: string, e?: React.MouseEvent) => {
@@ -724,7 +878,6 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
   };
 
   const handleVincularContratoManual = (itemId: string, venda: LancamentoVenda | null) => {
-    // Bloqueia alteração de vínculo se o item atual já estiver marcado como recebido
     const itemAtual = itensConciliados.find((i) => i.itemPdf.id === itemId);
     if (itemAtual?.jaRecebidaSistema) return;
 
@@ -740,7 +893,6 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     });
 
     if (venda) {
-      // Só seleciona se a parcela correspondente na venda vinculada não estiver recebida
       const itemPdf = dadosPdf?.itens.find((it) => it.id === itemId);
       const mesesAtivos = Object.keys(venda.projecaoMensal || {})
         .filter((m) => (venda.projecaoMensal[m]?.valorVenda || 0) > 0)
@@ -757,7 +909,114 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     }
   };
 
-  // Resumo estatístico da conciliação
+  // Funções de ajuste em rascunho (NÃO alteram o banco até clicar em "Receber Parcelas")
+  const handleAjustarDataRascunho = (itemId: string, novaDataISO: string, jaRecebida?: boolean) => {
+    if (jaRecebida || !novaDataISO) return;
+    setAjustesPendentes((prev) => {
+      const novo: AjustesPendentesRelatorioPDF = {
+        ...prev,
+        datasAjustadas: { ...(prev.datasAjustadas || {}), [itemId]: novaDataISO },
+      };
+      atualizarCadastroRelatorioAtivo({ ajustesPendentes: novo });
+      return novo;
+    });
+  };
+
+  const handleAjustarComissaoRascunho = (
+    itemId: string,
+    novoValorComissao: number,
+    jaRecebida?: boolean
+  ) => {
+    if (jaRecebida) return;
+    setAjustesPendentes((prev) => {
+      const novo: AjustesPendentesRelatorioPDF = {
+        ...prev,
+        comissoesAjustadas: { ...(prev.comissoesAjustadas || {}), [itemId]: novoValorComissao },
+      };
+      atualizarCadastroRelatorioAtivo({ ajustesPendentes: novo });
+      return novo;
+    });
+  };
+
+  const handleAjustarValorBaseRascunho = (
+    itemId: string,
+    novoValorBase: number,
+    jaRecebida?: boolean
+  ) => {
+    if (jaRecebida) return;
+    setAjustesPendentes((prev) => {
+      const novo: AjustesPendentesRelatorioPDF = {
+        ...prev,
+        valoresBaseAjustados: { ...(prev.valoresBaseAjustados || {}), [itemId]: novoValorBase },
+      };
+      atualizarCadastroRelatorioAtivo({ ajustesPendentes: novo });
+      return novo;
+    });
+  };
+
+  const handleAceitarDivergenciaMantendoSistema = (
+    chaveDivergencia: string,
+    jaRecebida?: boolean
+  ) => {
+    if (jaRecebida) return;
+    setAjustesPendentes((prev) => {
+      const novo: AjustesPendentesRelatorioPDF = {
+        ...prev,
+        divergenciasAceitas: {
+          ...(prev.divergenciasAceitas || {}),
+          [chaveDivergencia]: true,
+        },
+      };
+      atualizarCadastroRelatorioAtivo({ ajustesPendentes: novo });
+      return novo;
+    });
+  };
+
+  // Resolve todas as divergências pendentes em rascunho (datas, comissões, valores base e vínculos sugeridos)
+  const handleResolverTodasDivergenciasRascunho = () => {
+    const novasDatas = { ...(ajustesPendentes.datasAjustadas || {}) };
+    const novasComissoes = { ...(ajustesPendentes.comissoesAjustadas || {}) };
+    const novasBases = { ...(ajustesPendentes.valoresBaseAjustados || {}) };
+    const novosAceites = { ...(ajustesPendentes.divergenciasAceitas || {}) };
+    const novosVinculos = { ...vinculosManuais };
+
+    for (const ic of itensConciliados) {
+      if (ic.jaRecebidaSistema) continue;
+      const id = ic.itemPdf.id;
+
+      if (!ic.vendaEncontrada && ic.vendaSugerida) {
+        novosVinculos[id] = ic.vendaSugerida.id;
+      }
+
+      for (const div of ic.divergencias) {
+        if (div.tipo === 'DATA_VENDA_DIVERGENTE' && ic.itemPdf.dataVendaISO) {
+          novasDatas[id] = ic.itemPdf.dataVendaISO;
+        } else if (div.tipo === 'VALOR_COMISSAO_DIVERGENTE') {
+          novasComissoes[id] = ic.itemPdf.valorComissao;
+        } else if (div.tipo === 'VALOR_BASE_DIVERGENTE') {
+          novasBases[id] = ic.itemPdf.valorBase;
+        } else if (div.tipo === 'CONTRATO_CANCELADO') {
+          novosAceites[`${id}_CANCELADO`] = true;
+        }
+      }
+    }
+
+    const novoAjustes: AjustesPendentesRelatorioPDF = {
+      datasAjustadas: novasDatas,
+      comissoesAjustadas: novasComissoes,
+      valoresBaseAjustados: novasBases,
+      divergenciasAceitas: novosAceites,
+    };
+
+    setVinculosManuais(novosVinculos);
+    setAjustesPendentes(novoAjustes);
+    atualizarCadastroRelatorioAtivo({
+      vinculosManuais: novosVinculos,
+      ajustesPendentes: novoAjustes,
+    });
+  };
+
+  // Resumo estatístico da conciliação e resumo por empresa dona dos contratos
   const resumo = useMemo(() => {
     const totalItens = itensConciliados.length;
     const totalValorPdf = itensConciliados.reduce((acc, i) => acc + i.itemPdf.valorComissao, 0);
@@ -765,9 +1024,14 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
 
     const qtdOk = itensConciliados.filter((i) => i.statusConciliacao === 'OK').length;
     const qtdDivergente = itensConciliados.filter((i) => i.statusConciliacao === 'DIVERGENTE').length;
-    const qtdNaoEncontrado = itensConciliados.filter((i) => i.statusConciliacao === 'NAO_ENCONTRADO').length;
-    const qtdJaRecebido = itensConciliados.filter((i) => i.statusConciliacao === 'JA_RECEBIDO').length;
-    // Somente permite corrigir datas divergentes de itens que AINDA NÃO foram marcados como recebidos
+    const qtdNaoEncontrado = itensConciliados.filter(
+      (i) => i.statusConciliacao === 'NAO_ENCONTRADO'
+    ).length;
+    const qtdJaRecebido = itensConciliados.filter(
+      (i) => i.statusConciliacao === 'JA_RECEBIDO'
+    ).length;
+    const totalPendencias = qtdDivergente + qtdNaoEncontrado;
+
     const qtdDatasDivergentes = itensConciliados.filter(
       (i) =>
         !i.jaRecebidaSistema &&
@@ -788,36 +1052,66 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     );
 
     const selecionadosValidos = itensConciliados.filter(
-      (i) => itensSelecionados.includes(i.itemPdf.id) && i.podeMarcarRecebido && !i.jaRecebidaSistema
+      (i) =>
+        itensSelecionados.includes(i.itemPdf.id) &&
+        i.podeMarcarRecebido &&
+        !i.jaRecebidaSistema
     );
     const valorSelecionado = selecionadosValidos.reduce(
       (acc, i) => acc + i.itemPdf.valorComissao,
       0
     );
 
-    // Agrupamento por empresa (Vertex, Winvest, Shazam, etc.)
+    // Resumo detalhado por empresa dona dos contratos (Vertex, Winvest, Shazam, etc.)
     const mapaEmpresas = new Map<
       string,
-      { id: string; nome: string; qtd: number; valorComissao: number; valorBase: number }
+      {
+        id: string;
+        nome: string;
+        cor: string;
+        qtd: number;
+        qtdRecebidos: number;
+        valorComissaoPdf: number;
+        valorComissaoSistema: number;
+        valorBase: number;
+      }
     >();
+
     for (const ic of itensConciliados) {
-      if (ic.vendaEncontrada) {
-        const empId = ic.vendaEncontrada.empresaId || 'emp_vertex';
+      const vendaRef = ic.vendaEncontrada || ic.vendaSugerida;
+      if (vendaRef) {
+        const empId = vendaRef.empresaId || 'emp_vertex';
         const nome = obterNomeEmpresa(empId);
+        const cor = obterCorEmpresa(empId);
         const atual = mapaEmpresas.get(empId) || {
           id: empId,
           nome,
+          cor,
           qtd: 0,
-          valorComissao: 0,
+          qtdRecebidos: 0,
+          valorComissaoPdf: 0,
+          valorComissaoSistema: 0,
           valorBase: 0,
         };
         atual.qtd += 1;
-        atual.valorComissao = Number((atual.valorComissao + ic.itemPdf.valorComissao).toFixed(2));
+        if (ic.jaRecebidaSistema) atual.qtdRecebidos += 1;
+        atual.valorComissaoPdf = Number(
+          (atual.valorComissaoPdf + ic.itemPdf.valorComissao).toFixed(2)
+        );
+        atual.valorComissaoSistema = Number(
+          (atual.valorComissaoSistema + (ic.comissaoSistema ?? ic.itemPdf.valorComissao)).toFixed(2)
+        );
         atual.valorBase = Number((atual.valorBase + ic.itemPdf.valorBase).toFixed(2));
         mapaEmpresas.set(empId, atual);
       }
     }
-    const porEmpresa = Array.from(mapaEmpresas.values()).sort((a, b) => b.qtd - a.qtd);
+    const porEmpresa = Array.from(mapaEmpresas.values()).sort(
+      (a, b) => b.valorComissaoPdf - a.valorComissaoPdf
+    );
+
+    const isRelatorioProcessado =
+      !!relatorioAtivoObj?.processado ||
+      (totalItens > 0 && qtdJaRecebido === totalItens);
 
     return {
       totalItens,
@@ -827,6 +1121,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
       qtdDivergente,
       qtdNaoEncontrado,
       qtdJaRecebido,
+      totalPendencias,
       qtdDatasDivergentes,
       somaComissaoSistemaEncontrados,
       somaComissaoPdfEncontrados,
@@ -834,80 +1129,16 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
       qtdSelecionados: selecionadosValidos.length,
       valorSelecionado,
       porEmpresa,
+      isRelatorioProcessado,
     };
-  }, [itensConciliados, itensSelecionados, empresas]);
-
-  // Corrige a data de venda de um único contrato para a data do PDF (bloqueado se já recebido)
-  const handleCorrigirDataVendaIndividual = async (
-    venda: LancamentoVenda,
-    novaDataISO: string,
-    jaRecebida?: boolean
-  ) => {
-    if (jaRecebida) return;
-    if (!novaDataISO || venda.dataVenda === novaDataISO) return;
-    const vendaAtualizada: LancamentoVenda = {
-      ...venda,
-      dataVenda: novaDataISO,
-    };
-    setDatasCorrigidasLocalmente((prev) => ({
-      ...prev,
-      [venda.id]: novaDataISO,
-    }));
-    setVendasAtualizadasSessao((prev) => ({
-      ...prev,
-      [venda.id]: vendaAtualizada,
-    }));
-    onAtualizarVenda(vendaAtualizada);
-    try {
-      await salvarVendaSupabase(vendaAtualizada);
-    } catch (err) {
-      console.error('Erro ao salvar data de venda corrigida no Supabase:', err);
-    }
-  };
-
-  // Corrige em lote todas as datas de venda divergentes para a data constante no PDF (ignora os já recebidos)
-  const handleCorrigirTodasDatasDivergentes = async () => {
-    const itensComDataDiv = itensConciliados.filter(
-      (i) =>
-        !i.jaRecebidaSistema &&
-        i.vendaEncontrada &&
-        i.itemPdf.dataVendaISO &&
-        i.divergencias.some((d) => d.tipo === 'DATA_VENDA_DIVERGENTE')
-    );
-    if (itensComDataDiv.length === 0) return;
-
-    const novoMapaDatas: Record<string, string> = {};
-    const novoMapaVendas: Record<string, LancamentoVenda> = {};
-    const vendasParaSalvar: LancamentoVenda[] = [];
-
-    for (const ic of itensComDataDiv) {
-      const v = ic.vendaEncontrada!;
-      const novaData = ic.itemPdf.dataVendaISO;
-      if (v.dataVenda !== novaData) {
-        const atualizada = { ...v, dataVenda: novaData };
-        novoMapaDatas[v.id] = novaData;
-        novoMapaVendas[v.id] = atualizada;
-        vendasParaSalvar.push(atualizada);
-      }
-    }
-
-    setDatasCorrigidasLocalmente((prev) => ({ ...prev, ...novoMapaDatas }));
-    setVendasAtualizadasSessao((prev) => ({ ...prev, ...novoMapaVendas }));
-    for (const vUpd of vendasParaSalvar) {
-      onAtualizarVenda(vUpd);
-      try {
-        await salvarVendaSupabase(vUpd);
-      } catch (err) {
-        console.error('Erro ao corrigir data em lote no Supabase:', err);
-      }
-    }
-  };
+  }, [itensConciliados, itensSelecionados, empresas, relatorioAtivoObj]);
 
   const itensFiltrados = useMemo(() => {
     return itensConciliados.filter((i) => {
       if (filtroAbas !== 'TODOS' && i.statusConciliacao !== filtroAbas) return false;
       if (filtroEmpresa !== 'TODAS') {
-        const empId = i.vendaEncontrada ? i.vendaEncontrada.empresaId || 'emp_vertex' : 'SEM_EMPRESA';
+        const vendaRef = i.vendaEncontrada || i.vendaSugerida;
+        const empId = vendaRef ? vendaRef.empresaId || 'emp_vertex' : 'SEM_EMPRESA';
         if (empId !== filtroEmpresa) return false;
       }
       return true;
@@ -933,8 +1164,10 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     }
   };
 
+  // Efetiva TODAS as alterações e ajustes de divergências + baixa das parcelas no banco (somente com 0 divergências)
   const handleConfirmarBaixaEmLote = async () => {
-    // Filtra estritamente apenas itens que AINDA NÃO estão marcados como recebidos
+    if (resumo.totalPendencias > 0) return;
+
     const selecionados = itensConciliados.filter(
       (i) =>
         itensSelecionados.includes(i.itemPdf.id) &&
@@ -949,7 +1182,6 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     setSalvando(true);
     setErroLeitura('');
     try {
-      // Agrupa atualizações por vendaId para evitar condições de corrida quando o mesmo contrato tem mais de 1 parcela no PDF
       const mapaVendasParaAtualizar = new Map<string, LancamentoVenda>();
 
       for (const itemConc of selecionados) {
@@ -959,9 +1191,10 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
 
         const mesChave = itemConc.mesChaveParcela!;
         const celulaAtual = vendaBase.projecaoMensal[mesChave];
-        // Proteção extra: jamais altera uma parcela que já consta como recebida
+        // Jamais altera uma parcela que já consta como recebida
         if (!celulaAtual || celulaAtual.recebida) continue;
 
+        const idItem = itemConc.itemPdf.id;
         const numRelatorioFinal =
           numeroRelatorioInput.trim() || itemConc.itemPdf.numDoc || 'S/N';
         const dataRelatorioFinal =
@@ -975,13 +1208,23 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
             ? 'Paga'
             : celulaAtual.status;
 
+        // Aplica comissão ajustada no rascunho ou pelo switch global
+        const comissaoAjustadaItem = ajustesPendentes.comissoesAjustadas?.[idItem];
         const novaComissao =
-          atualizarComissaoParaValorPdf
+          comissaoAjustadaItem !== undefined
+            ? comissaoAjustadaItem
+            : atualizarComissaoParaValorPdf
             ? itemConc.itemPdf.valorComissao
             : celulaAtual.comissaoGerada;
 
+        // Aplica valor base ajustado no rascunho (se houver)
+        const baseAjustadaItem = ajustesPendentes.valoresBaseAjustados?.[idItem];
+        const novoValorVenda =
+          baseAjustadaItem !== undefined ? baseAjustadaItem : vendaBase.valorVenda;
+
         const novaCelula = {
           ...celulaAtual,
+          valorVenda: novoValorVenda,
           status: novoStatusParcela,
           recebida: true,
           comissaoGerada: novaComissao,
@@ -998,13 +1241,22 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
           [mesChave]: novaCelula,
         };
 
-        // Recalcula totalComissoes caso o valor de comissão tenha sido ajustado pelo PDF
+        // Recalcula totalComissoes e totalVendas
         let totalComissoes = vendaBase.totalComissoes;
-        let totalVendas = vendaBase.totalVendas;
-        if (atualizarComissaoParaValorPdf) {
+        let totalVendas = novoValorVenda;
+        const teveAjusteComissao =
+          comissaoAjustadaItem !== undefined || atualizarComissaoParaValorPdf;
+
+        if (teveAjusteComissao) {
           totalComissoes = Number(
             Object.values(novaProjecao)
-              .filter((c) => c && c.status !== 'Cancelada' && c.status !== 'Estornada' && c.valorVenda > 0)
+              .filter(
+                (c) =>
+                  c &&
+                  c.status !== 'Cancelada' &&
+                  c.status !== 'Estornada' &&
+                  c.valorVenda > 0
+              )
               .reduce((acc, c) => acc + (c.comissaoGerada || 0), 0)
               .toFixed(2)
           );
@@ -1023,21 +1275,24 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
           totalComissoes = calc.totalComissoes;
         }
 
-        // Se foi vinculado manualmente e a venda estava sem PAC, atualiza o PAC com o número do contrato do PDF
-        const novoPac =
-          itemConc.vinculoManual && salvarPacEmVinculoManual && !vendaBase.pac
-            ? itemConc.itemPdf.contrato
-            : vendaBase.pac;
+        // Se foi vinculado manualmente, atualiza o PAC para o contrato do PDF
+        const novoPac = itemConc.vinculoManual
+          ? itemConc.itemPdf.contrato
+          : vendaBase.pac;
 
+        // Aplica data de venda ajustada no rascunho ou pelo switch global
+        const dataAjustadaItem = ajustesPendentes.datasAjustadas?.[idItem];
         const novaDataVenda =
-          corrigirDatasDivergentesAutomaticamente && itemConc.itemPdf.dataVendaISO
+          dataAjustadaItem ||
+          (corrigirDatasDivergentesAutomaticamente && itemConc.itemPdf.dataVendaISO
             ? itemConc.itemPdf.dataVendaISO
-            : vendaBase.dataVenda;
+            : vendaBase.dataVenda);
 
         const vendaAtualizada: LancamentoVenda = {
           ...vendaBase,
           pac: novoPac,
           dataVenda: novaDataVenda,
+          valorVenda: novoValorVenda,
           numeroRelatorio: numRelatorioFinal,
           dataRelatorio: dataRelatorioFinal,
           projecaoMensal: novaProjecao,
@@ -1048,7 +1303,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         mapaVendasParaAtualizar.set(vendaAtualizada.id, vendaAtualizada);
       }
 
-      // Persiste todas as vendas atualizadas no Supabase e no estado global + estado da sessão (bloqueio imediato)
+      // Persiste todas as vendas atualizadas no Supabase e no estado global + sessão
       const vendasAtualizadasLista = Array.from(mapaVendasParaAtualizar.values());
       const novoMapaSessao: Record<string, LancamentoVenda> = {};
       for (const vendaUpd of vendasAtualizadasLista) {
@@ -1060,15 +1315,18 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
       setVendasAtualizadasSessao((prev) => ({ ...prev, ...novoMapaSessao }));
       setItensSelecionados([]);
 
-      // Salva também os metadados do relatório ativo no cadastro
+      // Marca o relatório como PROCESSADO de forma permanente
       atualizarCadastroRelatorioAtivo({
         numeroDocumento: numeroRelatorioInput.trim() || dadosPdf?.numeroDocumento || 'S/N',
         dataRecebimentoInput: dataRelatorioInput,
         notaFiscalInput: notaFiscalInput.trim(),
         vinculosManuais,
+        ajustesPendentes,
+        processado: true,
+        dataProcessamento: new Date().toISOString(),
       });
 
-      const msg = `✅ ${selecionados.length} parcela(s) de ${vendasAtualizadasLista.length} contrato(s) marcada(s) como Recebida(s) e bloqueada(s) para alterações (Relatório nº ${numeroRelatorioInput || dadosPdf?.numeroDocumento || ''})!`;
+      const msg = `✅ Relatório nº ${numeroRelatorioInput || dadosPdf?.numeroDocumento || ''} PROCESSADO! ${selecionados.length} parcela(s) de ${vendasAtualizadasLista.length} contrato(s) marcada(s) como Recebida(s) e bloqueada(s).`;
       setMensagemSucessoLocal(msg);
       onSucesso?.(msg);
     } catch (err: any) {
@@ -1081,7 +1339,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     }
   };
 
-  // Exporta PDF de Divergências
+  // Exporta PDF de Auditoria
   const handleExportarRelatorioDivergenciasPDF = () => {
     if (!dadosPdf) return;
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -1099,7 +1357,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     doc.setFontSize(10);
     doc.setTextColor(71, 85, 105);
     doc.text(
-      `Parceiro: ${dadosPdf.nomePN || 'Vertex Soluções Financeiras'} | Data do Relatório: ${formatarData(dataRelatorioInput)} | Total PDF: ${formatarMoeda(resumo.totalValorPdf)}`,
+      `Parceiro: ${dadosPdf.nomePN || 'Vertex Soluções Financeiras'} | Status: ${resumo.isRelatorioProcessado ? 'PROCESSADO' : 'NÃO PROCESSADO'} | Data: ${formatarData(dataRelatorioInput)} | Total PDF: ${formatarMoeda(resumo.totalValorPdf)}`,
       14,
       22
     );
@@ -1114,7 +1372,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
       'Comissão PDF',
       'Comissão Sistema',
       'Diferença',
-      'Status / Divergências Apontadas',
+      'Status / Divergências',
     ];
 
     const rows = itensConciliados.map((ic) => {
@@ -1192,12 +1450,25 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
             borderRadius: 3,
             bgcolor: isDark ? '#0f172a' : '#ffffff',
             backgroundImage: 'none',
-            minHeight: '75vh',
+            height: '90vh',
             maxHeight: '92vh',
           },
         },
       }}
     >
+      {/* Input oculto para Upload de PDF */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleUploadArquivo(f);
+          e.target.value = '';
+        }}
+      />
+
       {/* Header do Modal */}
       <DialogTitle
         sx={{
@@ -1205,7 +1476,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
           alignItems: 'center',
           justifyContent: 'space-between',
           px: 3,
-          py: 2,
+          py: 1.8,
           borderBottom: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
           bgcolor: isDark ? '#111827' : '#f8fafc',
         }}
@@ -1223,128 +1494,155 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
             <FactCheckIcon />
           </Box>
           <Box>
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, lineHeight: 1.2 }}
-            >
-              Importar e Conciliar Relatório de Comissão (PDF)
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, lineHeight: 1.2 }}
+              >
+                Central de Relatórios de Comissão (PDF)
+              </Typography>
+              {dadosPdf && (
+                <Chip
+                  size="small"
+                  icon={
+                    resumo.isRelatorioProcessado ? (
+                      <CheckCircleIcon sx={{ fontSize: '14px !important' }} />
+                    ) : (
+                      <HourglassEmptyIcon sx={{ fontSize: '14px !important' }} />
+                    )
+                  }
+                  label={resumo.isRelatorioProcessado ? 'Processado' : 'Não Processado'}
+                  sx={{
+                    fontWeight: 800,
+                    fontSize: '0.72rem',
+                    bgcolor: resumo.isRelatorioProcessado
+                      ? 'rgba(16, 185, 129, 0.16)'
+                      : 'rgba(245, 158, 11, 0.16)',
+                    color: resumo.isRelatorioProcessado ? '#10b981' : '#f59e0b',
+                    border: `1px solid ${
+                      resumo.isRelatorioProcessado
+                        ? 'rgba(16, 185, 129, 0.4)'
+                        : 'rgba(245, 158, 11, 0.4)'
+                    }`,
+                  }}
+                />
+              )}
+            </Box>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
-              Faça upload do PDF da administradora para dar baixa automática nos contratos recebidos e auditar divergências
+              Selecione um relatório na barra lateral, resolva as divergências pendentes e clique em "Receber Parcelas"
             </Typography>
           </Box>
         </Box>
 
-        <IconButton onClick={onClose} disabled={salvando} size="small">
-          <CloseIcon />
-        </IconButton>
-      </DialogTitle>
-
-      <DialogContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-        {/* Área de Upload do PDF */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/pdf,.pdf"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) handleUploadArquivo(f);
-            e.target.value = '';
-          }}
-        />
-
-        {/* Cadastro de Relatórios PDF Importados (acesso rápido sem precisar fazer novo upload) */}
-        {relatoriosSalvos.length > 0 && (
-          <Paper
-            elevation={0}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Button
+            size="small"
+            variant="contained"
+            startIcon={<UploadFileIcon />}
+            onClick={() => fileInputRef.current?.click()}
             sx={{
-              p: 2,
-              borderRadius: 2.5,
-              border: `1px solid ${isDark ? '#1e293b' : '#cbd5e1'}`,
-              bgcolor: isDark ? 'rgba(15, 23, 42, 0.75)' : '#f8fafc',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 1.5,
+              borderRadius: 2,
+              fontWeight: 700,
+              textTransform: 'none',
+              background: 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%)',
             }}
           >
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: 1,
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <FolderSpecialIcon sx={{ color: '#0ea5e9', fontSize: 20 }} />
+            Carregar PDF
+          </Button>
+          <IconButton onClick={onClose} disabled={salvando} size="small">
+            <CloseIcon />
+          </IconButton>
+        </Box>
+      </DialogTitle>
+
+      {/* Corpo com Barra Lateral Esquerda + Painel Principal Direito */}
+      <DialogContent
+        sx={{
+          p: 0,
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
+          overflow: 'hidden',
+          flex: 1,
+        }}
+      >
+        {/* BARRA LATERAL ESQUERDA: Lista de todos os PDFs Carregados */}
+        <Box
+          sx={{
+            width: { xs: '100%', md: 300 },
+            flexShrink: 0,
+            borderRight: { md: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}` },
+            borderBottom: { xs: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, md: 'none' },
+            bgcolor: isDark ? '#0b0f19' : '#f8fafc',
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: { xs: 220, md: '100%' },
+          }}
+        >
+          {/* Cabeçalho da Barra Lateral */}
+          <Box
+            sx={{
+              p: 2,
+              borderBottom: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1.2,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                <FolderSpecialIcon sx={{ color: '#0ea5e9', fontSize: 19 }} />
                 <Typography
                   variant="subtitle2"
-                  sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800 }}
+                  sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '0.84rem' }}
                 >
-                  Relatórios PDF Cadastrados ({relatoriosSalvos.length})
-                </Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
-                  Selecione qualquer relatório salvo abaixo sem precisar fazer novo upload
+                  PDFs Carregados ({relatoriosSalvos.length})
                 </Typography>
               </Box>
-
-              <Button
-                size="small"
-                variant="contained"
-                startIcon={<UploadFileIcon />}
-                onClick={() => fileInputRef.current?.click()}
-                sx={{
-                  borderRadius: 2,
-                  fontWeight: 700,
-                  fontSize: '0.75rem',
-                  textTransform: 'none',
-                  background: 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%)',
-                }}
-              >
-                + Novo Upload PDF
-              </Button>
             </Box>
 
-            <Box
+            <Button
+              fullWidth
+              variant="contained"
+              size="small"
+              startIcon={<UploadFileIcon />}
+              onClick={() => fileInputRef.current?.click()}
               sx={{
-                display: 'flex',
-                gap: 1.2,
-                flexWrap: 'wrap',
-                maxHeight: 135,
-                overflowY: 'auto',
-                pr: 0.5,
+                borderRadius: 2,
+                fontWeight: 700,
+                py: 0.8,
+                textTransform: 'none',
+                background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
               }}
             >
-              {relatoriosSalvos.map((rel) => {
+              + Carregar Novo PDF
+            </Button>
+          </Box>
+
+          {/* Lista de Relatórios PDF na Barra Lateral */}
+          <Box
+            sx={{
+              flex: 1,
+              overflowY: 'auto',
+              p: 1.5,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1,
+            }}
+          >
+            {relatoriosSalvos.length === 0 ? (
+              <Box sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
+                <PictureAsPdfIcon sx={{ fontSize: 36, color: 'text.disabled', mb: 1 }} />
+                <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>
+                  Nenhum relatório PDF carregado ainda.
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.68rem' }}>
+                  Clique em "+ Carregar Novo PDF" acima para importar.
+                </Typography>
+              </Box>
+            ) : (
+              relatoriosSalvos.map((rel) => {
                 const isSelecionado = rel.id === relatorioAtivoId;
-                // Conta quantos itens deste relatório já constam como recebidos no sistema
-                const itensRel: ItemRelatorioPDF[] = rel.dadosPdf?.itens || [];
-                const vinculosRel = rel.vinculosManuais || {};
-                let recebidosCount = 0;
-                for (const it of itensRel) {
-                  const codNorm = normalizarCodigoContrato(it.contrato);
-                  const idMan = vinculosRel[it.id];
-                  const vendaMatch = idMan
-                    ? vendasPrincipais.find((v) => v.id === idMan)
-                    : vendasPrincipais.find(
-                        (v) =>
-                          normalizarCodigoContrato(v.pac) === codNorm &&
-                          Math.abs((v.valorVenda || 0) - it.valorBase) < 1
-                      ) ||
-                      vendasPrincipais.find((v) => normalizarCodigoContrato(v.pac) === codNorm);
-                  if (vendaMatch) {
-                    const mesesAtivos = Object.keys(vendaMatch.projecaoMensal || {})
-                      .filter((m) => (vendaMatch.projecaoMensal[m]?.valorVenda || 0) > 0)
-                      .sort();
-                    const mesChave = mesesAtivos[it.parcela - 1];
-                    if (mesChave && vendaMatch.projecaoMensal[mesChave]?.recebida) {
-                      recebidosCount += 1;
-                    }
-                  }
-                }
-                const todosRecebidos = itensRel.length > 0 && recebidosCount === itensRel.length;
+                const statusInfo = obterStatusRelatorioSalvo(rel);
 
                 return (
                   <Paper
@@ -1352,20 +1650,16 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
                     elevation={0}
                     onClick={() => selecionarRelatorioSalvo(rel)}
                     sx={{
-                      px: 1.6,
-                      py: 1,
+                      p: 1.5,
                       borderRadius: 2,
                       cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1.2,
-                       transition: 'all 0.15s ease',
+                      transition: 'all 0.15s ease',
                       border: isSelecionado
                         ? '2px solid #0ea5e9'
-                        : `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                        : `1px solid ${isDark ? '#1e293b' : '#cbd5e1'}`,
                       bgcolor: isSelecionado
                         ? isDark
-                          ? 'rgba(14, 165, 233, 0.14)'
+                          ? 'rgba(14, 165, 233, 0.12)'
                           : 'rgba(14, 165, 233, 0.08)'
                         : isDark
                         ? '#111827'
@@ -1375,1165 +1669,1463 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
                       },
                     }}
                   >
-                    <PictureAsPdfIcon
+                    <Box
                       sx={{
-                        color: isSelecionado ? '#0ea5e9' : 'text.secondary',
-                        fontSize: 22,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        gap: 0.8,
+                        mb: 0.6,
                       }}
-                    />
-                    <Box sx={{ minWidth: 0 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, minWidth: 0 }}>
+                        <PictureAsPdfIcon
+                          sx={{
+                            color: statusInfo.isProcessado
+                              ? '#10b981'
+                              : isSelecionado
+                              ? '#0ea5e9'
+                              : 'text.secondary',
+                            fontSize: 20,
+                            flexShrink: 0,
+                          }}
+                        />
                         <Typography
                           variant="body2"
                           sx={{
                             fontWeight: 800,
-                            fontSize: '0.78rem',
+                            fontSize: '0.82rem',
                             fontFamily: 'Outfit, sans-serif',
                             color: isSelecionado ? '#0ea5e9' : 'text.primary',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
                           }}
                         >
                           Doc nº {rel.numeroDocumento || 'S/N'}
                         </Typography>
+                      </Box>
+
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
                         <Chip
                           size="small"
-                          label={
-                            todosRecebidos
-                              ? `🔒 ${recebidosCount}/${rel.qtdItens} Recebidos`
-                              : `${recebidosCount}/${rel.qtdItens} recebidos`
-                          }
+                          label={statusInfo.isProcessado ? 'Processado' : 'Não Processado'}
                           sx={{
-                            height: 18,
-                            fontSize: '0.64rem',
+                            height: 20,
+                            fontSize: '0.62rem',
                             fontWeight: 800,
-                            bgcolor: todosRecebidos
+                            bgcolor: statusInfo.isProcessado
                               ? 'rgba(16, 185, 129, 0.16)'
-                              : recebidosCount > 0
-                              ? 'rgba(14, 165, 233, 0.15)'
-                              : isDark
-                              ? 'rgba(148, 163, 184, 0.12)'
-                              : 'rgba(148, 163, 184, 0.2)',
-                            color: todosRecebidos
-                              ? '#10b981'
-                              : recebidosCount > 0
-                              ? '#0ea5e9'
-                              : 'text.secondary',
+                              : 'rgba(245, 158, 11, 0.15)',
+                            color: statusInfo.isProcessado ? '#10b981' : '#f59e0b',
                           }}
                         />
+                        <Tooltip title="Remover relatório da lista">
+                          <IconButton
+                            size="small"
+                            onClick={(e) => handleExcluirRelatorioSalvo(rel.id, e)}
+                            sx={{
+                              p: 0.3,
+                              color: 'text.disabled',
+                              '&:hover': { color: '#ef4444', bgcolor: 'rgba(239,68,68,0.08)' },
+                            }}
+                          >
+                            <DeleteOutlineIcon sx={{ fontSize: 15 }} />
+                          </IconButton>
+                        </Tooltip>
                       </Box>
+                    </Box>
+
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: 'text.secondary',
+                        fontSize: '0.68rem',
+                        display: 'block',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        mb: 0.4,
+                      }}
+                    >
+                      {rel.nomeArquivo}
+                    </Typography>
+
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        mt: 0.5,
+                        pt: 0.5,
+                        borderTop: `1px dashed ${isDark ? '#1e293b' : '#e2e8f0'}`,
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.68rem' }}>
+                        {rel.dataGeracaoBr || formatarData(rel.dataRecebimentoInput)} ·{' '}
+                        {statusInfo.recebidosCount}/{statusInfo.totalItens} rec.
+                      </Typography>
                       <Typography
                         variant="caption"
-                        sx={{
-                          color: 'text.secondary',
-                          fontSize: '0.68rem',
-                          display: 'block',
-                          whiteSpace: 'nowrap',
-                        }}
+                        sx={{ fontWeight: 800, fontSize: '0.73rem', color: '#0ea5e9' }}
                       >
-                        {rel.dataGeracaoBr || formatarData(rel.dataRecebimentoInput)} · {rel.qtdItens} cotas ·{' '}
-                        <strong>{formatarMoeda(rel.totalLiquido)}</strong>
+                        {formatarMoeda(rel.totalLiquido)}
                       </Typography>
                     </Box>
-                    <Tooltip title="Remover este relatório do cadastro">
-                      <IconButton
-                        size="small"
-                        onClick={(e) => handleExcluirRelatorioSalvo(rel.id, e)}
-                        sx={{
-                          ml: 0.5,
-                          p: 0.4,
-                          color: 'text.disabled',
-                          '&:hover': { color: '#ef4444', bgcolor: 'rgba(239,68,68,0.08)' },
-                        }}
-                      >
-                        <DeleteOutlineIcon sx={{ fontSize: 16 }} />
-                      </IconButton>
-                    </Tooltip>
                   </Paper>
                 );
-              })}
-            </Box>
-          </Paper>
-        )}
-
-        {!dadosPdf ? (
-          <Box
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              const f = e.dataTransfer.files?.[0];
-              if (f) handleUploadArquivo(f);
-            }}
-            onClick={() => fileInputRef.current?.click()}
-            sx={{
-              border: `2px dashed ${isDark ? '#334155' : '#94a3b8'}`,
-              borderRadius: 3,
-              p: 5,
-              textAlign: 'center',
-              cursor: 'pointer',
-              bgcolor: isDark ? 'rgba(30, 41, 59, 0.4)' : 'rgba(248, 250, 252, 0.8)',
-              transition: 'all 0.2s ease',
-              '&:hover': {
-                borderColor: '#0ea5e9',
-                bgcolor: isDark ? 'rgba(14, 165, 233, 0.06)' : 'rgba(14, 165, 233, 0.04)',
-              },
-            }}
-          >
-            {carregando ? (
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
-                <CircularProgress size={42} sx={{ color: '#0ea5e9' }} />
-                <Typography variant="subtitle1" sx={{ fontWeight: 700, fontFamily: 'Outfit, sans-serif' }}>
-                  Lendo e analisando os contratos do PDF...
-                </Typography>
-              </Box>
-            ) : (
-              <>
-                <PictureAsPdfIcon sx={{ fontSize: 54, color: '#0ea5e9', mb: 1 }} />
-                <Typography variant="h6" sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, mb: 0.5 }}>
-                  Clique para selecionar ou arraste o PDF do Relatório de Comissão aqui
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2.5 }}>
-                  O relatório ficará salvo automaticamente no cadastro acima para acesso imediato sempre que precisar
-                </Typography>
-                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-                  <Button
-                    variant="contained"
-                    startIcon={<UploadFileIcon />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      fileInputRef.current?.click();
-                    }}
-                    sx={{
-                      borderRadius: 2,
-                      fontWeight: 700,
-                      background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
-                    }}
-                  >
-                    Escolher Arquivo PDF
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<ContentPasteIcon />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMostrarColarTexto((prev) => !prev);
-                    }}
-                    sx={{ borderRadius: 2, fontWeight: 600 }}
-                  >
-                    Colar Texto do Relatório
-                  </Button>
-                </Box>
-              </>
+              })
             )}
           </Box>
-        ) : (
-          /* Barra compacta de arquivo carregado + Campos do Lote */
-          <Paper
-            elevation={0}
-            sx={{
-              p: 2,
-              borderRadius: 2.5,
-              border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
-              bgcolor: isDark ? '#111827' : '#f8fafc',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2,
-            }}
-          >
+        </Box>
+
+        {/* PAINEL PRINCIPAL DIREITO: Detalhes do Relatório Selecionado */}
+        <Box
+          sx={{
+            flex: 1,
+            p: 2.5,
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}
+        >
+          {!dadosPdf ? (
             <Box
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const f = e.dataTransfer.files?.[0];
+                if (f) handleUploadArquivo(f);
+              }}
+              onClick={() => fileInputRef.current?.click()}
               sx={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: 1.5,
+                border: `2px dashed ${isDark ? '#334155' : '#94a3b8'}`,
+                borderRadius: 3,
+                p: 6,
+                my: 'auto',
+                textAlign: 'center',
+                cursor: 'pointer',
+                bgcolor: isDark ? 'rgba(30, 41, 59, 0.4)' : 'rgba(248, 250, 252, 0.8)',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  borderColor: '#0ea5e9',
+                  bgcolor: isDark ? 'rgba(14, 165, 233, 0.06)' : 'rgba(14, 165, 233, 0.04)',
+                },
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-                <Chip
-                  icon={<PictureAsPdfIcon />}
-                  label={nomeArquivo || 'Relatório PDF'}
-                  color="info"
-                  variant="outlined"
-                  sx={{ fontWeight: 700 }}
-                />
-                {dadosPdf.nomePN && (
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                    {dadosPdf.codigoPN ? `${dadosPdf.codigoPN} · ` : ''}
-                    {dadosPdf.nomePN}
+              {carregando ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
+                  <CircularProgress size={42} sx={{ color: '#0ea5e9' }} />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, fontFamily: 'Outfit, sans-serif' }}>
+                    Lendo e analisando os contratos do PDF...
                   </Typography>
-                )}
-                {dadosPdf.cnpj && (
-                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                    CNPJ: {dadosPdf.cnpj}
+                </Box>
+              ) : (
+                <>
+                  <PictureAsPdfIcon sx={{ fontSize: 54, color: '#0ea5e9', mb: 1 }} />
+                  <Typography variant="h6" sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, mb: 0.5 }}>
+                    Clique para carregar ou arraste o PDF do Relatório de Comissão
                   </Typography>
-                )}
-                {dadosPdf.status && (
-                  <Chip
-                    size="small"
-                    label={`Status PDF: ${dadosPdf.status}`}
-                    sx={{ fontWeight: 700, fontSize: '0.7rem' }}
-                  />
-                )}
-              </Box>
-
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<DownloadIcon />}
-                  onClick={handleExportarRelatorioDivergenciasPDF}
-                  sx={{ borderRadius: 2, fontWeight: 700, fontSize: '0.76rem' }}
-                >
-                  Exportar Auditoria PDF
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<UploadFileIcon />}
-                  onClick={() => fileInputRef.current?.click()}
-                  sx={{ borderRadius: 2, fontWeight: 700, fontSize: '0.76rem' }}
-                >
-                  Importar Outro PDF
-                </Button>
-              </Box>
-            </Box>
-
-            <Divider />
-
-            {/* Inputs de Metadados do Recebimento e Switches de Comportamento */}
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: 2,
-              }}
-            >
-              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
-                <TextField
-                  label="Nº do Documento / Relatório"
-                  size="small"
-                  required
-                  value={numeroRelatorioInput}
-                  onChange={(e) => {
-                    setNumeroRelatorioInput(e.target.value);
-                    atualizarCadastroRelatorioAtivo({ numeroDocumento: e.target.value });
-                  }}
-                  sx={{ width: 200 }}
-                />
-                <TextField
-                  label="Data do Recebimento"
-                  type="date"
-                  size="small"
-                  required
-                  value={dataRelatorioInput}
-                  onChange={(e) => {
-                    setDataRelatorioInput(e.target.value);
-                    atualizarCadastroRelatorioAtivo({ dataRecebimentoInput: e.target.value });
-                  }}
-                  slotProps={{ inputLabel: { shrink: true } }}
-                  sx={{ width: 175 }}
-                />
-                <TextField
-                  label="Nota Fiscal (Opcional)"
-                  size="small"
-                  placeholder="Ex: NF 1042"
-                  value={notaFiscalInput}
-                  onChange={(e) => {
-                    setNotaFiscalInput(e.target.value);
-                    atualizarCadastroRelatorioAtivo({ notaFiscalInput: e.target.value });
-                  }}
-                  sx={{ width: 180 }}
-                />
-              </Box>
-
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-                <Tooltip title="Quando a parcela estiver 'A vencer' ou 'Vencida', marca também o pagamento do cliente como 'Paga'">
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        size="small"
-                        checked={marcarParcelaPagaAutomaticamente}
-                        onChange={(e) => setMarcarParcelaPagaAutomaticamente(e.target.checked)}
-                      />
-                    }
-                    label={
-                      <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                        Marcar parcela como "Paga"
-                      </Typography>
-                    }
-                  />
-                </Tooltip>
-
-                <Tooltip title="Se houver diferença de centavos ou valor entre a comissão calculada no sistema e o valor pago no PDF, atualiza a comissão da parcela para o valor exato do PDF">
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        size="small"
-                        color="warning"
-                        checked={atualizarComissaoParaValorPdf}
-                        onChange={(e) => setAtualizarComissaoParaValorPdf(e.target.checked)}
-                      />
-                    }
-                    label={
-                      <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                        Ajustar comissão p/ valor do PDF
-                      </Typography>
-                    }
-                  />
-                </Tooltip>
-
-                <Tooltip title="Ao confirmar a baixa, atualiza também a Data da Venda no sistema para a data constante no relatório PDF da administradora (apenas para registros ainda não recebidos)">
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        size="small"
-                        color="info"
-                        checked={corrigirDatasDivergentesAutomaticamente}
-                        onChange={(e) => setCorrigirDatasDivergentesAutomaticamente(e.target.checked)}
-                      />
-                    }
-                    label={
-                      <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                        Corrigir datas divergentes p/ PDF
-                      </Typography>
-                    }
-                  />
-                </Tooltip>
-
-                {resumo.qtdDatasDivergentes > 0 && (
-                  <Tooltip title="Atualiza imediatamente todas as datas de venda divergentes (de contratos ainda não recebidos) para a data constante no PDF">
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2.5 }}>
+                    Todos os PDFs carregados ficam disponíveis na barra lateral esquerda com status Processado / Não Processado
+                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1.5, flexWrap: 'wrap' }}>
                     <Button
-                      size="small"
-                      variant="outlined"
-                      color="warning"
-                      onClick={handleCorrigirTodasDatasDivergentes}
+                      variant="contained"
+                      startIcon={<UploadFileIcon />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fileInputRef.current?.click();
+                      }}
                       sx={{
                         borderRadius: 2,
                         fontWeight: 700,
-                        fontSize: '0.72rem',
-                        textTransform: 'none',
-                        py: 0.4,
-                        px: 1.4,
+                        background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
                       }}
                     >
-                      Corrigir {resumo.qtdDatasDivergentes} Data(s) Divergente(s)
+                      Carregar PDF
                     </Button>
-                  </Tooltip>
-                )}
-              </Box>
-            </Box>
-          </Paper>
-        )}
-
-        {/* Área para colar texto manualmente se solicitado */}
-        <Collapse in={mostrarColarTexto}>
-          <Paper
-            elevation={0}
-            sx={{
-              p: 2,
-              borderRadius: 2,
-              border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 1.5,
-            }}
-          >
-            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-              Colar conteúdo textual do Relatório de Comissão
-            </Typography>
-            <TextField
-              multiline
-              minRows={4}
-              maxRows={8}
-              fullWidth
-              placeholder="Cole aqui o texto copiado do PDF (ex: 53637 18880 03/11/2026 COMISSÃO S/ VENDAS I 1000413312 ...)"
-              value={textoManualInput}
-              onChange={(e) => setTextoManualInput(e.target.value)}
-              sx={{ '& .MuiInputBase-input': { fontSize: '0.78rem', fontFamily: 'monospace' } }}
-            />
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-              <Button size="small" onClick={() => setMostrarColarTexto(false)}>
-                Fechar
-              </Button>
-              <Button
-                size="small"
-                variant="contained"
-                onClick={handleProcessarTextoManual}
-                disabled={!textoManualInput.trim()}
-              >
-                Processar Texto
-              </Button>
-            </Box>
-          </Paper>
-        </Collapse>
-
-        {erroLeitura && (
-          <Alert severity="error" onClose={() => setErroLeitura('')} sx={{ borderRadius: 2 }}>
-            {erroLeitura}
-          </Alert>
-        )}
-
-        {mensagemSucessoLocal && (
-          <Alert
-            severity="success"
-            onClose={() => setMensagemSucessoLocal('')}
-            sx={{ borderRadius: 2, fontWeight: 600 }}
-          >
-            {mensagemSucessoLocal}
-          </Alert>
-        )}
-
-        {/* Cards de Resumo da Conciliação */}
-        {dadosPdf && (
-          <>
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(5, 1fr)' },
-                gap: 1.5,
-              }}
-            >
-              {/* Card 1: Total no PDF */}
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 1.8,
-                  borderRadius: 2,
-                  border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
-                  bgcolor: isDark ? '#111827' : '#ffffff',
-                }}
-              >
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>
-                  Total no PDF ({resumo.totalItens} itens)
-                </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: '#0ea5e9', fontFamily: 'Outfit, sans-serif' }}>
-                  {formatarMoeda(resumo.totalValorPdf)}
-                </Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
-                  Base: {formatarMoeda(resumo.totalBasePdf)}
-                </Typography>
-              </Paper>
-
-              {/* Card 2: Sem Divergências */}
-              <Paper
-                elevation={0}
-                onClick={() => setFiltroAbas(filtroAbas === 'OK' ? 'TODOS' : 'OK')}
-                sx={{
-                  p: 1.8,
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  border: `1px solid ${filtroAbas === 'OK' ? '#10b981' : isDark ? '#1e293b' : '#e2e8f0'}`,
-                  bgcolor: filtroAbas === 'OK' ? 'rgba(16,185,129,0.08)' : isDark ? '#111827' : '#ffffff',
-                }}
-              >
-                <Typography variant="caption" sx={{ color: '#10b981', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>
-                  Conciliados OK
-                </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: '#10b981', fontFamily: 'Outfit, sans-serif' }}>
-                  {resumo.qtdOk} contrato(s)
-                </Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
-                  100% compatíveis
-                </Typography>
-              </Paper>
-
-              {/* Card 3: Com Divergências */}
-              <Paper
-                elevation={0}
-                onClick={() => setFiltroAbas(filtroAbas === 'DIVERGENTE' ? 'TODOS' : 'DIVERGENTE')}
-                sx={{
-                  p: 1.8,
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  border: `1px solid ${filtroAbas === 'DIVERGENTE' ? '#f59e0b' : isDark ? '#1e293b' : '#e2e8f0'}`,
-                  bgcolor:
-                    filtroAbas === 'DIVERGENTE'
-                      ? 'rgba(245,158,11,0.1)'
-                      : resumo.qtdDivergente > 0
-                      ? 'rgba(245,158,11,0.04)'
-                      : isDark
-                      ? '#111827'
-                      : '#ffffff',
-                }}
-              >
-                <Typography variant="caption" sx={{ color: '#f59e0b', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>
-                  Com Divergências
-                </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: '#f59e0b', fontFamily: 'Outfit, sans-serif' }}>
-                  {resumo.qtdDivergente} contrato(s)
-                </Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
-                  Dif. Líquida: {resumo.diferencaLiquidaComissao > 0 ? '+' : ''}
-                  {formatarMoeda(resumo.diferencaLiquidaComissao)}
-                </Typography>
-              </Paper>
-
-              {/* Card 4: Não Encontrados */}
-              <Paper
-                elevation={0}
-                onClick={() => setFiltroAbas(filtroAbas === 'NAO_ENCONTRADO' ? 'TODOS' : 'NAO_ENCONTRADO')}
-                sx={{
-                  p: 1.8,
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  border: `1px solid ${filtroAbas === 'NAO_ENCONTRADO' ? '#ef4444' : isDark ? '#1e293b' : '#e2e8f0'}`,
-                  bgcolor:
-                    filtroAbas === 'NAO_ENCONTRADO'
-                      ? 'rgba(239,68,68,0.1)'
-                      : resumo.qtdNaoEncontrado > 0
-                      ? 'rgba(239,68,68,0.04)'
-                      : isDark
-                      ? '#111827'
-                      : '#ffffff',
-                }}
-              >
-                <Typography variant="caption" sx={{ color: '#ef4444', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>
-                  Não Localizados (PAC)
-                </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: '#ef4444', fontFamily: 'Outfit, sans-serif' }}>
-                  {resumo.qtdNaoEncontrado} contrato(s)
-                </Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
-                  {resumo.qtdNaoEncontrado > 0 ? 'Permite vínculo manual abaixo' : 'Todos localizados'}
-                </Typography>
-              </Paper>
-
-              {/* Card 5: Selecionados para Recebimento */}
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 1.8,
-                  borderRadius: 2,
-                  border: '1.5px solid rgba(99,102,241,0.5)',
-                  bgcolor: isDark ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.05)',
-                }}
-              >
-                <Typography variant="caption" sx={{ color: '#6366f1', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>
-                  Prontos p/ Dar Baixa
-                </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: '#6366f1', fontFamily: 'Outfit, sans-serif' }}>
-                  {formatarMoeda(resumo.valorSelecionado)}
-                </Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
-                  {resumo.qtdSelecionados} parcela(s) marcada(s)
-                </Typography>
-              </Paper>
-            </Box>
-
-            {/* Barra de Filtros Rápidos */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-              <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap', alignItems: 'center' }}>
-                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', mr: 0.5 }}>
-                  FILTRAR VISÃO:
-                </Typography>
-                {[
-                  { id: 'TODOS' as const, label: `Todos (${resumo.totalItens})`, color: '#6366f1' },
-                  { id: 'OK' as const, label: `Sem Divergência (${resumo.qtdOk})`, color: '#10b981' },
-                  { id: 'DIVERGENTE' as const, label: `Com Divergências (${resumo.qtdDivergente})`, color: '#f59e0b' },
-                  { id: 'NAO_ENCONTRADO' as const, label: `Não Encontrados (${resumo.qtdNaoEncontrado})`, color: '#ef4444' },
-                  { id: 'JA_RECEBIDO' as const, label: `Já Recebidos (${resumo.qtdJaRecebido})`, color: '#0ea5e9' },
-                ].map((tab) => {
-                  const ativo = filtroAbas === tab.id;
-                  return (
-                    <Chip
-                      key={tab.id}
-                      label={tab.label}
-                      size="small"
-                      onClick={() => setFiltroAbas(tab.id)}
-                      variant={ativo ? 'filled' : 'outlined'}
-                      sx={{
-                        fontWeight: 700,
-                        fontSize: '0.72rem',
-                        cursor: 'pointer',
-                        bgcolor: ativo ? tab.color : 'transparent',
-                        color: ativo ? '#fff' : 'text.secondary',
-                        borderColor: ativo ? tab.color : isDark ? '#334155' : '#cbd5e1',
+                    <Button
+                      variant="outlined"
+                      startIcon={<ContentPasteIcon />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMostrarColarTexto((prev) => !prev);
                       }}
-                    />
-                  );
-                })}
-              </Box>
-
-              {resumo.qtdNaoEncontrado > 0 && (
-                <Typography variant="caption" sx={{ color: '#f59e0b', fontWeight: 600 }}>
-                  💡 Dica: Nos contratos não encontrados pelo PAC, selecione o cliente manualmente na coluna "Contrato / Cliente no Sistema" para vincular.
-                </Typography>
+                      sx={{ borderRadius: 2, fontWeight: 600 }}
+                    >
+                      Colar Texto do Relatório
+                    </Button>
+                  </Box>
+                </>
               )}
             </Box>
+          ) : (
+            <>
+              {/* Barra de Informações do Documento e Configurações do Recebimento */}
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2,
+                  borderRadius: 2.5,
+                  border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
+                  bgcolor: isDark ? '#111827' : '#f8fafc',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 1.5,
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 1.5,
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, flexWrap: 'wrap' }}>
+                    <Chip
+                      icon={<PictureAsPdfIcon />}
+                      label={nomeArquivo || `Relatório ${numeroRelatorioInput}`}
+                      color="info"
+                      variant="outlined"
+                      sx={{ fontWeight: 700 }}
+                    />
+                    <Chip
+                      size="small"
+                      icon={
+                        resumo.isRelatorioProcessado ? (
+                          <CheckCircleIcon sx={{ fontSize: '14px !important' }} />
+                        ) : (
+                          <HourglassEmptyIcon sx={{ fontSize: '14px !important' }} />
+                        )
+                      }
+                      label={
+                        resumo.isRelatorioProcessado
+                          ? 'Status: Processado'
+                          : 'Status: Não Processado'
+                      }
+                      sx={{
+                        fontWeight: 800,
+                        fontSize: '0.72rem',
+                        bgcolor: resumo.isRelatorioProcessado
+                          ? 'rgba(16, 185, 129, 0.16)'
+                          : 'rgba(245, 158, 11, 0.16)',
+                        color: resumo.isRelatorioProcessado ? '#10b981' : '#f59e0b',
+                      }}
+                    />
+                    {dadosPdf.nomePN && (
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {dadosPdf.codigoPN ? `${dadosPdf.codigoPN} · ` : ''}
+                        {dadosPdf.nomePN}
+                      </Typography>
+                    )}
+                    {dadosPdf.cnpj && (
+                      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                        CNPJ: {dadosPdf.cnpj}
+                      </Typography>
+                    )}
+                  </Box>
 
-            {/* Resumo e Filtro por Empresa (Vertex, Winvest, Shazam, etc.) */}
-            {resumo.porEmpresa.length > 0 && (
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {resumo.totalPendencias > 0 && !resumo.isRelatorioProcessado && (
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="warning"
+                        startIcon={<AutoFixHighIcon />}
+                        onClick={handleResolverTodasDivergenciasRascunho}
+                        sx={{
+                          borderRadius: 2,
+                          fontWeight: 800,
+                          fontSize: '0.75rem',
+                          textTransform: 'none',
+                        }}
+                      >
+                        Ajustar Todas as Divergências ({resumo.totalPendencias})
+                      </Button>
+                    )}
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<DownloadIcon />}
+                      onClick={handleExportarRelatorioDivergenciasPDF}
+                      sx={{ borderRadius: 2, fontWeight: 700, fontSize: '0.75rem', textTransform: 'none' }}
+                    >
+                      Exportar Auditoria PDF
+                    </Button>
+                  </Box>
+                </Box>
+
+                <Divider />
+
+                {/* Inputs de Metadados do Recebimento e Switches de Ajuste */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 1.5,
+                  }}
+                >
+                  <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <TextField
+                      label="Nº do Documento / Relatório"
+                      size="small"
+                      required
+                      disabled={resumo.isRelatorioProcessado}
+                      value={numeroRelatorioInput}
+                      onChange={(e) => {
+                        setNumeroRelatorioInput(e.target.value);
+                        atualizarCadastroRelatorioAtivo({ numeroDocumento: e.target.value });
+                      }}
+                      sx={{ width: 190 }}
+                    />
+                    <TextField
+                      label="Data do Recebimento"
+                      type="date"
+                      size="small"
+                      required
+                      disabled={resumo.isRelatorioProcessado}
+                      value={dataRelatorioInput}
+                      onChange={(e) => {
+                        setDataRelatorioInput(e.target.value);
+                        atualizarCadastroRelatorioAtivo({ dataRecebimentoInput: e.target.value });
+                      }}
+                      slotProps={{ inputLabel: { shrink: true } }}
+                      sx={{ width: 165 }}
+                    />
+                    <TextField
+                      label="Nota Fiscal (Opcional)"
+                      size="small"
+                      disabled={resumo.isRelatorioProcessado}
+                      placeholder="Ex: NF 1042"
+                      value={notaFiscalInput}
+                      onChange={(e) => {
+                        setNotaFiscalInput(e.target.value);
+                        atualizarCadastroRelatorioAtivo({ notaFiscalInput: e.target.value });
+                      }}
+                      sx={{ width: 165 }}
+                    />
+                  </Box>
+
+                  <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          size="small"
+                          disabled={resumo.isRelatorioProcessado}
+                          checked={marcarParcelaPagaAutomaticamente}
+                          onChange={(e) => setMarcarParcelaPagaAutomaticamente(e.target.checked)}
+                        />
+                      }
+                      label={
+                        <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                          Marcar parcela como "Paga"
+                        </Typography>
+                      }
+                    />
+
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          size="small"
+                          color="warning"
+                          disabled={resumo.isRelatorioProcessado}
+                          checked={atualizarComissaoParaValorPdf}
+                          onChange={(e) => setAtualizarComissaoParaValorPdf(e.target.checked)}
+                        />
+                      }
+                      label={
+                        <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                          Ajustar comissões p/ PDF
+                        </Typography>
+                      }
+                    />
+
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          size="small"
+                          color="info"
+                          disabled={resumo.isRelatorioProcessado}
+                          checked={corrigirDatasDivergentesAutomaticamente}
+                          onChange={(e) =>
+                            setCorrigirDatasDivergentesAutomaticamente(e.target.checked)
+                          }
+                        />
+                      }
+                      label={
+                        <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                          Ajustar datas divergentes p/ PDF
+                        </Typography>
+                      }
+                    />
+                  </Box>
+                </Box>
+              </Paper>
+
+              {/* RESUMO POR EMPRESA DONA DOS CONTRATOS */}
+              {resumo.porEmpresa.length > 0 && (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.8,
+                    borderRadius: 2.5,
+                    border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
+                    bgcolor: isDark ? 'rgba(15, 23, 42, 0.7)' : '#ffffff',
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      mb: 1.2,
+                      flexWrap: 'wrap',
+                      gap: 1,
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                      <BusinessIcon sx={{ fontSize: 18, color: '#6366f1' }} />
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                          color: 'text.secondary',
+                        }}
+                      >
+                        Resumo por Empresa Dona dos Contratos no Relatório
+                      </Typography>
+                    </Box>
+                    {filtroEmpresa !== 'TODAS' && (
+                      <Button
+                        size="small"
+                        onClick={() => setFiltroEmpresa('TODAS')}
+                        sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', py: 0 }}
+                      >
+                        Mostrar Todas as Empresas ({resumo.totalItens})
+                      </Button>
+                    )}
+                  </Box>
+
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: {
+                        xs: '1fr',
+                        sm: 'repeat(2, 1fr)',
+                        md: `repeat(${Math.min(resumo.porEmpresa.length + 1, 4)}, 1fr)`,
+                      },
+                      gap: 1.2,
+                    }}
+                  >
+                    {resumo.porEmpresa.map((emp) => {
+                      const ativo = filtroEmpresa === emp.id;
+                      const percValor =
+                        resumo.totalValorPdf > 0
+                          ? ((emp.valorComissaoPdf / resumo.totalValorPdf) * 100).toFixed(1)
+                          : '0.0';
+                      return (
+                        <Paper
+                          key={emp.id}
+                          elevation={0}
+                          onClick={() => setFiltroEmpresa(ativo ? 'TODAS' : emp.id)}
+                          sx={{
+                            p: 1.4,
+                            borderRadius: 2,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            border: ativo
+                              ? `2px solid ${emp.cor}`
+                              : `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
+                            bgcolor: ativo
+                              ? `${emp.cor}18`
+                              : isDark
+                              ? '#111827'
+                              : '#f8fafc',
+                            '&:hover': {
+                              borderColor: emp.cor,
+                            },
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              mb: 0.5,
+                            }}
+                          >
+                            <Chip
+                              size="small"
+                              label={emp.nome}
+                              sx={{
+                                height: 20,
+                                fontWeight: 800,
+                                fontSize: '0.7rem',
+                                bgcolor: `${emp.cor}22`,
+                                color: emp.cor,
+                              }}
+                            />
+                            <Typography
+                              variant="caption"
+                              sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.68rem' }}
+                            >
+                              {emp.qtd} cota(s) ({percValor}%)
+                            </Typography>
+                          </Box>
+
+                          <Typography
+                            variant="subtitle1"
+                            sx={{
+                              fontWeight: 800,
+                              color: emp.cor,
+                              fontFamily: 'Outfit, sans-serif',
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            {formatarMoeda(emp.valorComissaoPdf)}
+                          </Typography>
+
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              mt: 0.4,
+                              color: 'text.secondary',
+                              fontSize: '0.66rem',
+                            }}
+                          >
+                            <span>Base: {formatarMoeda(emp.valorBase)}</span>
+                            <span>
+                              {emp.qtdRecebidos}/{emp.qtd} receb.
+                            </span>
+                          </Box>
+                        </Paper>
+                      );
+                    })}
+
+                    {/* Card Total Consolidado */}
+                    <Paper
+                      elevation={0}
+                      onClick={() => setFiltroEmpresa('TODAS')}
+                      sx={{
+                        p: 1.4,
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        border: `1px dashed ${isDark ? '#334155' : '#cbd5e1'}`,
+                        bgcolor: isDark ? 'rgba(15, 23, 42, 0.5)' : '#ffffff',
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          mb: 0.5,
+                        }}
+                      >
+                        <Typography
+                          variant="caption"
+                          sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase' }}
+                        >
+                          Total Geral PDF
+                        </Typography>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                          {resumo.totalItens} cotas
+                        </Typography>
+                      </Box>
+                      <Typography
+                        variant="subtitle1"
+                        sx={{
+                          fontWeight: 800,
+                          color: '#10b981',
+                          fontFamily: 'Outfit, sans-serif',
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {formatarMoeda(resumo.totalValorPdf)}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: 'text.secondary', fontSize: '0.66rem', display: 'block', mt: 0.4 }}
+                      >
+                        Base Total: {formatarMoeda(resumo.totalBasePdf)}
+                      </Typography>
+                    </Paper>
+                  </Box>
+                </Paper>
+              )}
+
+              {/* Filtros de Status de Conciliação */}
               <Box
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 1,
+                  justifyContent: 'space-between',
                   flexWrap: 'wrap',
-                  px: 1.5,
-                  py: 1,
-                  borderRadius: 2,
-                  bgcolor: isDark ? 'rgba(15, 23, 42, 0.7)' : '#f8fafc',
-                  border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
+                  gap: 1,
                 }}
               >
-                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', mr: 0.5 }}>
-                  EMPRESAS NO RELATÓRIO:
-                </Typography>
-                <Chip
-                  label={`Todas as Empresas (${resumo.totalItens})`}
-                  size="small"
-                  onClick={() => setFiltroEmpresa('TODAS')}
-                  variant={filtroEmpresa === 'TODAS' ? 'filled' : 'outlined'}
+                <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ fontWeight: 700, color: 'text.secondary', mr: 0.5 }}
+                  >
+                    FILTRAR VISÃO:
+                  </Typography>
+                  {[
+                    { id: 'TODOS' as const, label: `Todos (${resumo.totalItens})`, color: '#6366f1' },
+                    {
+                      id: 'OK' as const,
+                      label: `Prontos / Ajustados (${resumo.qtdOk})`,
+                      color: '#10b981',
+                    },
+                    {
+                      id: 'DIVERGENTE' as const,
+                      label: `Divergências Pendentes (${resumo.qtdDivergente})`,
+                      color: '#f59e0b',
+                    },
+                    {
+                      id: 'NAO_ENCONTRADO' as const,
+                      label: `Não Encontrados (${resumo.qtdNaoEncontrado})`,
+                      color: '#ef4444',
+                    },
+                    {
+                      id: 'JA_RECEBIDO' as const,
+                      label: `Já Recebidos (${resumo.qtdJaRecebido})`,
+                      color: '#0ea5e9',
+                    },
+                  ].map((tab) => {
+                    const ativo = filtroAbas === tab.id;
+                    return (
+                      <Chip
+                        key={tab.id}
+                        label={tab.label}
+                        size="small"
+                        onClick={() => setFiltroAbas(tab.id)}
+                        variant={ativo ? 'filled' : 'outlined'}
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: '0.72rem',
+                          cursor: 'pointer',
+                          bgcolor: ativo ? tab.color : 'transparent',
+                          color: ativo ? '#fff' : 'text.secondary',
+                          borderColor: ativo ? tab.color : isDark ? '#334155' : '#cbd5e1',
+                        }}
+                      />
+                    );
+                  })}
+                </Box>
+
+                <Typography
+                  variant="caption"
                   sx={{
                     fontWeight: 700,
-                    fontSize: '0.71rem',
-                    cursor: 'pointer',
-                    bgcolor: filtroEmpresa === 'TODAS' ? '#475569' : 'transparent',
-                    color: filtroEmpresa === 'TODAS' ? '#fff' : 'text.secondary',
-                    borderColor: isDark ? '#334155' : '#cbd5e1',
+                    color: resumo.totalPendencias === 0 ? '#10b981' : '#f59e0b',
                   }}
-                />
-                {resumo.porEmpresa.map((emp) => {
-                  const ativo = filtroEmpresa === emp.id;
-                  const corEmp =
-                    emp.id === 'emp_vertex'
-                      ? '#6366f1'
-                      : emp.id === 'emp_winvest'
-                      ? '#0ea5e9'
-                      : '#a855f7';
-                  return (
-                    <Chip
-                      key={emp.id}
-                      label={`${emp.nome}: ${emp.qtd} cota(s) · ${formatarMoeda(emp.valorComissao)}`}
-                      size="small"
-                      onClick={() => setFiltroEmpresa(ativo ? 'TODAS' : emp.id)}
-                      variant={ativo ? 'filled' : 'outlined'}
-                      sx={{
-                        fontWeight: 800,
-                        fontSize: '0.72rem',
-                        cursor: 'pointer',
-                        bgcolor: ativo ? corEmp : `${corEmp}14`,
-                        color: ativo ? '#fff' : corEmp,
-                        borderColor: corEmp,
-                      }}
-                    />
-                  );
-                })}
+                >
+                  {resumo.totalPendencias === 0
+                    ? '✅ 0 divergências pendentes — Botão "Receber Parcelas" liberado!'
+                    : `⚠️ ${resumo.totalPendencias} divergência(s) pendente(s) — Ajuste para liberar o recebimento`}
+                </Typography>
               </Box>
-            )}
 
-            {/* Tabela de Conciliação */}
-            <TableContainer
-              component={Paper}
-              elevation={0}
-              sx={{
-                borderRadius: 2.5,
-                border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
-                maxHeight: 430,
-              }}
-            >
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell
-                      padding="checkbox"
-                      sx={{ bgcolor: isDark ? '#0b0f19' : '#f1f5f9', textAlign: 'center' }}
-                    >
-                      <Checkbox
-                        size="small"
-                        checked={
-                          itensFiltrados.some((i) => i.podeMarcarRecebido) &&
-                          itensFiltrados
-                            .filter((i) => i.podeMarcarRecebido)
-                            .every((i) => itensSelecionados.includes(i.itemPdf.id))
-                        }
-                        indeterminate={
-                          itensFiltrados.some(
-                            (i) => i.podeMarcarRecebido && itensSelecionados.includes(i.itemPdf.id)
-                          ) &&
-                          !itensFiltrados
-                            .filter((i) => i.podeMarcarRecebido)
-                            .every((i) => itensSelecionados.includes(i.itemPdf.id))
-                        }
-                        onChange={(e) => handleToggleTodosVisiveis(e.target.checked)}
-                      />
-                    </TableCell>
-                    {[
-                      'Contrato PDF / Cota',
-                      'Empresa',
-                      'Contrato / Cliente no Sistema',
-                      'Venda (PDF vs Sist.)',
-                      'Parc.',
-                      'Valor Base (PDF vs Sist.)',
-                      'Comissão PDF',
-                      'Comissão Sistema',
-                      'Status & Divergências',
-                    ].map((h) => (
+              {/* Tabela de Conciliação */}
+              <TableContainer
+                component={Paper}
+                elevation={0}
+                sx={{
+                  borderRadius: 2.5,
+                  border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
+                  flex: 1,
+                  minHeight: 300,
+                }}
+              >
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
                       <TableCell
-                        key={h}
-                        sx={{
-                          bgcolor: isDark ? '#0b0f19' : '#f1f5f9',
-                          fontWeight: 800,
-                          fontSize: '0.68rem',
-                          textTransform: 'uppercase',
-                          color: 'text.secondary',
-                          letterSpacing: '0.4px',
-                          whiteSpace: 'nowrap',
-                          py: 1,
-                        }}
+                        padding="checkbox"
+                        sx={{ bgcolor: isDark ? '#0b0f19' : '#f1f5f9', textAlign: 'center' }}
                       >
-                        {h}
+                        <Checkbox
+                          size="small"
+                          disabled={resumo.isRelatorioProcessado}
+                          checked={
+                            itensFiltrados.some((i) => i.podeMarcarRecebido && !i.jaRecebidaSistema) &&
+                            itensFiltrados
+                              .filter((i) => i.podeMarcarRecebido && !i.jaRecebidaSistema)
+                              .every((i) => itensSelecionados.includes(i.itemPdf.id))
+                          }
+                          indeterminate={
+                            itensFiltrados.some(
+                              (i) =>
+                                i.podeMarcarRecebido &&
+                                !i.jaRecebidaSistema &&
+                                itensSelecionados.includes(i.itemPdf.id)
+                            ) &&
+                            !itensFiltrados
+                              .filter((i) => i.podeMarcarRecebido && !i.jaRecebidaSistema)
+                              .every((i) => itensSelecionados.includes(i.itemPdf.id))
+                          }
+                          onChange={(e) => handleToggleTodosVisiveis(e.target.checked)}
+                        />
                       </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {itensFiltrados.map((ic) => {
-                    const { itemPdf, vendaEncontrada, vendaSugerida, divergencias, statusConciliacao } = ic;
-                    const isChecked = itensSelecionados.includes(itemPdf.id);
-                    const temDivValorComissao = divergencias.some(
-                      (d) => d.tipo === 'VALOR_COMISSAO_DIVERGENTE'
-                    );
-                    const temDivValorBase = divergencias.some(
-                      (d) => d.tipo === 'VALOR_BASE_DIVERGENTE'
-                    );
-                    const temDivDataVenda = divergencias.some(
-                      (d) => d.tipo === 'DATA_VENDA_DIVERGENTE'
-                    );
+                      {[
+                        'Contrato PDF / Cota',
+                        'Empresa Dona',
+                        'Contrato / Cliente no Sistema',
+                        'Venda (PDF vs Sist.)',
+                        'Parc.',
+                        'Valor Base (PDF vs Sist.)',
+                        'Comissão PDF',
+                        'Comissão Sistema',
+                        'Status & Ajustes de Divergências',
+                      ].map((h) => (
+                        <TableCell
+                          key={h}
+                          sx={{
+                            bgcolor: isDark ? '#0b0f19' : '#f1f5f9',
+                            fontWeight: 800,
+                            fontSize: '0.68rem',
+                            textTransform: 'uppercase',
+                            color: 'text.secondary',
+                            letterSpacing: '0.4px',
+                            whiteSpace: 'nowrap',
+                            py: 1,
+                          }}
+                        >
+                          {h}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {itensFiltrados.map((ic) => {
+                      const {
+                        itemPdf,
+                        vendaEncontrada,
+                        vendaSugerida,
+                        divergencias,
+                        statusConciliacao,
+                      } = ic;
+                      const isChecked = itensSelecionados.includes(itemPdf.id);
+                      const temDivValorComissao = divergencias.some(
+                        (d) => d.tipo === 'VALOR_COMISSAO_DIVERGENTE'
+                      );
+                      const temDivValorBase = divergencias.some(
+                        (d) => d.tipo === 'VALOR_BASE_DIVERGENTE'
+                      );
+                      const temDivDataVenda = divergencias.some(
+                        (d) => d.tipo === 'DATA_VENDA_DIVERGENTE'
+                      );
 
-                    const bgRow =
-                      ic.jaRecebidaSistema
-                        ? isDark
-                          ? 'rgba(16, 185, 129, 0.06)'
-                          : 'rgba(16, 185, 129, 0.04)'
-                        : statusConciliacao === 'NAO_ENCONTRADO'
-                        ? isDark
-                          ? 'rgba(239, 68, 68, 0.06)'
-                          : 'rgba(239, 68, 68, 0.04)'
-                        : statusConciliacao === 'DIVERGENTE'
-                        ? isDark
-                          ? 'rgba(245, 158, 11, 0.06)'
-                          : 'rgba(245, 158, 11, 0.04)'
-                        : 'transparent';
+                      const bgRow =
+                        ic.jaRecebidaSistema
+                          ? isDark
+                            ? 'rgba(16, 185, 129, 0.06)'
+                            : 'rgba(16, 185, 129, 0.04)'
+                          : statusConciliacao === 'NAO_ENCONTRADO'
+                          ? isDark
+                            ? 'rgba(239, 68, 68, 0.06)'
+                            : 'rgba(239, 68, 68, 0.04)'
+                          : statusConciliacao === 'DIVERGENTE'
+                          ? isDark
+                            ? 'rgba(245, 158, 11, 0.06)'
+                            : 'rgba(245, 158, 11, 0.04)'
+                          : 'transparent';
 
-                    return (
-                      <TableRow key={itemPdf.id} hover sx={{ bgcolor: bgRow }}>
-                        <TableCell padding="checkbox" sx={{ textAlign: 'center' }}>
-                          {ic.jaRecebidaSistema ? (
-                            <Tooltip
-                              title="Registro já marcado como recebido — bloqueado para alterações pelo modal do PDF"
-                              arrow
+                      const corEmp = vendaEncontrada
+                        ? obterCorEmpresa(vendaEncontrada.empresaId)
+                        : '#64748b';
+
+                      return (
+                        <TableRow key={itemPdf.id} hover sx={{ bgcolor: bgRow }}>
+                          <TableCell padding="checkbox" sx={{ textAlign: 'center' }}>
+                            {ic.jaRecebidaSistema ? (
+                              <Tooltip
+                                title="Registro já marcado como recebido — bloqueado para alterações pelo modal do PDF"
+                                arrow
+                              >
+                                <Box
+                                  sx={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#10b981',
+                                    p: 0.5,
+                                  }}
+                                >
+                                  <LockIcon sx={{ fontSize: 17 }} />
+                                </Box>
+                              </Tooltip>
+                            ) : (
+                              <Checkbox
+                                size="small"
+                                disabled={!ic.podeMarcarRecebido || resumo.isRelatorioProcessado}
+                                checked={isChecked}
+                                onChange={() => handleToggleItem(itemPdf.id)}
+                              />
+                            )}
+                          </TableCell>
+
+                          {/* Contrato PDF / Grupo / Cota */}
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontWeight: 800,
+                                fontSize: '0.8rem',
+                                fontFamily: 'Outfit, sans-serif',
+                              }}
                             >
-                              <Box
+                              {itemPdf.contrato}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              sx={{ color: 'text.secondary', fontSize: '0.66rem', display: 'block' }}
+                            >
+                              Gr: {itemPdf.grupo} · Cota: {itemPdf.cota}
+                            </Typography>
+                          </TableCell>
+
+                          {/* Empresa Dona do Contrato */}
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                            {vendaEncontrada ? (
+                              <Chip
+                                label={obterNomeEmpresa(vendaEncontrada.empresaId)}
+                                size="small"
                                 sx={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  color: '#10b981',
-                                  p: 0.5,
+                                  height: 22,
+                                  fontSize: '0.7rem',
+                                  fontWeight: 800,
+                                  bgcolor: `${corEmp}22`,
+                                  color: corEmp,
+                                  border: `1px solid ${corEmp}55`,
+                                }}
+                              />
+                            ) : vendaSugerida ? (
+                              <Tooltip title={`Empresa da venda sugerida (${vendaSugerida.cliente})`}>
+                                <Chip
+                                  label={`Sug.: ${obterNomeEmpresa(vendaSugerida.empresaId)}`}
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{
+                                    height: 21,
+                                    fontSize: '0.65rem',
+                                    fontWeight: 700,
+                                    borderStyle: 'dashed',
+                                    color: '#0ea5e9',
+                                    borderColor: '#0ea5e9',
+                                  }}
+                                />
+                              </Tooltip>
+                            ) : (
+                              <Typography
+                                variant="caption"
+                                sx={{ color: 'text.disabled', fontWeight: 600 }}
+                              >
+                                Não identificada
+                              </Typography>
+                            )}
+                          </TableCell>
+
+                          {/* Cliente no Sistema (ou seletor de vínculo manual — bloqueado se já recebido) */}
+                          <TableCell sx={{ minWidth: 240 }}>
+                            {vendaEncontrada && (ic.jaRecebidaSistema || !ic.vinculoManual) ? (
+                              <Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{ fontWeight: 700, fontSize: '0.78rem' }}
+                                  >
+                                    {vendaEncontrada.cliente}
+                                  </Typography>
+                                  {ic.jaRecebidaSistema && (
+                                    <Tooltip title="Recebido e bloqueado para alterações">
+                                      <LockIcon sx={{ fontSize: 13, color: '#10b981' }} />
+                                    </Tooltip>
+                                  )}
+                                </Box>
+                                <Typography
+                                  variant="caption"
+                                  sx={{ color: 'text.secondary', fontSize: '0.66rem' }}
+                                >
+                                  PAC: {vendaEncontrada.pac || '—'} · Vend:{' '}
+                                  {vendaEncontrada.vendedorNome || '—'} · {vendaEncontrada.tabela}
+                                </Typography>
+                              </Box>
+                            ) : (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6 }}>
+                                <Autocomplete
+                                  size="small"
+                                  disabled={!!ic.jaRecebidaSistema || resumo.isRelatorioProcessado}
+                                  options={vendasPrincipais}
+                                  value={vendaEncontrada}
+                                  getOptionLabel={(opt) =>
+                                    `[${obterNomeEmpresa(opt.empresaId)}] ${opt.cliente} ${opt.pac ? `(PAC: ${opt.pac})` : '(Sem PAC)'} - ${formatarMoeda(opt.valorVenda)}`
+                                  }
+                                  onChange={(_, novaVenda) =>
+                                    handleVincularContratoManual(itemPdf.id, novaVenda)
+                                  }
+                                  renderInput={(params) => (
+                                    <TextField
+                                      {...params}
+                                      placeholder="Vincular a contrato do sistema..."
+                                      size="small"
+                                      sx={{
+                                        '& .MuiInputBase-root': {
+                                          fontSize: '0.74rem',
+                                          py: 0.2,
+                                        },
+                                      }}
+                                    />
+                                  )}
+                                />
+                                {!vendaEncontrada &&
+                                  vendaSugerida &&
+                                  !ic.jaRecebidaSistema &&
+                                  !resumo.isRelatorioProcessado && (
+                                    <Button
+                                      size="small"
+                                      variant="text"
+                                      startIcon={<LinkIcon sx={{ fontSize: 13 }} />}
+                                      onClick={() =>
+                                        handleVincularContratoManual(itemPdf.id, vendaSugerida)
+                                      }
+                                      sx={{
+                                        justifyContent: 'flex-start',
+                                        p: 0,
+                                        fontSize: '0.68rem',
+                                        color: '#0ea5e9',
+                                        fontWeight: 700,
+                                        textTransform: 'none',
+                                        textAlign: 'left',
+                                      }}
+                                    >
+                                      Sugestão: Vincular a {vendaSugerida.cliente} [
+                                      {obterNomeEmpresa(vendaSugerida.empresaId)} · PAC{' '}
+                                      {vendaSugerida.pac || 'S/N'} ·{' '}
+                                      {formatarData(vendaSugerida.dataVenda)} ·{' '}
+                                      {formatarMoeda(vendaSugerida.valorVenda)}]
+                                    </Button>
+                                  )}
+                              </Box>
+                            )}
+                          </TableCell>
+
+                          {/* Data da Venda */}
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontSize: '0.75rem',
+                                fontWeight: temDivDataVenda ? 700 : 500,
+                                color: temDivDataVenda ? '#f59e0b' : 'text.primary',
+                              }}
+                            >
+                              {itemPdf.dataVendaBr}
+                            </Typography>
+                            {ic.dataVendaSistema && (
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: temDivDataVenda
+                                    ? '#f59e0b'
+                                    : ic.dataAjustadaPendente
+                                    ? '#10b981'
+                                    : 'text.secondary',
+                                  fontWeight:
+                                    temDivDataVenda || ic.dataAjustadaPendente ? 700 : 500,
+                                  fontSize: '0.65rem',
+                                  display: 'block',
                                 }}
                               >
-                                <LockIcon sx={{ fontSize: 17 }} />
-                              </Box>
-                            </Tooltip>
-                          ) : (
-                            <Checkbox
-                              size="small"
-                              disabled={!ic.podeMarcarRecebido}
-                              checked={isChecked}
-                              onChange={() => handleToggleItem(itemPdf.id)}
-                            />
-                          )}
-                        </TableCell>
-
-                        {/* Contrato PDF / Grupo / Cota */}
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                          <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '0.8rem', fontFamily: 'Outfit, sans-serif' }}>
-                            {itemPdf.contrato}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.66rem', display: 'block' }}>
-                            Gr: {itemPdf.grupo} · Cota: {itemPdf.cota}
-                          </Typography>
-                        </TableCell>
-
-                        {/* Empresa do Contrato */}
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                          {vendaEncontrada ? (
-                            <Chip
-                              label={obterNomeEmpresa(vendaEncontrada.empresaId)}
-                              size="small"
-                              sx={{
-                                height: 22,
-                                fontSize: '0.7rem',
-                                fontWeight: 800,
-                                bgcolor:
-                                  (vendaEncontrada.empresaId || 'emp_vertex') === 'emp_vertex'
-                                    ? 'rgba(99, 102, 241, 0.15)'
-                                    : vendaEncontrada.empresaId === 'emp_winvest'
-                                    ? 'rgba(14, 165, 233, 0.15)'
-                                    : 'rgba(168, 85, 247, 0.15)',
-                                color:
-                                  (vendaEncontrada.empresaId || 'emp_vertex') === 'emp_vertex'
-                                    ? '#6366f1'
-                                    : vendaEncontrada.empresaId === 'emp_winvest'
-                                    ? '#0ea5e9'
-                                    : '#a855f7',
-                                border: `1px solid ${
-                                  (vendaEncontrada.empresaId || 'emp_vertex') === 'emp_vertex'
-                                    ? 'rgba(99, 102, 241, 0.35)'
-                                    : vendaEncontrada.empresaId === 'emp_winvest'
-                                    ? 'rgba(14, 165, 233, 0.35)'
-                                    : 'rgba(168, 85, 247, 0.35)'
-                                }`,
-                              }}
-                            />
-                          ) : vendaSugerida ? (
-                            <Tooltip title={`Empresa da venda sugerida (${vendaSugerida.cliente})`}>
-                              <Chip
-                                label={`Sug.: ${obterNomeEmpresa(vendaSugerida.empresaId)}`}
-                                size="small"
-                                variant="outlined"
-                                sx={{
-                                  height: 21,
-                                  fontSize: '0.65rem',
-                                  fontWeight: 700,
-                                  borderStyle: 'dashed',
-                                  color: '#0ea5e9',
-                                  borderColor: '#0ea5e9',
-                                }}
-                              />
-                            </Tooltip>
-                          ) : (
-                            <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 600 }}>
-                              Não identificada
-                            </Typography>
-                          )}
-                        </TableCell>
-
-                        {/* Cliente no Sistema (ou seletor de vínculo manual — bloqueado se já recebido) */}
-                        <TableCell sx={{ minWidth: 250 }}>
-                          {vendaEncontrada && (ic.jaRecebidaSistema || !ic.vinculoManual) ? (
-                            <Box>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.78rem' }}>
-                                  {vendaEncontrada.cliente}
-                                </Typography>
-                                {ic.jaRecebidaSistema && (
-                                  <Tooltip title="Recebido e bloqueado para alterações">
-                                    <LockIcon sx={{ fontSize: 13, color: '#10b981' }} />
-                                  </Tooltip>
-                                )}
-                              </Box>
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.66rem' }}>
-                                PAC: {vendaEncontrada.pac || '—'} · Vend: {vendaEncontrada.vendedorNome || '—'} · {vendaEncontrada.tabela}
+                                Sist: {formatarData(ic.dataVendaSistema)}
+                                {ic.dataAjustadaPendente ? ' (Ajustado)' : ''}
                               </Typography>
-                            </Box>
-                          ) : (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6 }}>
-                              <Autocomplete
-                                size="small"
-                                disabled={!!ic.jaRecebidaSistema}
-                                options={vendasPrincipais}
-                                value={vendaEncontrada}
-                                getOptionLabel={(opt) =>
-                                  `[${obterNomeEmpresa(opt.empresaId)}] ${opt.cliente} ${opt.pac ? `(PAC: ${opt.pac})` : '(Sem PAC)'} - ${formatarMoeda(opt.valorVenda)}`
-                                }
-                                onChange={(_, novaVenda) =>
-                                  handleVincularContratoManual(itemPdf.id, novaVenda)
-                                }
-                                renderInput={(params) => (
-                                  <TextField
-                                    {...params}
-                                    placeholder="Vincular a contrato do sistema..."
-                                    size="small"
-                                    sx={{
-                                      '& .MuiInputBase-root': {
-                                        fontSize: '0.74rem',
-                                        py: 0.2,
-                                      },
-                                    }}
-                                  />
-                                )}
-                              />
-                              {!vendaEncontrada && vendaSugerida && !ic.jaRecebidaSistema && (
+                            )}
+                            {temDivDataVenda &&
+                              !ic.jaRecebidaSistema &&
+                              !resumo.isRelatorioProcessado &&
+                              vendaEncontrada &&
+                              itemPdf.dataVendaISO && (
                                 <Button
                                   size="small"
                                   variant="text"
-                                  startIcon={<LinkIcon sx={{ fontSize: 13 }} />}
-                                  onClick={() => handleVincularContratoManual(itemPdf.id, vendaSugerida)}
+                                  onClick={() =>
+                                    handleAjustarDataRascunho(
+                                      itemPdf.id,
+                                      itemPdf.dataVendaISO,
+                                      ic.jaRecebidaSistema
+                                    )
+                                  }
                                   sx={{
-                                    justifyContent: 'flex-start',
                                     p: 0,
-                                    fontSize: '0.68rem',
-                                    color: '#0ea5e9',
+                                    mt: 0.2,
+                                    minWidth: 'auto',
+                                    fontSize: '0.65rem',
                                     fontWeight: 700,
+                                    color: '#0ea5e9',
                                     textTransform: 'none',
-                                    textAlign: 'left',
+                                    '&:hover': {
+                                      textDecoration: 'underline',
+                                      bgcolor: 'transparent',
+                                    },
                                   }}
                                 >
-                                  Sugestão: Vincular a {vendaSugerida.cliente} [{obterNomeEmpresa(vendaSugerida.empresaId)} · PAC {vendaSugerida.pac || 'S/N'} · {formatarData(vendaSugerida.dataVenda)} · {formatarMoeda(vendaSugerida.valorVenda)}]
+                                  Ajustar p/ {itemPdf.dataVendaBr}
                                 </Button>
                               )}
-                            </Box>
-                          )}
-                        </TableCell>
+                          </TableCell>
 
-                        {/* Data da Venda */}
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              fontSize: '0.75rem',
-                              fontWeight: temDivDataVenda ? 700 : 500,
-                              color: temDivDataVenda ? '#f59e0b' : 'text.primary',
-                            }}
-                          >
-                            {itemPdf.dataVendaBr}
-                          </Typography>
-                          {ic.dataVendaSistema && (
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                color: temDivDataVenda ? '#f59e0b' : 'text.secondary',
-                                fontWeight: temDivDataVenda ? 700 : 500,
-                                fontSize: '0.65rem',
-                                display: 'block',
-                              }}
-                            >
-                              Sist: {formatarData(ic.dataVendaSistema)}
-                            </Typography>
-                          )}
-                          {temDivDataVenda &&
-                            !ic.jaRecebidaSistema &&
-                            vendaEncontrada &&
-                            itemPdf.dataVendaISO && (
-                              <Button
-                                size="small"
-                                variant="text"
-                                onClick={() =>
-                                  handleCorrigirDataVendaIndividual(
-                                    vendaEncontrada,
-                                    itemPdf.dataVendaISO,
-                                    ic.jaRecebidaSistema
-                                  )
-                                }
-                                sx={{
-                                  p: 0,
-                                  mt: 0.2,
-                                  minWidth: 'auto',
-                                  fontSize: '0.65rem',
-                                  fontWeight: 700,
-                                  color: '#0ea5e9',
-                                  textTransform: 'none',
-                                  '&:hover': {
-                                    textDecoration: 'underline',
-                                    bgcolor: 'transparent',
-                                  },
-                                }}
-                              >
-                                Corrigir p/ {itemPdf.dataVendaBr}
-                              </Button>
-                            )}
-                        </TableCell>
-
-                        {/* Parcela */}
-                        <TableCell sx={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                          <Chip
-                            size="small"
-                            label={
-                              vendaEncontrada
-                                ? `${itemPdf.parcela}/${vendaEncontrada.qtdParcelas}`
-                                : `${itemPdf.parcela}ª`
-                            }
-                            sx={{
-                              height: 20,
-                              fontWeight: 800,
-                              fontSize: '0.7rem',
-                              bgcolor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)',
-                              color: '#6366f1',
-                            }}
-                          />
-                        </TableCell>
-
-                        {/* Valor Base (Crédito) */}
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              fontSize: '0.76rem',
-                              fontWeight: 700,
-                              color: temDivValorBase ? '#f59e0b' : 'text.primary',
-                            }}
-                          >
-                            {formatarMoeda(itemPdf.valorBase)}
-                          </Typography>
-                          {ic.valorBaseSistema !== undefined && (
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                color: temDivValorBase ? '#f59e0b' : 'text.secondary',
-                                fontWeight: temDivValorBase ? 700 : 500,
-                                fontSize: '0.65rem',
-                                display: 'block',
-                              }}
-                            >
-                              Sist: {formatarMoeda(ic.valorBaseSistema)}
-                            </Typography>
-                          )}
-                        </TableCell>
-
-                        {/* Comissão PDF */}
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                          <Typography
-                            variant="body2"
-                            sx={{ fontWeight: 800, fontSize: '0.8rem', color: '#0ea5e9' }}
-                          >
-                            {formatarMoeda(itemPdf.valorComissao)}
-                          </Typography>
-                        </TableCell>
-
-                        {/* Comissão Sistema */}
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                          {ic.comissaoSistema !== undefined ? (
-                            <Box>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontWeight: 800,
-                                  fontSize: '0.8rem',
-                                  color: temDivValorComissao ? '#f59e0b' : '#10b981',
-                                }}
-                              >
-                                {formatarMoeda(ic.comissaoSistema)}
-                              </Typography>
-                              {temDivValorComissao && (
-                                <Typography
-                                  variant="caption"
-                                  sx={{ color: '#ef4444', fontWeight: 700, fontSize: '0.65rem', display: 'block' }}
-                                >
-                                  Dif: {itemPdf.valorComissao - ic.comissaoSistema > 0 ? '+' : ''}
-                                  {formatarMoeda(itemPdf.valorComissao - ic.comissaoSistema)}
-                                </Typography>
-                              )}
-                            </Box>
-                          ) : (
-                            <Typography variant="caption" sx={{ color: 'text.disabled' }}>
-                              —
-                            </Typography>
-                          )}
-                        </TableCell>
-
-                        {/* Status & Divergências */}
-                        <TableCell sx={{ minWidth: 260 }}>
-                          {divergencias.length === 0 ? (
+                          {/* Parcela */}
+                          <TableCell sx={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                             <Chip
                               size="small"
-                              icon={<CheckCircleIcon sx={{ fontSize: '14px !important' }} />}
-                              label="Conciliado sem divergências"
+                              label={
+                                vendaEncontrada
+                                  ? `${itemPdf.parcela}/${vendaEncontrada.qtdParcelas}`
+                                  : `${itemPdf.parcela}ª`
+                              }
                               sx={{
-                                bgcolor: 'rgba(16, 185, 129, 0.12)',
-                                color: '#10b981',
-                                fontWeight: 700,
+                                height: 20,
+                                fontWeight: 800,
                                 fontSize: '0.7rem',
+                                bgcolor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)',
+                                color: '#6366f1',
                               }}
                             />
-                          ) : (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, py: 0.3 }}>
-                              {divergencias.map((div, idx) => {
-                                const isJaRec = div.tipo === 'PARCELA_JA_RECEBIDA';
-                                const cor = isJaRec
-                                  ? '#10b981'
-                                  : div.severidade === 'error'
-                                  ? '#ef4444'
-                                  : div.severidade === 'warning'
-                                  ? '#f59e0b'
-                                  : '#0ea5e9';
-                                const bg = isJaRec
-                                  ? 'rgba(16,185,129,0.14)'
-                                  : div.severidade === 'error'
-                                  ? 'rgba(239,68,68,0.12)'
-                                  : div.severidade === 'warning'
-                                  ? 'rgba(245,158,11,0.12)'
-                                  : 'rgba(14,165,233,0.12)';
-                                const Icone = isJaRec
-                                  ? LockIcon
-                                  : div.severidade === 'error'
-                                  ? CancelIcon
-                                  : div.severidade === 'warning'
-                                  ? WarningAmberIcon
-                                  : InfoOutlinedIcon;
+                          </TableCell>
 
-                                return (
-                                  <Tooltip key={idx} title={div.descricao} arrow placement="left">
-                                    <Box
-                                      sx={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: 0.6,
-                                        px: 1,
-                                        py: 0.3,
-                                        borderRadius: 1.5,
-                                        bgcolor: bg,
-                                        color: cor,
-                                        border: `1px solid ${cor}33`,
-                                        width: 'fit-content',
-                                      }}
-                                    >
-                                      <Icone sx={{ fontSize: 13, flexShrink: 0 }} />
-                                      <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, lineHeight: 1.2 }}>
-                                        {div.titulo}
-                                      </Typography>
-                                      {div.tipo === 'DATA_VENDA_DIVERGENTE' &&
-                                        !ic.jaRecebidaSistema &&
-                                        vendaEncontrada &&
-                                        itemPdf.dataVendaISO && (
-                                          <Button
-                                            size="small"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleCorrigirDataVendaIndividual(
-                                                vendaEncontrada,
-                                                itemPdf.dataVendaISO,
-                                                ic.jaRecebidaSistema
-                                              );
-                                            }}
-                                            sx={{
-                                              ml: 0.5,
-                                              px: 0.7,
-                                              py: 0.1,
-                                              minWidth: 'auto',
-                                              height: 18,
-                                              fontSize: '0.62rem',
-                                              fontWeight: 800,
-                                              textTransform: 'none',
-                                              borderRadius: 1,
-                                              bgcolor: '#0ea5e9',
-                                              color: '#fff',
-                                              '&:hover': { bgcolor: '#0284c7' },
-                                            }}
-                                          >
-                                            Corrigir
-                                          </Button>
+                          {/* Valor Base (Crédito) */}
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontSize: '0.76rem',
+                                fontWeight: 700,
+                                color: temDivValorBase ? '#f59e0b' : 'text.primary',
+                              }}
+                            >
+                              {formatarMoeda(itemPdf.valorBase)}
+                            </Typography>
+                            {ic.valorBaseSistema !== undefined && (
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: temDivValorBase
+                                    ? '#f59e0b'
+                                    : ic.baseAjustadaPendente
+                                    ? '#10b981'
+                                    : 'text.secondary',
+                                  fontWeight:
+                                    temDivValorBase || ic.baseAjustadaPendente ? 700 : 500,
+                                  fontSize: '0.65rem',
+                                  display: 'block',
+                                }}
+                              >
+                                Sist: {formatarMoeda(ic.valorBaseSistema)}
+                                {ic.baseAjustadaPendente ? ' (Ajustado)' : ''}
+                              </Typography>
+                            )}
+                          </TableCell>
+
+                          {/* Comissão PDF */}
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                            <Typography
+                              variant="body2"
+                              sx={{ fontWeight: 800, fontSize: '0.8rem', color: '#0ea5e9' }}
+                            >
+                              {formatarMoeda(itemPdf.valorComissao)}
+                            </Typography>
+                          </TableCell>
+
+                          {/* Comissão Sistema */}
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                            {ic.comissaoSistema !== undefined ? (
+                              <Box>
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    fontWeight: 800,
+                                    fontSize: '0.8rem',
+                                    color: temDivValorComissao ? '#f59e0b' : '#10b981',
+                                  }}
+                                >
+                                  {formatarMoeda(ic.comissaoSistema)}
+                                </Typography>
+                                {ic.comissaoAjustadaPendente && (
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      color: '#10b981',
+                                      fontWeight: 700,
+                                      fontSize: '0.63rem',
+                                      display: 'block',
+                                    }}
+                                  >
+                                    ✓ Ajustado p/ PDF
+                                  </Typography>
+                                )}
+                                {temDivValorComissao && (
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      color: '#ef4444',
+                                      fontWeight: 700,
+                                      fontSize: '0.65rem',
+                                      display: 'block',
+                                    }}
+                                  >
+                                    Dif:{' '}
+                                    {itemPdf.valorComissao - ic.comissaoSistema > 0 ? '+' : ''}
+                                    {formatarMoeda(itemPdf.valorComissao - ic.comissaoSistema)}
+                                  </Typography>
+                                )}
+                              </Box>
+                            ) : (
+                              <Typography variant="caption" sx={{ color: 'text.disabled' }}>
+                                —
+                              </Typography>
+                            )}
+                          </TableCell>
+
+                          {/* Status & Ajustes de Divergências */}
+                          <TableCell sx={{ minWidth: 270 }}>
+                            {divergencias.length === 0 ? (
+                              <Chip
+                                size="small"
+                                icon={<CheckCircleIcon sx={{ fontSize: '14px !important' }} />}
+                                label={
+                                  ic.dataAjustadaPendente ||
+                                  ic.comissaoAjustadaPendente ||
+                                  ic.baseAjustadaPendente
+                                    ? 'Divergência ajustada (Pronto p/ receber)'
+                                    : 'Conciliado sem divergências'
+                                }
+                                sx={{
+                                  bgcolor: 'rgba(16, 185, 129, 0.12)',
+                                  color: '#10b981',
+                                  fontWeight: 700,
+                                  fontSize: '0.7rem',
+                                }}
+                              />
+                            ) : (
+                              <Box
+                                sx={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 0.5,
+                                  py: 0.3,
+                                }}
+                              >
+                                {divergencias.map((div, idx) => {
+                                  const isJaRec = div.tipo === 'PARCELA_JA_RECEBIDA';
+                                  const cor = isJaRec
+                                    ? '#10b981'
+                                    : div.severidade === 'error'
+                                    ? '#ef4444'
+                                    : div.severidade === 'warning'
+                                    ? '#f59e0b'
+                                    : '#0ea5e9';
+                                  const bg = isJaRec
+                                    ? 'rgba(16,185,129,0.14)'
+                                    : div.severidade === 'error'
+                                    ? 'rgba(239,68,68,0.12)'
+                                    : div.severidade === 'warning'
+                                    ? 'rgba(245,158,11,0.12)'
+                                    : 'rgba(14,165,233,0.12)';
+                                  const Icone = isJaRec
+                                    ? LockIcon
+                                    : div.severidade === 'error'
+                                    ? CancelIcon
+                                    : div.severidade === 'warning'
+                                    ? WarningAmberIcon
+                                    : InfoOutlinedIcon;
+
+                                  return (
+                                    <Tooltip key={idx} title={div.descricao} arrow placement="left">
+                                      <Box
+                                        sx={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          flexWrap: 'wrap',
+                                          gap: 0.5,
+                                          px: 1,
+                                          py: 0.35,
+                                          borderRadius: 1.5,
+                                          bgcolor: bg,
+                                          color: cor,
+                                          border: `1px solid ${cor}33`,
+                                          width: 'fit-content',
+                                        }}
+                                      >
+                                        <Icone sx={{ fontSize: 13, flexShrink: 0 }} />
+                                        <Typography
+                                          sx={{
+                                            fontSize: '0.68rem',
+                                            fontWeight: 700,
+                                            lineHeight: 1.2,
+                                          }}
+                                        >
+                                          {div.titulo}
+                                        </Typography>
+
+                                        {/* Botões de ajuste em rascunho para zerar cada divergência */}
+                                        {!ic.jaRecebidaSistema && !resumo.isRelatorioProcessado && (
+                                          <>
+                                            {div.tipo === 'DATA_VENDA_DIVERGENTE' &&
+                                              itemPdf.dataVendaISO && (
+                                                <Box sx={{ display: 'flex', gap: 0.4, ml: 0.4 }}>
+                                                  <Button
+                                                    size="small"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleAjustarDataRascunho(
+                                                        itemPdf.id,
+                                                        itemPdf.dataVendaISO,
+                                                        ic.jaRecebidaSistema
+                                                      );
+                                                    }}
+                                                    sx={{
+                                                      px: 0.7,
+                                                      py: 0.1,
+                                                      minWidth: 'auto',
+                                                      height: 18,
+                                                      fontSize: '0.62rem',
+                                                      fontWeight: 800,
+                                                      textTransform: 'none',
+                                                      borderRadius: 1,
+                                                      bgcolor: '#0ea5e9',
+                                                      color: '#fff',
+                                                      '&:hover': { bgcolor: '#0284c7' },
+                                                    }}
+                                                  >
+                                                    Ajustar p/ PDF
+                                                  </Button>
+                                                  <Button
+                                                    size="small"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleAceitarDivergenciaMantendoSistema(
+                                                        `${itemPdf.id}_DATA`,
+                                                        ic.jaRecebidaSistema
+                                                      );
+                                                    }}
+                                                    sx={{
+                                                      px: 0.6,
+                                                      py: 0.1,
+                                                      minWidth: 'auto',
+                                                      height: 18,
+                                                      fontSize: '0.6rem',
+                                                      fontWeight: 700,
+                                                      textTransform: 'none',
+                                                      borderRadius: 1,
+                                                      border: '1px solid currentColor',
+                                                      color: 'inherit',
+                                                    }}
+                                                  >
+                                                    Manter Sist.
+                                                  </Button>
+                                                </Box>
+                                              )}
+
+                                            {div.tipo === 'VALOR_COMISSAO_DIVERGENTE' && (
+                                              <Box sx={{ display: 'flex', gap: 0.4, ml: 0.4 }}>
+                                                <Button
+                                                  size="small"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleAjustarComissaoRascunho(
+                                                      itemPdf.id,
+                                                      itemPdf.valorComissao,
+                                                      ic.jaRecebidaSistema
+                                                    );
+                                                  }}
+                                                  sx={{
+                                                    px: 0.7,
+                                                    py: 0.1,
+                                                    minWidth: 'auto',
+                                                    height: 18,
+                                                    fontSize: '0.62rem',
+                                                    fontWeight: 800,
+                                                    textTransform: 'none',
+                                                    borderRadius: 1,
+                                                    bgcolor: '#f59e0b',
+                                                    color: '#fff',
+                                                    '&:hover': { bgcolor: '#d97706' },
+                                                  }}
+                                                >
+                                                  Ajustar p/ PDF
+                                                </Button>
+                                                <Button
+                                                  size="small"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleAceitarDivergenciaMantendoSistema(
+                                                      `${itemPdf.id}_COMISSAO`,
+                                                      ic.jaRecebidaSistema
+                                                    );
+                                                  }}
+                                                  sx={{
+                                                    px: 0.6,
+                                                    py: 0.1,
+                                                    minWidth: 'auto',
+                                                    height: 18,
+                                                    fontSize: '0.6rem',
+                                                    fontWeight: 700,
+                                                    textTransform: 'none',
+                                                    borderRadius: 1,
+                                                    border: '1px solid currentColor',
+                                                    color: 'inherit',
+                                                  }}
+                                                >
+                                                  Manter Sist.
+                                                </Button>
+                                              </Box>
+                                            )}
+
+                                            {div.tipo === 'VALOR_BASE_DIVERGENTE' && (
+                                              <Box sx={{ display: 'flex', gap: 0.4, ml: 0.4 }}>
+                                                <Button
+                                                  size="small"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleAjustarValorBaseRascunho(
+                                                      itemPdf.id,
+                                                      itemPdf.valorBase,
+                                                      ic.jaRecebidaSistema
+                                                    );
+                                                  }}
+                                                  sx={{
+                                                    px: 0.7,
+                                                    py: 0.1,
+                                                    minWidth: 'auto',
+                                                    height: 18,
+                                                    fontSize: '0.62rem',
+                                                    fontWeight: 800,
+                                                    textTransform: 'none',
+                                                    borderRadius: 1,
+                                                    bgcolor: '#f59e0b',
+                                                    color: '#fff',
+                                                    '&:hover': { bgcolor: '#d97706' },
+                                                  }}
+                                                >
+                                                  Ajustar Base
+                                                </Button>
+                                                <Button
+                                                  size="small"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleAceitarDivergenciaMantendoSistema(
+                                                      `${itemPdf.id}_BASE`,
+                                                      ic.jaRecebidaSistema
+                                                    );
+                                                  }}
+                                                  sx={{
+                                                    px: 0.6,
+                                                    py: 0.1,
+                                                    minWidth: 'auto',
+                                                    height: 18,
+                                                    fontSize: '0.6rem',
+                                                    fontWeight: 700,
+                                                    textTransform: 'none',
+                                                    borderRadius: 1,
+                                                    border: '1px solid currentColor',
+                                                    color: 'inherit',
+                                                  }}
+                                                >
+                                                  Manter Sist.
+                                                </Button>
+                                              </Box>
+                                            )}
+                                          </>
                                         )}
-                                    </Box>
-                                  </Tooltip>
-                                );
-                              })}
-                            </Box>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </>
-        )}
+                                      </Box>
+                                    </Tooltip>
+                                  );
+                                })}
+                              </Box>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
+          )}
+
+          {/* Área para colar texto manualmente se solicitado */}
+          <Collapse in={mostrarColarTexto}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                borderRadius: 2,
+                border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1.5,
+              }}
+            >
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                Colar conteúdo textual do Relatório de Comissão
+              </Typography>
+              <TextField
+                multiline
+                minRows={4}
+                maxRows={8}
+                fullWidth
+                placeholder="Cole aqui o texto copiado do PDF..."
+                value={textoManualInput}
+                onChange={(e) => setTextoManualInput(e.target.value)}
+                sx={{ '& .MuiInputBase-input': { fontSize: '0.78rem', fontFamily: 'monospace' } }}
+              />
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                <Button size="small" onClick={() => setMostrarColarTexto(false)}>
+                  Fechar
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  onClick={handleProcessarTextoManual}
+                  disabled={!textoManualInput.trim()}
+                >
+                  Processar Texto
+                </Button>
+              </Box>
+            </Paper>
+          </Collapse>
+
+          {erroLeitura && (
+            <Alert severity="error" onClose={() => setErroLeitura('')} sx={{ borderRadius: 2 }}>
+              {erroLeitura}
+            </Alert>
+          )}
+
+          {mensagemSucessoLocal && (
+            <Alert
+              severity="success"
+              onClose={() => setMensagemSucessoLocal('')}
+              sx={{ borderRadius: 2, fontWeight: 600 }}
+            >
+              {mensagemSucessoLocal}
+            </Alert>
+          )}
+        </Box>
       </DialogContent>
 
-      {/* Rodapé com Ações */}
+      {/* Rodapé com Ações — Botão "Receber Parcelas" ativo somente com 0 divergências */}
       <DialogActions
         sx={{
           px: 3,
@@ -2548,18 +3140,25 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         <Box>
           {dadosPdf && (
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-              {resumo.qtdJaRecebido > 0 && (
-                <span style={{ color: '#10b981', fontWeight: 700, marginRight: 10 }}>
-                  🔒 {resumo.qtdJaRecebido} já recebido(s) e bloqueado(s) ·
+              {resumo.isRelatorioProcessado ? (
+                <span style={{ color: '#10b981', fontWeight: 800 }}>
+                  🔒 Relatório Processado ({resumo.qtdJaRecebido}/{resumo.totalItens} recebidos e bloqueados)
+                </span>
+              ) : resumo.totalPendencias > 0 ? (
+                <span style={{ color: '#f59e0b', fontWeight: 700 }}>
+                  ⚠️ Existem {resumo.totalPendencias} divergência(s) pendente(s). Ajuste todas (0 divergências) para ativar o botão "Receber Parcelas".
+                </span>
+              ) : (
+                <span>
+                  ✅ <strong>0 divergências!</strong> {resumo.qtdSelecionados} parcela(s) pronta(s) para recebimento · Total:{' '}
+                  <strong style={{ color: '#10b981' }}>{formatarMoeda(resumo.valorSelecionado)}</strong>
                 </span>
               )}
-              {resumo.qtdSelecionados} de {resumo.totalItens} parcela(s) selecionada(s) para baixa · Total Selecionado:{' '}
-              <strong style={{ color: '#10b981' }}>{formatarMoeda(resumo.valorSelecionado)}</strong>
             </Typography>
           )}
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
           <Button
             onClick={onClose}
             disabled={salvando}
@@ -2569,33 +3168,65 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
             Fechar
           </Button>
           {dadosPdf && (
-            <Button
-              onClick={handleConfirmarBaixaEmLote}
-              disabled={
-                salvando ||
-                resumo.qtdSelecionados === 0 ||
-                !numeroRelatorioInput.trim() ||
-                !dataRelatorioInput
+            <Tooltip
+              title={
+                resumo.totalPendencias > 0
+                  ? `Resolva as ${resumo.totalPendencias} divergência(s) antes de receber as parcelas`
+                  : ''
               }
-              variant="contained"
-              startIcon={salvando ? <CircularProgress size={16} color="inherit" /> : <CheckCircleIcon />}
-              sx={{
-                borderRadius: 2,
-                fontWeight: 700,
-                px: 3,
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                },
-              }}
             >
-              {salvando
-                ? 'Processando Baixas...'
-                : resumo.qtdSelecionados === 0 && resumo.qtdJaRecebido === resumo.totalItens
-                ? 'Todos os Registros Já Recebidos (Bloqueados)'
-                : `Marcar ${resumo.qtdSelecionados} Parcela(s) como Recebida`}
-            </Button>
+              <span>
+                <Button
+                  onClick={handleConfirmarBaixaEmLote}
+                  disabled={
+                    salvando ||
+                    resumo.isRelatorioProcessado ||
+                    resumo.totalPendencias > 0 ||
+                    resumo.qtdSelecionados === 0 ||
+                    !numeroRelatorioInput.trim() ||
+                    !dataRelatorioInput
+                  }
+                  variant="contained"
+                  startIcon={
+                    salvando ? (
+                      <CircularProgress size={16} color="inherit" />
+                    ) : resumo.isRelatorioProcessado ? (
+                      <LockIcon />
+                    ) : (
+                      <CheckCircleIcon />
+                    )
+                  }
+                  sx={{
+                    borderRadius: 2,
+                    fontWeight: 800,
+                    px: 3,
+                    textTransform: 'none',
+                    background:
+                      resumo.totalPendencias === 0 && !resumo.isRelatorioProcessado
+                        ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                        : undefined,
+                    boxShadow:
+                      resumo.totalPendencias === 0 && !resumo.isRelatorioProcessado
+                        ? '0 4px 12px rgba(16, 185, 129, 0.3)'
+                        : 'none',
+                    '&:hover': {
+                      background:
+                        resumo.totalPendencias === 0 && !resumo.isRelatorioProcessado
+                          ? 'linear-gradient(135deg, #059669 0%, #047857 100%)'
+                          : undefined,
+                    },
+                  }}
+                >
+                  {salvando
+                    ? 'Processando Recebimento...'
+                    : resumo.isRelatorioProcessado
+                    ? 'Relatório Já Processado'
+                    : resumo.totalPendencias > 0
+                    ? `Receber Parcelas (${resumo.totalPendencias} Divergência(s) Pendente(s))`
+                    : `Receber Parcelas (${resumo.qtdSelecionados})`}
+                </Button>
+              </span>
+            </Tooltip>
           )}
         </Box>
       </DialogActions>

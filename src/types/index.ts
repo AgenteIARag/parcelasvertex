@@ -211,6 +211,13 @@ export interface Usuario {
   created_at?: string;
 }
 
+export interface AjustesPendentesRelatorioPDF {
+  datasAjustadas?: Record<string, string>; // itemPdf.id -> novaDataVendaISO
+  comissoesAjustadas?: Record<string, number>; // itemPdf.id -> novoValorComissao
+  valoresBaseAjustados?: Record<string, number>; // itemPdf.id -> novoValorBase
+  divergenciasAceitas?: Record<string, boolean>; // itemPdf.id -> true
+}
+
 export interface RelatorioComissaoSalvo {
   id: string;
   nomeArquivo: string;
@@ -227,6 +234,9 @@ export interface RelatorioComissaoSalvo {
   qtdItens: number;
   dadosPdf: any;
   vinculosManuais?: Record<string, string>;
+  ajustesPendentes?: AjustesPendentesRelatorioPDF;
+  processado?: boolean;
+  dataProcessamento?: string;
   createdAt: string;
   updatedAt: string;
 }
