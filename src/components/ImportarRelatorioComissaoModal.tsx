@@ -40,7 +40,7 @@ import ContentPasteIcon from '@mui/icons-material/ContentPaste';
 import LinkIcon from '@mui/icons-material/Link';
 import DownloadIcon from '@mui/icons-material/Download';
 import LockIcon from '@mui/icons-material/Lock';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteIcon from '@mui/icons-material/Delete';
 import FolderSpecialIcon from '@mui/icons-material/FolderSpecial';
 import BusinessIcon from '@mui/icons-material/Business';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
@@ -1730,7 +1730,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
                               '&:hover': { color: '#ef4444', bgcolor: 'rgba(239,68,68,0.08)' },
                             }}
                           >
-                            <DeleteOutlineIcon sx={{ fontSize: 15 }} />
+                            <DeleteIcon sx={{ fontSize: 15 }} />
                           </IconButton>
                         </Tooltip>
                       </Box>
