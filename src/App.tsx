@@ -258,7 +258,7 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'dashboard_vendedores' | 'vendas' | 'clientes' | 'comissoes' | 'relatorio' | 'relatorio_comissoes' | 'configuracoes' | 'retencao_ltv'>('dashboard');
+  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'dashboard_vendedores' | 'vendas' | 'clientes' | 'comissoes' | 'relatorio' | 'relatorio_comissoes' | 'configuracoes' | 'retencao_ltv' | 'conciliacao_pdf'>('dashboard');
   const [subAbaAtiva, setSubAbaAtiva] = useState<'regras' | 'regras_filha' | 'vendedores' | 'acessos' | 'empresas' | 'administradoras'>('regras');
 
   // Multi-tenant: empresas
@@ -1375,9 +1375,9 @@ function App() {
             {usuarioLogado?.role !== 'vendedor' && (
               <Tooltip title="Importar Relatório de Comissão (PDF)" placement="right" disableHoverListener={!sidebarContraida}>
                 <Button
-                  variant="contained"
+                  variant={abaAtiva === 'conciliacao_pdf' ? 'contained' : 'text'}
                   startIcon={!sidebarContraida ? <UploadFileIcon /> : undefined}
-                  onClick={() => setModalImportarPdfGlobal(true)}
+                  onClick={() => setAbaAtiva('conciliacao_pdf')}
                   fullWidth
                   sx={{
                     justifyContent: sidebarContraida ? 'center' : 'flex-start',
@@ -1389,12 +1389,12 @@ function App() {
                     fontWeight: 700,
                     fontFamily: 'Outfit, sans-serif',
                     fontSize: '0.9rem',
-                    color: '#ffffff',
-                    background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
-                    boxShadow: '0 4px 12px rgba(14, 165, 233, 0.25)',
+                    color: abaAtiva === 'conciliacao_pdf' ? '#ffffff' : 'text.secondary',
+                    background: abaAtiva === 'conciliacao_pdf' ? 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)' : 'transparent',
+                    boxShadow: abaAtiva === 'conciliacao_pdf' ? '0 4px 12px rgba(14, 165, 233, 0.25)' : 'none',
                     '&:hover': {
-                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                      color: '#ffffff'
+                      background: abaAtiva === 'conciliacao_pdf' ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'rgba(14, 165, 233, 0.08)',
+                      color: abaAtiva === 'conciliacao_pdf' ? '#ffffff' : '#0ea5e9'
                     }
                   }}
                 >
@@ -1573,11 +1573,12 @@ function App() {
               {abaAtiva === 'relatorio' && 'Relatório de Previsão de Recebimentos'}
               {abaAtiva === 'relatorio_comissoes' && 'Relatório de Comissões'}
               {abaAtiva === 'retencao_ltv' && 'Retenção de Clientes e LTV'}
+              {abaAtiva === 'conciliacao_pdf' && 'Importação e Conciliação de Relatórios PDF'}
               {abaAtiva === 'configuracoes' && 'Configurações Administrativas'}
             </Typography>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              {abaAtiva !== 'configuracoes' && (
+              {abaAtiva !== 'configuracoes' && abaAtiva !== 'conciliacao_pdf' && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, mr: 1 }}>
                   <TextField
                     label="De"
@@ -1634,7 +1635,7 @@ function App() {
                       variant="contained"
                       size="small"
                       startIcon={<UploadFileIcon />}
-                      onClick={() => setModalImportarPdfGlobal(true)}
+                      onClick={() => setAbaAtiva('conciliacao_pdf')}
                       sx={{
                         borderRadius: 2,
                         textTransform: 'none',
@@ -2002,6 +2003,18 @@ function App() {
                 vendedores={vendedoresFiltrados}
                 dataInicio={dataInicio}
                 dataFim={dataFim}
+              />
+            )}
+
+            {abaAtiva === 'conciliacao_pdf' && (
+              <ImportarRelatorioComissaoModal
+                open={true}
+                embedded={true}
+                onClose={() => setAbaAtiva('dashboard')}
+                vendas={vendas}
+                empresas={empresas}
+                onAtualizarVenda={handleAtualizarVenda}
+                onSucesso={(msg) => setSnackbar({ open: true, message: msg, severity: 'success' })}
               />
             )}
 

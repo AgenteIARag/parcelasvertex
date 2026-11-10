@@ -145,6 +145,7 @@ interface ImportarRelatorioComissaoModalProps {
   empresas?: Empresa[];
   onAtualizarVenda: (venda: LancamentoVenda) => void;
   onSucesso?: (mensagem: string) => void;
+  embedded?: boolean;
 }
 
 export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoModalProps> = ({
@@ -154,6 +155,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
   empresas = [],
   onAtualizarVenda,
   onSucesso,
+  embedded = false,
 }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -1438,24 +1440,8 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     doc.save(`conciliacao_relatorio_${numeroRelatorioInput || 'comissao'}.pdf`);
   };
 
-  return (
-    <Dialog
-      open={open}
-      onClose={salvando ? undefined : onClose}
-      maxWidth="xl"
-      fullWidth
-      slotProps={{
-        paper: {
-          sx: {
-            borderRadius: 3,
-            bgcolor: isDark ? '#0f172a' : '#ffffff',
-            backgroundImage: 'none',
-            height: '90vh',
-            maxHeight: '92vh',
-          },
-        },
-      }}
-    >
+  const conteudoModal = (
+    <>
       {/* Input oculto para Upload de PDF */}
       <input
         ref={fileInputRef}
@@ -1469,8 +1455,8 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         }}
       />
 
-      {/* Header do Modal */}
-      <DialogTitle
+      {/* Header */}
+      <Box
         sx={{
           display: 'flex',
           alignItems: 'center',
@@ -1479,6 +1465,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
           py: 1.8,
           borderBottom: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
           bgcolor: isDark ? '#111827' : '#f8fafc',
+          flexShrink: 0,
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -1534,7 +1521,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
           </Box>
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
           <Button
             size="small"
             variant="contained"
@@ -1549,20 +1536,44 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
           >
             Carregar PDF
           </Button>
-          <IconButton onClick={onClose} disabled={salvando} size="small">
-            <CloseIcon />
-          </IconButton>
+          {embedded ? (
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={onClose}
+              disabled={salvando}
+              sx={{
+                borderRadius: 2,
+                fontWeight: 600,
+                textTransform: 'none',
+                borderColor: isDark ? '#334155' : '#cbd5e1',
+                color: 'text.secondary',
+                '&:hover': {
+                  borderColor: '#0ea5e9',
+                  color: '#0ea5e9',
+                  bgcolor: 'rgba(14, 165, 233, 0.08)',
+                },
+              }}
+            >
+              Voltar ao Dashboard
+            </Button>
+          ) : (
+            <IconButton onClick={onClose} disabled={salvando} size="small">
+              <CloseIcon />
+            </IconButton>
+          )}
         </Box>
-      </DialogTitle>
+      </Box>
 
       {/* Corpo com Barra Lateral Esquerda + Painel Principal Direito */}
-      <DialogContent
+      <Box
         sx={{
           p: 0,
           display: 'flex',
           flexDirection: { xs: 'column', md: 'row' },
           overflow: 'hidden',
           flex: 1,
+          minHeight: 0,
         }}
       >
         {/* BARRA LATERAL ESQUERDA: Lista de todos os PDFs Carregados */}
@@ -3123,18 +3134,21 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
             </Alert>
           )}
         </Box>
-      </DialogContent>
+      </Box>
 
       {/* Rodapé com Ações — Botão "Receber Parcelas" ativo somente com 0 divergências */}
-      <DialogActions
+      <Box
         sx={{
           px: 3,
           py: 2,
           borderTop: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
           bgcolor: isDark ? '#111827' : '#f8fafc',
+          display: 'flex',
           justifyContent: 'space-between',
+          alignItems: 'center',
           flexWrap: 'wrap',
           gap: 1.5,
+          flexShrink: 0,
         }}
       >
         <Box>
@@ -3163,9 +3177,9 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
             onClick={onClose}
             disabled={salvando}
             variant="outlined"
-            sx={{ borderRadius: 2, fontWeight: 600 }}
+            sx={{ borderRadius: 2, fontWeight: 600, textTransform: 'none' }}
           >
-            Fechar
+            {embedded ? 'Voltar ao Dashboard' : 'Fechar'}
           </Button>
           {dadosPdf && (
             <Tooltip
@@ -3229,7 +3243,52 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
             </Tooltip>
           )}
         </Box>
-      </DialogActions>
+      </Box>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <Paper
+        elevation={0}
+        sx={{
+          width: '100%',
+          height: { xs: 'auto', md: 'calc(100vh - 170px)' },
+          minHeight: 700,
+          display: 'flex',
+          flexDirection: 'column',
+          borderRadius: 3,
+          border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
+          bgcolor: isDark ? '#0f172a' : '#ffffff',
+          overflow: 'hidden',
+          boxShadow: isDark
+            ? '0 10px 30px -5px rgba(0, 0, 0, 0.5)'
+            : '0 10px 30px -5px rgba(0, 0, 0, 0.05)',
+        }}
+      >
+        {conteudoModal}
+      </Paper>
+    );
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onClose={salvando ? undefined : onClose}
+      fullScreen
+      slotProps={{
+        paper: {
+          sx: {
+            bgcolor: isDark ? '#0f172a' : '#ffffff',
+            backgroundImage: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          },
+        },
+      }}
+    >
+      {conteudoModal}
     </Dialog>
   );
 };
