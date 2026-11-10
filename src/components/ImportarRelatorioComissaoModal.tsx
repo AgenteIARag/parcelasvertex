@@ -763,7 +763,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     const existente = relatoriosSalvos.find(
       (r) =>
         (numDoc !== 'S/N' && r.numeroDocumento === numDoc) ||
-        (r.nomeArquivo === origemNome && Math.abs(r.totalLiquido - dados.totalLiquido) < 0.05)
+        (r.nomeArquivo === origemNome && Math.abs(r.totalLiquido - (dados.totalLiquido ?? 0)) < 0.05)
     );
 
     const vinculosIniciais = existente?.vinculosManuais || {};
