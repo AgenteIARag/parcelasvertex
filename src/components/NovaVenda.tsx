@@ -11,6 +11,7 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import PercentIcon from '@mui/icons-material/Percent';
 
 import { gerarProjecaoVazia, getStatusInicial, calcularTotaisLinha } from '../data/initialData';
+import { normalizarDataISO, validarDataISO } from '../utils/formatters';
 
 import type { LancamentoVenda, Vendedor, RegraMaster, TipoTabela, SegmentoType, ProjecaoMensalType, Administradora, Cliente, StatusPosVenda } from '../types';
 
@@ -238,9 +239,16 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
     }
     if (!dataVendaInput) {
       tempErrors.dataVendaInput = 'A data da venda é obrigatória.';
+    } else if (!validarDataISO(dataVendaInput)) {
+      tempErrors.dataVendaInput = 'Data inválida (use ano com 4 dígitos entre 2000 e 2099).';
     }
     if (!dataVencimentoClienteInput) {
       tempErrors.dataVencimentoClienteInput = 'Vencimento do cliente é obrigatório.';
+    } else if (!validarDataISO(dataVencimentoClienteInput)) {
+      tempErrors.dataVencimentoClienteInput = 'Data inválida (use ano com 4 dígitos entre 2000 e 2099).';
+    }
+    if (dataAssembleiaInput && !validarDataISO(dataAssembleiaInput)) {
+      tempErrors.dataAssembleiaInput = 'Data inválida (use ano com 4 dígitos entre 2000 e 2099).';
     }
 
     setErrors(tempErrors);
@@ -506,8 +514,8 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
               label="Data da Venda"
               type="date"
               value={dataVendaInput}
-              onChange={(e) => setDataVendaInput(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
+              onChange={(e) => setDataVendaInput(normalizarDataISO(e.target.value))}
+              slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }}
               error={!!errors.dataVendaInput}
               helperText={errors.dataVendaInput}
             />
@@ -518,8 +526,8 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
               label="Vencimento do Cliente"
               type="date"
               value={dataVencimentoClienteInput}
-              onChange={(e) => setDataVencimentoClienteInput(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
+              onChange={(e) => setDataVencimentoClienteInput(normalizarDataISO(e.target.value))}
+              slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }}
               error={!!errors.dataVencimentoClienteInput}
               helperText={errors.dataVencimentoClienteInput || 'Data da 2ª parcela'}
             />
@@ -530,8 +538,8 @@ export const NovaVendaDialog: React.FC<NovaVendaDialogProps> = ({
               label="Data da 1ª Assembleia"
               type="date"
               value={dataAssembleiaInput}
-              onChange={(e) => setDataAssembleiaInput(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
+              onChange={(e) => setDataAssembleiaInput(normalizarDataISO(e.target.value))}
+              slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }}
               error={!!errors.dataAssembleiaInput}
               helperText={errors.dataAssembleiaInput}
             />

@@ -43,7 +43,87 @@ import PaymentsIcon from '@mui/icons-material/Payments';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 
 import type { Cliente, LancamentoVenda, Empresa, StatusPosVenda } from '../types';
-import { formatarMoeda } from '../utils/formatters';
+import { formatarMoeda, formatarChaveMesExibicao } from '../utils/formatters';
+
+export type StatusCicloComissao = 'Em andamento' | 'Finalizada' | 'Cancelada' | 'Estornada';
+
+export interface InfoComissaoContrato {
+  statusComissao: StatusCicloComissao;
+  parcelasPagas: number;
+  totalParcelas: number;
+  mesInicio: string;
+  mesFim: string;
+}
+
+export const obterStatusComissaoContrato = (venda: LancamentoVenda): InfoComissaoContrato => {
+  const proj = venda.projecaoMensal || {};
+  const mesesVigentes = Object.keys(proj)
+    .filter(m => /^\d{4}-\d{2}$/.test(m) && (proj[m]?.valorVenda || 0) > 0)
+    .sort();
+
+  let parcelasPagas = 0;
+  let temEstornada = false;
+  let temCancelada = venda.statusCliente?.toLowerCase() === 'cancelado';
+
+  mesesVigentes.forEach(m => {
+    const st = proj[m]?.status as string;
+    if (st === 'Paga') parcelasPagas++;
+    if (st === 'Estornada') temEstornada = true;
+    if (st === 'Cancelada') temCancelada = true;
+  });
+
+  const totalParcelas = mesesVigentes.length || venda.qtdParcelas || 0;
+  const mesInicio = mesesVigentes[0] || venda.mesInicio || '';
+  const mesFim = mesesVigentes[mesesVigentes.length - 1] || '';
+
+  let statusComissao: StatusCicloComissao = 'Em andamento';
+  if (temEstornada) {
+    statusComissao = 'Estornada';
+  } else if (temCancelada) {
+    statusComissao = 'Cancelada';
+  } else if (totalParcelas > 0 && parcelasPagas >= totalParcelas) {
+    statusComissao = 'Finalizada';
+  }
+
+  return {
+    statusComissao,
+    parcelasPagas,
+    totalParcelas,
+    mesInicio,
+    mesFim,
+  };
+};
+
+const CONFIG_STATUS_COMISSAO: Record<StatusCicloComissao, { color: string; bgDark: string; bgLight: string; borderDark: string; borderLight: string }> = {
+  'Em andamento': {
+    color: '#3b82f6',
+    bgDark: 'rgba(59, 130, 246, 0.14)',
+    bgLight: '#eff6ff',
+    borderDark: 'rgba(59, 130, 246, 0.35)',
+    borderLight: '#bfdbfe',
+  },
+  'Finalizada': {
+    color: '#10b981',
+    bgDark: 'rgba(16, 185, 129, 0.14)',
+    bgLight: '#ecfdf5',
+    borderDark: 'rgba(16, 185, 129, 0.35)',
+    borderLight: '#a7f3d0',
+  },
+  'Cancelada': {
+    color: '#ef4444',
+    bgDark: 'rgba(239, 68, 68, 0.14)',
+    bgLight: '#fef2f2',
+    borderDark: 'rgba(239, 68, 68, 0.35)',
+    borderLight: '#fecaca',
+  },
+  'Estornada': {
+    color: '#f59e0b',
+    bgDark: 'rgba(245, 158, 11, 0.14)',
+    bgLight: '#fffbeb',
+    borderDark: 'rgba(245, 158, 11, 0.35)',
+    borderLight: '#fde68a',
+  },
+};
 
 interface ClientesCadastroProps {
   clientes: Cliente[];
@@ -82,6 +162,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [termoBusca, setTermoBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<string>('Todos');
+  const [filtroStatusComissao, setFiltroStatusComissao] = useState<string>('Todos');
   const [filtroAdministradora, setFiltroAdministradora] = useState<string>('Todas');
   const [filtroVendedor, setFiltroVendedor] = useState<string>('Todos');
   const [filtroPosVenda, setFiltroPosVenda] = useState<string>('Todos');
@@ -204,9 +285,15 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
         if (!temPosVenda) return false;
       }
 
+      // Status da Comissão
+      if (filtroStatusComissao !== 'Todos') {
+        const temStatusComissao = contratos.some(v => obterStatusComissaoContrato(v).statusComissao === filtroStatusComissao);
+        if (!temStatusComissao) return false;
+      }
+
       return true;
     });
-  }, [clientes, vendas, termoBusca, filtroStatus, filtroAdministradora, filtroVendedor, filtroPosVenda]);
+  }, [clientes, vendas, termoBusca, filtroStatus, filtroStatusComissao, filtroAdministradora, filtroVendedor, filtroPosVenda]);
 
   // Métricas consolidadas para os cards totalizadores (respondem aos filtros)
   const metricas = useMemo(() => {
@@ -214,7 +301,10 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
     let clientesInativos = 0;
     let totalContratos = 0;
     let contratosAtivos = 0;
+    let contratosEmAndamento = 0;
+    let contratosFinalizados = 0;
     let contratosCancelados = 0;
+    let contratosEstornados = 0;
     let vgvTotal = 0;
     let vgvAtivo = 0;
     let lucroComissaoTotal = 0;
@@ -226,7 +316,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
         (!v.clienteId && v.cliente && v.cliente.toLowerCase().trim() === c.nome.toLowerCase().trim())
       );
 
-      // Se há filtro por administradora ou vendedor, aplicamos nas cotas
+      // Se há filtro por administradora, vendedor, pós-venda ou status da comissão, aplicamos nas cotas
       if (filtroAdministradora !== 'Todas') {
         contratos = contratos.filter(v => v.administradoraNome === filtroAdministradora);
       }
@@ -236,6 +326,9 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
       if (filtroPosVenda !== 'Todos') {
         contratos = contratos.filter(v => (v.statusPosVenda || 'Em Dias') === filtroPosVenda);
       }
+      if (filtroStatusComissao !== 'Todos') {
+        contratos = contratos.filter(v => obterStatusComissaoContrato(v).statusComissao === filtroStatusComissao);
+      }
 
       let temContratoAtivo = false;
 
@@ -244,24 +337,28 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
         const valorVenda = Number(v.valorVenda) || 0;
         vgvTotal += valorVenda;
 
-        let mesCancelamento: string | null = null;
         Object.keys(v.projecaoMensal || {}).sort().forEach(mes => {
           const celula = v.projecaoMensal[mes];
-          if (celula.status === 'Paga') {
+          if (celula?.status === 'Paga') {
             lucroComissaoTotal += (celula.comissaoGerada || 0);
-          }
-          if (['Cancelada', 'Estornada'].includes(celula.status as string) && !mesCancelamento) {
-            mesCancelamento = mes;
           }
         });
 
-        const isCancelado = v.statusCliente?.toLowerCase() === 'cancelado' || mesCancelamento !== null;
-        if (isCancelado) {
+        const { statusComissao } = obterStatusComissaoContrato(v);
+        if (statusComissao === 'Estornada') {
+          contratosEstornados++;
+          contratosCancelados++;
+        } else if (statusComissao === 'Cancelada') {
           contratosCancelados++;
         } else {
           contratosAtivos++;
           vgvAtivo += valorVenda;
           temContratoAtivo = true;
+          if (statusComissao === 'Finalizada') {
+            contratosFinalizados++;
+          } else {
+            contratosEmAndamento++;
+          }
         }
       });
 
@@ -278,12 +375,15 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
       clientesInativos,
       totalContratos,
       contratosAtivos,
+      contratosEmAndamento,
+      contratosFinalizados,
       contratosCancelados,
+      contratosEstornados,
       vgvAtivo,
       vgvTotal,
       lucroComissaoTotal
     };
-  }, [clientesFiltrados, vendas, filtroAdministradora, filtroVendedor, filtroPosVenda]);
+  }, [clientesFiltrados, vendas, filtroAdministradora, filtroVendedor, filtroPosVenda, filtroStatusComissao]);
 
   return (
     <Box sx={{ p: 1 }}>
@@ -311,7 +411,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
       </Box>
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid size={{ xs: 12, md: 3 }}>
+        <Grid size={{ xs: 12, md: 2.5 }}>
           <TextField
             fullWidth
             placeholder="Buscar por nome, CPF/CNPJ ou telefone..."
@@ -329,11 +429,11 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
             }}
           />
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 1.7 }}>
           <TextField
             select
             fullWidth
-            label="Status"
+            label="Status Cliente"
             value={filtroStatus}
             onChange={(e) => setFiltroStatus(e.target.value)}
             slotProps={{ input: { sx: { borderRadius: 3 } } }}
@@ -343,7 +443,35 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
             ))}
           </TextField>
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 2.5 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 2.1 }}>
+          <TextField
+            select
+            fullWidth
+            label="Status da Comissão"
+            value={filtroStatusComissao}
+            onChange={(e) => setFiltroStatusComissao(e.target.value)}
+            slotProps={{ input: { sx: { borderRadius: 3 } } }}
+          >
+            <MenuItem value="Todos">Todos</MenuItem>
+            <MenuItem value="Em andamento" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#3b82f6' }} />
+              Em andamento
+            </MenuItem>
+            <MenuItem value="Finalizada" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#10b981' }} />
+              Finalizada
+            </MenuItem>
+            <MenuItem value="Cancelada" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#ef4444' }} />
+              Cancelada
+            </MenuItem>
+            <MenuItem value="Estornada" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#f59e0b' }} />
+              Estornada
+            </MenuItem>
+          </TextField>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 1.9 }}>
           <TextField
             select
             fullWidth
@@ -371,7 +499,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
             </MenuItem>
           </TextField>
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 2.25 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 1.9 }}>
           <TextField
             select
             fullWidth
@@ -385,7 +513,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
             ))}
           </TextField>
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 2.25 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 1.9 }}>
           <TextField
             select
             fullWidth
@@ -466,10 +594,12 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
               <Typography variant="h6" sx={{ fontWeight: 800, color: 'text.primary', lineHeight: 1.2 }}>
                 {metricas.totalContratos} {metricas.totalContratos === 1 ? 'cota' : 'cotas'}
               </Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5, fontSize: '0.73rem' }}>
-                <Box component="span" sx={{ color: 'info.main', fontWeight: 600 }}>{metricas.contratosAtivos} ativas</Box>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5, fontSize: '0.72rem' }}>
+                <Box component="span" sx={{ color: '#3b82f6', fontWeight: 600 }}>{metricas.contratosEmAndamento} em andam.</Box>
                 {' • '}
-                <Box component="span" sx={{ color: 'error.main' }}>{metricas.contratosCancelados} canceladas</Box>
+                <Box component="span" sx={{ color: '#10b981', fontWeight: 600 }}>{metricas.contratosFinalizados} finaliz.</Box>
+                {' • '}
+                <Box component="span" sx={{ color: 'error.main', fontWeight: 600 }}>{metricas.contratosCancelados} canc.</Box>
               </Typography>
             </CardContent>
           </Card>
@@ -560,6 +690,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
               <TableCell sx={{ fontWeight: 600 }}>Nome do Cliente</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Contato</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Status da Comissão</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Vendedor</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="center">Total de Contratos</TableCell>
               <TableCell sx={{ fontWeight: 600 }} align="right">Lucro Total (LTV)</TableCell>
@@ -569,7 +700,7 @@ export const ClientesCadastro: React.FC<ClientesCadastroProps> = ({
           <TableBody>
             {clientesFiltrados.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                <TableCell colSpan={9} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                   Nenhum cliente encontrado.
                 </TableCell>
               </TableRow>
@@ -677,36 +808,44 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
     let lucro = 0;
     let vgvAtivo = 0;
     let ativos = 0;
+    let emAndamento = 0;
+    let finalizadas = 0;
     let cancelados = 0;
+    let estornadas = 0;
+    const infosComissao: InfoComissaoContrato[] = [];
 
     contratos.forEach((v: LancamentoVenda) => {
       let lucroDesteContrato = 0;
-      let mesCancelamento: string | null = null;
-      
       const mesesProjecao = Object.keys(v.projecaoMensal || {}).sort();
       mesesProjecao.forEach(mes => {
         const celula = v.projecaoMensal[mes];
-        if (celula.status === 'Paga') {
+        if (celula?.status === 'Paga') {
           lucroDesteContrato += (celula.comissaoGerada || 0);
-        }
-        if (['Cancelada', 'Estornada'].includes(celula.status as string) && !mesCancelamento) {
-          mesCancelamento = mes;
         }
       });
 
-      const isCancelado = v.statusCliente?.toLowerCase() === 'cancelado' || mesCancelamento !== null;
-      
-      if (isCancelado) {
+      const info = obterStatusComissaoContrato(v);
+      infosComissao.push(info);
+
+      if (info.statusComissao === 'Estornada') {
+        estornadas++;
+        cancelados++;
+      } else if (info.statusComissao === 'Cancelada') {
         cancelados++;
       } else {
         ativos++;
         vgvAtivo += Number(v.valorVenda) || 0;
+        if (info.statusComissao === 'Finalizada') {
+          finalizadas++;
+        } else {
+          emAndamento++;
+        }
       }
       
       lucro += lucroDesteContrato;
     });
 
-    return { lucro, vgvAtivo, ativos, cancelados, totalContratos: contratos.length };
+    return { lucro, vgvAtivo, ativos, emAndamento, finalizadas, cancelados, estornadas, totalContratos: contratos.length, infosComissao };
   }, [contratos]);
 
   const vendedoresDoCliente = useMemo(() => {
@@ -789,6 +928,93 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
           </Box>
         </TableCell>
         <TableCell sx={{ py: 0.75 }}>
+          {totais.totalContratos === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>-</Typography>
+          ) : totais.totalContratos === 1 ? (() => {
+            const info = totais.infosComissao[0];
+            const est = CONFIG_STATUS_COMISSAO[info.statusComissao];
+            const isDark = theme.palette.mode === 'dark';
+            const periodoLabel = info.mesInicio && info.mesFim
+              ? `${formatarChaveMesExibicao(info.mesInicio)} → ${formatarChaveMesExibicao(info.mesFim)}`
+              : '';
+            return (
+              <Tooltip title={periodoLabel ? `Período: ${periodoLabel} (${info.parcelasPagas}/${info.totalParcelas} pagas)` : `${info.parcelasPagas}/${info.totalParcelas} parcelas pagas`} arrow placement="top">
+                <Chip
+                  label={`${info.statusComissao} (${info.parcelasPagas}/${info.totalParcelas})`}
+                  size="small"
+                  sx={{
+                    height: 21,
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    color: est.color,
+                    bgcolor: isDark ? est.bgDark : est.bgLight,
+                    border: `1px solid ${isDark ? est.borderDark : est.borderLight}`,
+                  }}
+                />
+              </Tooltip>
+            );
+          })() : (
+            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+              {totais.emAndamento > 0 && (
+                <Chip
+                  label={`${totais.emAndamento} Em andamento`}
+                  size="small"
+                  sx={{
+                    height: 20,
+                    fontSize: '0.66rem',
+                    fontWeight: 700,
+                    color: CONFIG_STATUS_COMISSAO['Em andamento'].color,
+                    bgcolor: theme.palette.mode === 'dark' ? CONFIG_STATUS_COMISSAO['Em andamento'].bgDark : CONFIG_STATUS_COMISSAO['Em andamento'].bgLight,
+                    border: `1px solid ${theme.palette.mode === 'dark' ? CONFIG_STATUS_COMISSAO['Em andamento'].borderDark : CONFIG_STATUS_COMISSAO['Em andamento'].borderLight}`,
+                  }}
+                />
+              )}
+              {totais.finalizadas > 0 && (
+                <Chip
+                  label={`${totais.finalizadas} Finalizada${totais.finalizadas > 1 ? 's' : ''}`}
+                  size="small"
+                  sx={{
+                    height: 20,
+                    fontSize: '0.66rem',
+                    fontWeight: 700,
+                    color: CONFIG_STATUS_COMISSAO['Finalizada'].color,
+                    bgcolor: theme.palette.mode === 'dark' ? CONFIG_STATUS_COMISSAO['Finalizada'].bgDark : CONFIG_STATUS_COMISSAO['Finalizada'].bgLight,
+                    border: `1px solid ${theme.palette.mode === 'dark' ? CONFIG_STATUS_COMISSAO['Finalizada'].borderDark : CONFIG_STATUS_COMISSAO['Finalizada'].borderLight}`,
+                  }}
+                />
+              )}
+              {(totais.cancelados - totais.estornadas) > 0 && (
+                <Chip
+                  label={`${totais.cancelados - totais.estornadas} Cancelada${(totais.cancelados - totais.estornadas) > 1 ? 's' : ''}`}
+                  size="small"
+                  sx={{
+                    height: 20,
+                    fontSize: '0.66rem',
+                    fontWeight: 700,
+                    color: CONFIG_STATUS_COMISSAO['Cancelada'].color,
+                    bgcolor: theme.palette.mode === 'dark' ? CONFIG_STATUS_COMISSAO['Cancelada'].bgDark : CONFIG_STATUS_COMISSAO['Cancelada'].bgLight,
+                    border: `1px solid ${theme.palette.mode === 'dark' ? CONFIG_STATUS_COMISSAO['Cancelada'].borderDark : CONFIG_STATUS_COMISSAO['Cancelada'].borderLight}`,
+                  }}
+                />
+              )}
+              {totais.estornadas > 0 && (
+                <Chip
+                  label={`${totais.estornadas} Estornada${totais.estornadas > 1 ? 's' : ''}`}
+                  size="small"
+                  sx={{
+                    height: 20,
+                    fontSize: '0.66rem',
+                    fontWeight: 700,
+                    color: CONFIG_STATUS_COMISSAO['Estornada'].color,
+                    bgcolor: theme.palette.mode === 'dark' ? CONFIG_STATUS_COMISSAO['Estornada'].bgDark : CONFIG_STATUS_COMISSAO['Estornada'].bgLight,
+                    border: `1px solid ${theme.palette.mode === 'dark' ? CONFIG_STATUS_COMISSAO['Estornada'].borderDark : CONFIG_STATUS_COMISSAO['Estornada'].borderLight}`,
+                  }}
+                />
+              )}
+            </Box>
+          )}
+        </TableCell>
+        <TableCell sx={{ py: 0.75 }}>
           {vendedoresDoCliente.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
               -
@@ -844,7 +1070,7 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
         </TableCell>
       </TableRow>
       <TableRow>
-        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={8}>
+        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={9}>
           <Collapse in={open} timeout="auto" unmountOnExit>
             <Box sx={{ margin: 1.5, p: 2.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.5)' : '#f8fafc', borderRadius: 3, border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#e2e8f0'}` }}>
               
@@ -852,13 +1078,19 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2.5, alignItems: 'center' }}>
                 <Box sx={{ p: 1, px: 1.8, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : '#ffffff', border: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e2e8f0'}` }}>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <CheckCircleIcon sx={{ fontSize: 15, color: 'success.main' }} /> Ativos
+                    <CheckCircleIcon sx={{ fontSize: 15, color: '#3b82f6' }} /> Em Andamento
                   </Typography>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{totais.ativos} cotas</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{totais.emAndamento} cotas</Typography>
                 </Box>
                 <Box sx={{ p: 1, px: 1.8, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : '#ffffff', border: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e2e8f0'}` }}>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <CancelIcon sx={{ fontSize: 15, color: 'error.main' }} /> Cancelados
+                    <CheckCircleIcon sx={{ fontSize: 15, color: 'success.main' }} /> Finalizadas
+                  </Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{totais.finalizadas} cotas</Typography>
+                </Box>
+                <Box sx={{ p: 1, px: 1.8, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : '#ffffff', border: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e2e8f0'}` }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <CancelIcon sx={{ fontSize: 15, color: 'error.main' }} /> Cancelados / Estorn.
                   </Typography>
                   <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{totais.cancelados} cotas</Typography>
                 </Box>
@@ -898,28 +1130,31 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
                     <TableCell>Data da Venda</TableCell>
                     <TableCell align="right">Valor (Crédito)</TableCell>
                     <TableCell align="right">Lucro da Comissão</TableCell>
-                    <TableCell align="center">Status</TableCell>
+                    <TableCell align="center">Status Cliente</TableCell>
+                    <TableCell align="center">Status da Comissão</TableCell>
                     <TableCell align="center">Status Pós-Venda</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {contratos.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} align="center" sx={{ py: 2, color: 'text.secondary' }}>Nenhum contrato lançado</TableCell>
+                      <TableCell colSpan={9} align="center" sx={{ py: 2, color: 'text.secondary' }}>Nenhum contrato lançado</TableCell>
                     </TableRow>
                   ) : contratos.map((venda: LancamentoVenda) => {
-                    let mesCancelamento: string | null = null;
                     let lucroDesteContrato = 0;
                     Object.keys(venda.projecaoMensal || {}).sort().forEach(mes => {
                       const celula = venda.projecaoMensal[mes];
-                      if (celula.status === 'Paga') {
+                      if (celula?.status === 'Paga') {
                         lucroDesteContrato += (celula.comissaoGerada || 0);
                       }
-                      if (['Cancelada', 'Estornada'].includes(celula.status as string) && !mesCancelamento) {
-                        mesCancelamento = mes;
-                      }
                     });
-                    const isCancelado = venda.statusCliente?.toLowerCase() === 'cancelado' || mesCancelamento !== null;
+                    const infoComissao = obterStatusComissaoContrato(venda);
+                    const isCancelado = infoComissao.statusComissao === 'Cancelada' || infoComissao.statusComissao === 'Estornada';
+                    const estiloComissao = CONFIG_STATUS_COMISSAO[infoComissao.statusComissao];
+                    const isDark = theme.palette.mode === 'dark';
+                    const periodoStr = infoComissao.mesInicio && infoComissao.mesFim
+                      ? `${formatarChaveMesExibicao(infoComissao.mesInicio)} → ${formatarChaveMesExibicao(infoComissao.mesFim)}`
+                      : '';
                     const statusPosVenda: StatusPosVenda = venda.statusPosVenda || 'Em Dias';
 
                     const configEstilo = {
@@ -969,6 +1204,30 @@ const RowCliente = ({ cliente, vendas, empresas, onEdit, onDelete, theme, isSupe
                             variant="outlined"
                             sx={{ height: 18, fontSize: '0.65rem' }}
                           />
+                        </TableCell>
+                        <TableCell align="center">
+                          <Tooltip
+                            title={
+                              periodoStr
+                                ? `Ciclo: ${periodoStr} (${infoComissao.parcelasPagas} de ${infoComissao.totalParcelas} parcelas pagas)`
+                                : `${infoComissao.parcelasPagas} de ${infoComissao.totalParcelas} parcelas pagas`
+                            }
+                            arrow
+                            placement="top"
+                          >
+                            <Chip
+                              label={`${infoComissao.statusComissao} (${infoComissao.parcelasPagas}/${infoComissao.totalParcelas})`}
+                              size="small"
+                              sx={{
+                                height: 20,
+                                fontSize: '0.66rem',
+                                fontWeight: 700,
+                                color: estiloComissao.color,
+                                bgcolor: isDark ? estiloComissao.bgDark : estiloComissao.bgLight,
+                                border: `1px solid ${isDark ? estiloComissao.borderDark : estiloComissao.borderLight}`,
+                              }}
+                            />
+                          </Tooltip>
                         </TableCell>
                         <TableCell align="center">
                           <Select

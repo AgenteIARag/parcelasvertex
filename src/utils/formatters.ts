@@ -96,3 +96,35 @@ export const obterStatusEfetivo = (status: StatusParcela, dataVencimento: string
   return status;
 };
 
+/**
+ * Máscara/normalizador para inputs de data ISO (YYYY-MM-DD).
+ * Impede anos com mais de 4 dígitos (ex: "20226-08-07" -> "2026-08-07").
+ */
+export const normalizarDataISO = (valor: string): string => {
+  if (!valor) return '';
+  const partes = valor.split('-');
+  if (partes.length !== 3) return valor;
+  let [ano, mes, dia] = partes;
+  if (ano.length > 4) {
+    // Caso específico de digitação duplicada como "20226" -> "2026", senão mantém os 4 primeiros dígitos
+    if (ano.length === 5 && ano.startsWith('2022')) {
+      ano = '202' + ano.slice(4);
+    } else {
+      ano = ano.slice(0, 4);
+    }
+  }
+  return `${ano}-${mes.slice(0, 2)}-${dia.slice(0, 2)}`;
+};
+
+/**
+ * Valida se uma data está estritamente no formato YYYY-MM-DD com ano válido (2000 a 2099).
+ */
+export const validarDataISO = (valor: string): boolean => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
+  const ano = Number(valor.substring(0, 4));
+  if (ano < 2000 || ano > 2099) return false;
+  const dt = new Date(`${valor}T00:00:00`);
+  return !isNaN(dt.getTime());
+};
+
+

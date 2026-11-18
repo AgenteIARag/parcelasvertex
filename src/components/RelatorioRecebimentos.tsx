@@ -54,7 +54,7 @@ import type { LancamentoVenda, Vendedor, RegraMaster, UserPermissions, StatusPar
 import { EditarVendaDialog } from './SimuladorVendas';
 import { NovaVendaDialog } from './NovaVenda';
 import { ImportarRelatorioComissaoModal } from './ImportarRelatorioComissaoModal';
-import { obterStatusEfetivo } from '../utils/formatters';
+import { obterStatusEfetivo, normalizarDataISO } from '../utils/formatters';
 import { salvarVendaSupabase } from '../utils/supabase';
 
 
@@ -2704,8 +2704,8 @@ export const RelatorioRecebimentos = ({
             type="date"
             size="small"
             value={filtroDataPagamentoInicio}
-            onChange={(e) => setFiltroDataPagamentoInicio(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
+            onChange={(e) => setFiltroDataPagamentoInicio(normalizarDataISO(e.target.value))}
+            slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }}
             sx={{ '& .MuiInputBase-input': { py: 0.5, px: 1, fontSize: '0.75rem' } }}
           />
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>até</Typography>
@@ -2713,8 +2713,8 @@ export const RelatorioRecebimentos = ({
             type="date"
             size="small"
             value={filtroDataPagamentoFim}
-            onChange={(e) => setFiltroDataPagamentoFim(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
+            onChange={(e) => setFiltroDataPagamentoFim(normalizarDataISO(e.target.value))}
+            slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }}
             sx={{ '& .MuiInputBase-input': { py: 0.5, px: 1, fontSize: '0.75rem' } }}
           />
         </Box>
@@ -3076,8 +3076,8 @@ export const RelatorioRecebimentos = ({
                 size="small"
                 required
                 value={modalPaga.dataPagamento}
-                onChange={(e) => setModalPaga((p) => ({ ...p, dataPagamento: e.target.value }))}
-                slotProps={{ inputLabel: { shrink: true } }}
+                onChange={(e) => setModalPaga((p) => ({ ...p, dataPagamento: normalizarDataISO(e.target.value) }))}
+                slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }}
                 helperText="Data em que o cliente efetuou o pagamento da parcela"
               />
             </Stack>
@@ -3150,8 +3150,8 @@ export const RelatorioRecebimentos = ({
                 size="small"
                 required
                 value={modalRecebida.dataRelatorio}
-                onChange={(e) => setModalRecebida((p) => ({ ...p, dataRelatorio: e.target.value }))}
-                slotProps={{ inputLabel: { shrink: true } }}
+                onChange={(e) => setModalRecebida((p) => ({ ...p, dataRelatorio: normalizarDataISO(e.target.value) }))}
+                slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }}
                 helperText="Data do relatório da administradora (obrigatório)"
               />
               <TextField
@@ -3246,9 +3246,9 @@ export const RelatorioRecebimentos = ({
                 type="date"
                 fullWidth
                 size="small"
-                slotProps={{ inputLabel: { shrink: true } }}
+                slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }}
                 value={modalEstornar.dataCancelamento}
-                onChange={(e) => setModalEstornar({ ...modalEstornar, dataCancelamento: e.target.value })}
+                onChange={(e) => setModalEstornar({ ...modalEstornar, dataCancelamento: normalizarDataISO(e.target.value) })}
               />
             </Stack>
           )}
@@ -3295,9 +3295,9 @@ export const RelatorioRecebimentos = ({
                 type="date"
                 fullWidth
                 size="small"
-                slotProps={{ inputLabel: { shrink: true } }}
+                slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }}
                 value={modalCancelar.dataCancelamento}
-                onChange={(e) => setModalCancelar((prev) => ({ ...prev, dataCancelamento: e.target.value }))}
+                onChange={(e) => setModalCancelar((prev) => ({ ...prev, dataCancelamento: normalizarDataISO(e.target.value) }))}
                 sx={{
                   mt: 2,
                   '& .MuiInputBase-root': { borderRadius: 2 },

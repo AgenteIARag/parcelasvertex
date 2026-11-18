@@ -59,7 +59,7 @@ import {
   type StatusPosVenda
 } from '../types';
 import { gerarProjecaoVazia, calcularTotaisLinha, getStatusInicial } from '../data/initialData';
-import { formatarMoeda, formatarChaveMesExibicao, obterStatusEfetivo } from '../utils/formatters';
+import { formatarMoeda, formatarChaveMesExibicao, obterStatusEfetivo, normalizarDataISO, validarDataISO } from '../utils/formatters';
 import { NovaVendaDialog } from './NovaVenda';
 
 // Funções utilitárias de máscara financeira e cálculos de vencimento
@@ -2962,7 +2962,7 @@ const EditarParcelaDialog: React.FC<EditarParcelaDialogProps> = ({ open, onClose
       <DialogContent>
         <Grid container spacing={2} sx={{ mt: 0.5 }}>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField disabled fullWidth label="Data de Vencimento" type="date" value={dataVencimento} onChange={(e) => setDataVencimento(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+            <TextField disabled fullWidth label="Data de Vencimento" type="date" value={dataVencimento} onChange={(e) => setDataVencimento(normalizarDataISO(e.target.value))} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }} />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField disabled
@@ -2970,8 +2970,8 @@ const EditarParcelaDialog: React.FC<EditarParcelaDialogProps> = ({ open, onClose
               label="Data de Recebimento"
               type="date"
               value={dataRecebimento}
-              onChange={(e) => setDataRecebimento(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
+              onChange={(e) => setDataRecebimento(normalizarDataISO(e.target.value))}
+              slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }}
               helperText="Pode ser diferente do vencimento"
               sx={{ '& .MuiOutlinedInput-root': { borderColor: '#10b981' } }}
             />
@@ -3120,13 +3120,13 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
       setPercentuaisParcelasInput(venda.percentuaisParcelas);
       setValorVendaExibicao(formatarMoedaInput(venda.valorVenda));
       setValorParcelaExibicao(formatarMoedaInput(venda.valorParcela));
-      setDataVendaInput(venda.dataVenda || '');
-      setDataVencimentoClienteInput(venda.dataVencimentoCliente || '');
-      setDataAssembleiaInput(venda.dataAssembleia || '');
+      setDataVendaInput(normalizarDataISO(venda.dataVenda || ''));
+      setDataVencimentoClienteInput(normalizarDataISO(venda.dataVencimentoCliente || ''));
+      setDataAssembleiaInput(normalizarDataISO(venda.dataAssembleia || ''));
       setContemplado(venda.contemplado || false);
-      setDataContemplacao(venda.dataContemplacao || '');
+      setDataContemplacao(normalizarDataISO(venda.dataContemplacao || ''));
       setNumeroRelatorio(venda.numeroRelatorio || '');
-      setDataRelatorio(venda.dataRelatorio || '');
+      setDataRelatorio(normalizarDataISO(venda.dataRelatorio || ''));
       setStatusPosVenda(venda.statusPosVenda || 'Em Dias');
       setErrors({});
 
@@ -3224,9 +3224,16 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
     }
     if (!dataVendaInput) {
       tempErrors.dataVendaInput = 'A data da venda é obrigatória.';
+    } else if (!validarDataISO(dataVendaInput)) {
+      tempErrors.dataVendaInput = 'Data inválida (use ano com 4 dígitos entre 2000 e 2099).';
     }
     if (!dataVencimentoClienteInput) {
       tempErrors.dataVencimentoClienteInput = 'Vencimento do cliente é obrigatório.';
+    } else if (!validarDataISO(dataVencimentoClienteInput)) {
+      tempErrors.dataVencimentoClienteInput = 'Data inválida (use ano com 4 dígitos entre 2000 e 2099).';
+    }
+    if (dataAssembleiaInput && !validarDataISO(dataAssembleiaInput)) {
+      tempErrors.dataAssembleiaInput = 'Data inválida (use ano com 4 dígitos entre 2000 e 2099).';
     }
 
     setErrors(tempErrors);
@@ -3258,6 +3265,7 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
 
     if (venda?.projecaoMensal) {
       Object.entries(venda.projecaoMensal).forEach(([mes, cel]) => {
+        if (!/^\d{4}-\d{2}$/.test(mes)) return;
         if (!cel || (cel.valorVenda || 0) <= 0) return;
         const eraPrimeiraSemBaixa =
           mes === mesPrimeiraAnterior &&
@@ -3527,8 +3535,8 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
               label="Data da Venda"
               type="date"
               value={dataVendaInput}
-              onChange={(e) => setDataVendaInput(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
+              onChange={(e) => setDataVendaInput(normalizarDataISO(e.target.value))}
+              slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }}
               error={!!errors.dataVendaInput}
               helperText={errors.dataVendaInput}
             />
@@ -3539,8 +3547,8 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
               label="Vencimento do Cliente"
               type="date"
               value={dataVencimentoClienteInput}
-              onChange={(e) => setDataVencimentoClienteInput(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
+              onChange={(e) => setDataVencimentoClienteInput(normalizarDataISO(e.target.value))}
+              slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }}
               error={!!errors.dataVencimentoClienteInput}
               helperText={errors.dataVencimentoClienteInput || 'Data da 2ª parcela'}
             />
@@ -3551,8 +3559,8 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
               label="Data da 1ª Assembleia"
               type="date"
               value={dataAssembleiaInput}
-              onChange={(e) => setDataAssembleiaInput(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
+              onChange={(e) => setDataAssembleiaInput(normalizarDataISO(e.target.value))}
+              slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }}
               error={!!errors.dataAssembleiaInput}
               helperText={errors.dataAssembleiaInput}
             />
@@ -3704,8 +3712,8 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
               <TextField fullWidth label="Data da Contemplação"
                 type="date"
                 value={dataContemplacao}
-                onChange={(e) => setDataContemplacao(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
+                onChange={(e) => setDataContemplacao(normalizarDataISO(e.target.value))}
+                slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }}
                 helperText="Lança a comissão de contemplação no mês escolhido"
                 sx={{ '& .MuiOutlinedInput-root': { borderColor: '#f59e0b' } }}
               />
@@ -3740,8 +3748,8 @@ export const EditarVendaDialog: React.FC<EditarVendaDialogProps> = ({
               label="Data do Relatório ADM"
               type="date"
               value={dataRelatorio}
-              onChange={(e) => setDataRelatorio(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
+              onChange={(e) => setDataRelatorio(normalizarDataISO(e.target.value))}
+              slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: '2000-01-01', max: '2099-12-31' } }}
               helperText="Data de emissão do relatório"
             />
           </Grid>
